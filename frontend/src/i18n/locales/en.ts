@@ -17,6 +17,10 @@ const en = {
     submit: 'Create account',
     hasAccount: 'Already have an account?',
     signInLink: 'Sign in',
+    emailTaken: 'This email address is already registered.',
+    errorGeneric: 'Something went wrong. Please try again.',
+    checkEmailTitle: 'Check your email',
+    checkEmailBody: 'We sent a verification link to your email address. Please click it to activate your account.',
   },
   common: {
     or: 'or',

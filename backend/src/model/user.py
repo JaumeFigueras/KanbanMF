@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from src.model import Base
+from src.model.base import Base
 
 
 class User(Base):
@@ -86,6 +86,11 @@ class User(Base):
     )
     sessions: Mapped[List["UserSession"]] = relationship(
         "UserSession",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    preferences: Mapped[List["UserPreferences"]] = relationship(
+        "UserPreferences",
         back_populates="user",
         cascade="all, delete-orphan"
     )

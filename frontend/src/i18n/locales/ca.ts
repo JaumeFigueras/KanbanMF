@@ -17,6 +17,10 @@ const ca = {
     submit: 'Crea el compte',
     hasAccount: 'Ja tens compte?',
     signInLink: 'Inicia sessió',
+    emailTaken: 'Aquesta adreça de correu ja està registrada.',
+    errorGeneric: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
+    checkEmailTitle: 'Comprova el teu correu',
+    checkEmailBody: "Hem enviat un enllaç de verificació a la teva adreça de correu. Fes-hi clic per activar el teu compte.",
   },
   common: {
     or: 'o',

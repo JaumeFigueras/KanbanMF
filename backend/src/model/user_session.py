@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from src.model import Base
+from src.model.base import Base
 
 # Refresh token lifetime: 30 days
 REFRESH_TOKEN_EXPIRE_DAYS = 30

@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from src.model import Base
+from src.model.base import Base
 
 class AuthProvider(str, enum.Enum):
     """Supported authentication providers."""

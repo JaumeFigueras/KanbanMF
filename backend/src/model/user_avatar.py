@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from src.model import Base
+from src.model.base import Base
 
 # Maximum avatar size: 100 KB
 MAX_AVATAR_SIZE_BYTES = 100 * 1024
