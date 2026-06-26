@@ -41,4 +41,4 @@ def decode_access_token(token: str) -> str | None:
 
 def generate_refresh_token() -> str:
     """Return a cryptographically secure random token (URL-safe base64)."""
-    return secrets.token_urlsafe(64)
+    return secrets.token_urlsafe(32)
