@@ -6,6 +6,7 @@ const en = {
     submit: 'Sign in',
     noAccount: "Don't have an account?",
     signUpLink: 'Sign up',
+    errorCredentials: 'Incorrect email or password',
   },
   signUp: {
     title: 'Create your account in KanbanMF',
@@ -21,6 +22,9 @@ const en = {
     errorGeneric: 'Something went wrong. Please try again.',
     checkEmailTitle: 'Check your email',
     checkEmailBody: 'We sent a verification link to your email address. Please click it to activate your account.',
+  },
+  boards: {
+    signedIn: 'You are signed in',
   },
   common: {
     or: 'or',

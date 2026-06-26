@@ -6,6 +6,7 @@ const ca = {
     submit: 'Inicia sessió',
     noAccount: 'No tens compte?',
     signUpLink: "Registra't",
+    errorCredentials: 'Correu electrònic o contrasenya incorrectes',
   },
   signUp: {
     title: 'Crea el teu compte a KanbanMF',
@@ -21,6 +22,9 @@ const ca = {
     errorGeneric: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
     checkEmailTitle: 'Comprova el teu correu',
     checkEmailBody: "Hem enviat un enllaç de verificació a la teva adreça de correu. Fes-hi clic per activar el teu compte.",
+  },
+  boards: {
+    signedIn: 'Heu iniciat sessió',
   },
   common: {
     or: 'o',

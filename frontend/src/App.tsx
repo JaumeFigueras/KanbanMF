@@ -4,6 +4,7 @@ import { ThemeProvider, CssBaseline, IconButton, Box } from '@mui/material'
 import { LightMode, DarkMode, Translate } from '@mui/icons-material'
 import { lightTheme, darkTheme } from './theme'
 import LanguageSelector from './components/LanguageSelector'
+import Boards from './pages/Boards'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 
@@ -36,6 +37,7 @@ export default function App() {
       </Box>
       <BrowserRouter>
         <Routes>
+          <Route path="/boards" element={<Boards />} />
           <Route path="/signin" element={<SignIn />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="*" element={<Navigate to="/signin" replace />} />

@@ -10,22 +10,47 @@ import {
   Link,
   IconButton,
   InputAdornment,
+  Alert,
 } from '@mui/material'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
 
 export default function SignIn() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(data: FormData) {
-    // TODO: call auth API
-    console.log('sign in', {
-      email: data.get('email'),
-      password: data.get('password'),
-    })
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const data = new FormData(e.currentTarget)
+    setError(false)
+    setLoading(true)
+    try {
+      const res = await fetch('http://localhost:8000/api/v1/auth/local/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: data.get('email'),
+          password: data.get('password'),
+        }),
+      })
+      if (!res.ok) {
+        setError(true)
+        return
+      }
+      const { access_token } = await res.json()
+      localStorage.setItem('access_token', access_token)
+      navigate('/boards')
+    } catch {
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -45,7 +70,13 @@ export default function SignIn() {
             {t('signIn.title')}
           </Typography>
 
-          <Box component="form" action={handleSubmit} noValidate>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {t('signIn.errorCredentials')}
+            </Alert>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             <TextField
               label={t('signIn.email')}
               name="email"
@@ -84,6 +115,7 @@ export default function SignIn() {
               variant="contained"
               fullWidth
               size="large"
+              disabled={loading}
               sx={{ mt: 2 }}
             >
               {t('signIn.submit')}
