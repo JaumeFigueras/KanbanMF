@@ -55,7 +55,7 @@ class UserIdentity(Base):
 
     # Auth provider
     provider: Mapped[AuthProvider] = mapped_column(
-        SAEnum(AuthProvider),
+        SAEnum(AuthProvider, values_callable=lambda x: [e.value for e in x]),
         nullable=False
     )
 

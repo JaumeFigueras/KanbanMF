@@ -1,3 +1,4 @@
+CREATE TYPE authprovider AS ENUM ('local', 'google');
 
 CREATE TABLE user_identities (
 	id UUID NOT NULL, 
