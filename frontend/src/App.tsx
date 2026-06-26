@@ -1,47 +1,35 @@
-import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ThemeProvider, CssBaseline, IconButton, Box } from '@mui/material'
-import { LightMode, DarkMode, Translate } from '@mui/icons-material'
+import { ThemeProvider, CssBaseline } from '@mui/material'
 import { lightTheme, darkTheme } from './theme'
-import LanguageSelector from './components/LanguageSelector'
+import { useThemeToggle } from './context/ThemeToggleContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import PublicRoute from './components/PublicRoute'
 import Boards from './pages/Boards'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 
+function DefaultRedirect() {
+  const { accessToken, loading } = useAuth()
+  if (loading) return null
+  return <Navigate to={accessToken ? '/boards' : '/signin'} replace />
+}
+
 export default function App() {
-  const [dark, setDark] = useState(false)
+  const { dark } = useThemeToggle()
 
   return (
     <ThemeProvider theme={dark ? darkTheme : lightTheme}>
       <CssBaseline />
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 12,
-          right: 16,
-          zIndex: 1300,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-        }}
-      >
-        <Translate sx={{ color: 'text.secondary' }} />
-        <LanguageSelector />
-        <IconButton
-          onClick={() => setDark((v) => !v)}
-          aria-label="toggle light/dark mode"
-          color="inherit"
-        >
-          {dark ? <LightMode /> : <DarkMode />}
-        </IconButton>
-      </Box>
       <BrowserRouter>
-        <Routes>
-          <Route path="/boards" element={<Boards />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="*" element={<Navigate to="/signin" replace />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/boards" element={<ProtectedRoute><Boards /></ProtectedRoute>} />
+            <Route path="/signin" element={<PublicRoute><SignIn /></PublicRoute>} />
+            <Route path="/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
+            <Route path="*" element={<DefaultRedirect />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
   )

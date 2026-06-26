@@ -16,6 +16,7 @@ import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { Link as RouterLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
+import AuthControls from '../components/AuthControls'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -79,6 +80,7 @@ export default function SignUp() {
           px: 2,
         }}
       >
+        <AuthControls />
         <Card sx={{ width: '100%', maxWidth: 420 }} elevation={3}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h5" sx={{ fontWeight: 600, textAlign: 'center', mb: 3 }}>
@@ -107,6 +109,7 @@ export default function SignUp() {
         px: 2,
       }}
     >
+      <AuthControls />
       <Card sx={{ width: '100%', maxWidth: 420 }} elevation={3}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" sx={{ fontWeight: 600, textAlign: 'center', mb: 3 }}>

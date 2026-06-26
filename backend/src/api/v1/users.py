@@ -7,15 +7,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.model.user import User
+from src.model.user_preferences import UserPreferences
 from src.schemas.user import UserRead, UserUpdate
 
 router = APIRouter()
 
 
 @router.get("/me", response_model=UserRead)
-async def get_me(current_user: User = Depends(get_current_user)) -> User:
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserRead:
     """Return the profile of the currently authenticated user."""
-    return current_user
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    return UserRead(
+        id=current_user.id,
+        email=current_user.email,
+        display_name=current_user.display_name,
+        is_active=current_user.is_active,
+        is_verified=current_user.is_verified,
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at,
+        language_locale=prefs.language_locale if prefs else "en",
+    )
 
 
 @router.put("/me", response_model=UserRead)

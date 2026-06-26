@@ -25,6 +25,8 @@ const en = {
   },
   boards: {
     signedIn: 'You are signed in',
+    signOut: 'Sign out',
+    userProfile: 'User profile',
   },
   common: {
     or: 'or',

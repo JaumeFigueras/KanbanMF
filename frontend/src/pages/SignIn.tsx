@@ -16,10 +16,13 @@ import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
+import AuthControls from '../components/AuthControls'
+import { useAuth } from '../context/AuthContext'
 
 export default function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -44,7 +47,7 @@ export default function SignIn() {
         return
       }
       const { access_token } = await res.json()
-      localStorage.setItem('access_token', access_token)
+      login(access_token)
       navigate('/boards')
     } catch {
       setError(true)
@@ -64,6 +67,7 @@ export default function SignIn() {
         px: 2,
       }}
     >
+      <AuthControls />
       <Card sx={{ width: '100%', maxWidth: 420 }} elevation={3}>
         <CardContent sx={{ p: 4 }}>
           <Typography variant="h5" sx={{ fontWeight: 600, textAlign: 'center', mb: 3 }}>

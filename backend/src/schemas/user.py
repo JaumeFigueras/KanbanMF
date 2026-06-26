@@ -17,6 +17,7 @@ class UserRead(BaseModel):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+    language_locale: str = "en"
 
     model_config = {"from_attributes": True}
 

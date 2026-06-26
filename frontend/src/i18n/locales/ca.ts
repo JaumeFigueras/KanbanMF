@@ -25,6 +25,8 @@ const ca = {
   },
   boards: {
     signedIn: 'Heu iniciat sessió',
+    signOut: 'Tanca sessió',
+    userProfile: "Perfil d'usuari",
   },
   common: {
     or: 'o',

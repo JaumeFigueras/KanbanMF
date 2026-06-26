@@ -52,7 +52,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     1. Reject duplicate email.
     2. Create User row (is_verified=False).
     3. Create UserIdentity(local) with hashed password and a verification token.
-    4. TODO: send verification email.
+    4. Send verification email.
     5. Return an access token so the user can act immediately (unverified).
     """
     existing = await db.execute(select(User).where(User.email == body.email))
