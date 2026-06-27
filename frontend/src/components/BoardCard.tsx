@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Avatar,
   Box,
@@ -47,6 +48,7 @@ export default function BoardCard({
   onShare,
   onArchive,
 }: Props) {
+  const navigate = useNavigate()
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
 
@@ -129,7 +131,7 @@ export default function BoardCard({
       </Box>
 
       {/* Card body — clickable */}
-      <CardActionArea sx={{ flexGrow: 1 }}>
+      <CardActionArea sx={{ flexGrow: 1 }} onClick={() => navigate(`/boards/${board.id}`)}>
         <CardContent sx={{ pt: 1, pb: '12px !important', px: 1.5 }}>
           <Typography
             variant="subtitle1"

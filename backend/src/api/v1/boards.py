@@ -208,6 +208,56 @@ async def list_archived_boards(
     ]
 
 
+@router.get("/{board_id}", response_model=BoardRead)
+async def get_board(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardRead:
+    """Fetch a single board. User must be the owner or a shared member."""
+    result = await db.execute(
+        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
+    )
+    board = result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+
+    if board.owner_id != current_user.id:
+        share_result = await db.execute(
+            select(BoardShare.board_id).where(
+                BoardShare.board_id == board_id,
+                BoardShare.user_id == current_user.id,
+            )
+        )
+        if share_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    # Fetch owner info
+    owner_name = current_user.display_name
+    pref_owner_id = current_user.id
+    if board.owner_id != current_user.id:
+        owner_result = await db.execute(select(User).where(User.id == board.owner_id))
+        owner = owner_result.scalar_one_or_none()
+        owner_name = owner.display_name if owner else ""
+        pref_owner_id = board.owner_id
+
+    pref_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == pref_owner_id)
+    )
+    pref = pref_result.scalar_one_or_none()
+    owner_initials = (
+        pref.initials if (pref and pref.initials)
+        else _compute_initials(owner_name)
+    )
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == board.owner_id)
+    )
+    owner_has_avatar = avatar_result.scalar_one_or_none() is not None
+    starred = await _starred_ids(current_user.id, db)
+
+    return _to_read(board, starred, owner_name, owner_initials, owner_has_avatar)
+
+
 @router.delete("/{board_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_board(
     board_id: uuid.UUID,

@@ -80,6 +80,10 @@ const ca = {
     deleteBoardConfirmMessage: 'Segur que vols eliminar permanentment "{{name}}"? Aquesta acció no es pot desfer.',
     delete: 'Elimina',
   },
+  board: {
+    addList: 'Afegeix una llista',
+    boardMenu: 'Menú del tauler',
+  },
   common: {
     or: 'o',
     continueWithGoogle: 'Continua amb Google',

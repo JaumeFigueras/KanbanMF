@@ -80,6 +80,10 @@ const en = {
     deleteBoardConfirmMessage: 'Are you sure you want to permanently delete "{{name}}"? This cannot be undone.',
     delete: 'Delete',
   },
+  board: {
+    addList: 'Add List',
+    boardMenu: 'Board menu',
+  },
   common: {
     or: 'or',
     continueWithGoogle: 'Continue with Google',
