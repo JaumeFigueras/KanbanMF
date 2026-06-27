@@ -58,6 +58,7 @@ async def _build_user_read(user: User, db: AsyncSession) -> UserRead:
         created_at=user.created_at,
         updated_at=user.updated_at,
         language_locale=prefs.language_locale if prefs else "en",
+        number_locale=prefs.number_locale if prefs else "en",
         initials=prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name),
         auth_providers=providers,
     )

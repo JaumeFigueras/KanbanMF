@@ -18,6 +18,7 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     language_locale: str = "en"
+    number_locale: str = "en"
     initials: str | None = None
     auth_providers: list[str] = []
 

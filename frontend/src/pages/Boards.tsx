@@ -16,8 +16,8 @@ import {
 } from '@mui/material'
 import {
   AddPhotoAlternate,
-  CalendarToday,
   DriveFileRenameOutline,
+  Language,
   Lock,
   Logout,
 } from '@mui/icons-material'
@@ -27,6 +27,7 @@ import { useAuth } from '../context/AuthContext'
 import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
 import ChangePasswordDialog from '../components/ChangePasswordDialog'
 import UploadAvatarDialog from '../components/UploadAvatarDialog'
+import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -37,12 +38,15 @@ export default function Boards() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
   const [authProviders, setAuthProviders] = useState<string[]>([])
+  const [languageLocale, setLanguageLocale] = useState('en')
+  const [numberLocale, setNumberLocale] = useState('en')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
+  const [langLocOpen, setLangLocOpen] = useState(false)
 
   const fetchAvatar = useCallback(async () => {
     try {
@@ -77,6 +81,8 @@ export default function Boards() {
         setDisplayName(data.display_name)
         setInitials(data.initials ?? null)
         setAuthProviders(data.auth_providers ?? [])
+        setLanguageLocale(data.language_locale ?? 'en')
+        setNumberLocale(data.number_locale ?? 'en')
         i18n.changeLanguage(LOCALE_TO_I18N[data.language_locale] ?? 'en')
       })
       .catch(() => navigate('/signin'))
@@ -169,9 +175,9 @@ export default function Boards() {
                 {avatarUrl ? t('boards.changeRemoveAvatar') : t('boards.uploadAvatar')}
               </ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => setMenuAnchor(null)}>
-              <ListItemIcon><CalendarToday fontSize="small" /></ListItemIcon>
-              <ListItemText>{t('boards.setFirstDayOfWeek')}</ListItemText>
+            <MenuItem onClick={() => { setMenuAnchor(null); setLangLocOpen(true) }}>
+              <ListItemIcon><Language fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('boards.languageLocalization')}</ListItemText>
             </MenuItem>
             <Divider />
             <MenuItem onClick={handleSignOut}>
@@ -189,6 +195,19 @@ export default function Boards() {
         hasAvatar={avatarUrl !== null}
         currentAvatarUrl={avatarUrl}
         onSaved={fetchAvatar}
+      />
+
+      <LanguageLocalizationDialog
+        open={langLocOpen}
+        onClose={() => setLangLocOpen(false)}
+        currentLanguageLocale={languageLocale}
+        currentNumberLocale={numberLocale}
+        accessToken={accessToken ?? ''}
+        onSaved={(newLangLocale, newNumberLocale) => {
+          setLanguageLocale(newLangLocale)
+          setNumberLocale(newNumberLocale)
+          i18n.changeLanguage(LOCALE_TO_I18N[newLangLocale] ?? 'en')
+        }}
       />
 
       <ChangePasswordDialog
