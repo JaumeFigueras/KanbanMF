@@ -385,7 +385,7 @@ export default function Boards() {
         {/* Starred */}
         <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" fontWeight={600}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               {t('boards.starredBoards')} ({starredBoards.length})
             </Typography>
           </AccordionSummary>
@@ -404,7 +404,7 @@ export default function Boards() {
         {/* My Boards */}
         <Accordion expanded={accordion.myBoards} onChange={() => toggleAccordion('myBoards')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" fontWeight={600}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               {t('boards.myBoards')} ({myBoards.length})
             </Typography>
           </AccordionSummary>
@@ -423,7 +423,7 @@ export default function Boards() {
         {/* Shared with me */}
         <Accordion expanded={accordion.sharedWithMe} onChange={() => toggleAccordion('sharedWithMe')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" fontWeight={600}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               {t('boards.sharedWithMe')} ({sharedBoards.length})
             </Typography>
           </AccordionSummary>
