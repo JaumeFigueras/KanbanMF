@@ -27,6 +27,10 @@ const ca = {
     signedIn: 'Heu iniciat sessió',
     signOut: 'Tanca sessió',
     userProfile: "Perfil d'usuari",
+    changeDisplayName: 'Canvia el nom visible i les inicials',
+    changePassword: 'Canvia la contrasenya',
+    uploadAvatar: "Puja un avatar",
+    setFirstDayOfWeek: 'Estableix el 1r dia de la setmana',
   },
   common: {
     or: 'o',

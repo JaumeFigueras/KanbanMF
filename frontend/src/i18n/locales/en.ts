@@ -27,6 +27,10 @@ const en = {
     signedIn: 'You are signed in',
     signOut: 'Sign out',
     userProfile: 'User profile',
+    changeDisplayName: 'Change display name and initials',
+    changePassword: 'Change password',
+    uploadAvatar: 'Upload avatar',
+    setFirstDayOfWeek: 'Set 1st day of week',
   },
   common: {
     or: 'or',
