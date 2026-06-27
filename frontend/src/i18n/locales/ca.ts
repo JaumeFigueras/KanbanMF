@@ -35,6 +35,12 @@ const ca = {
     initialsHint: 'Màxim 3 lletres. Deixa-ho en blanc per usar les inicials del nom visible.',
     displayNameRequired: 'El nom visible no pot estar en blanc.',
     initialsInvalid: 'Les inicials han de ser entre 1 i 3 lletres o dígits.',
+    oldPassword: 'Contrasenya actual',
+    newPassword: 'Nova contrasenya',
+    oldPasswordRequired: 'La contrasenya actual és obligatòria.',
+    newPasswordRequired: 'La nova contrasenya és obligatòria.',
+    confirmPasswordRequired: 'Confirma la nova contrasenya.',
+    wrongOldPassword: 'La contrasenya actual és incorrecta.',
   },
   common: {
     or: 'o',

@@ -37,6 +37,11 @@ class UserUpdate(BaseModel):
         return v
 
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 class UserPreferencesUpdate(BaseModel):
     """Allowed preference fields a user can change."""
 

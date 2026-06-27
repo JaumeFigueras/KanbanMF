@@ -6,9 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
+from src.core.security import hash_password, verify_password
 from src.model.user import User
+from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
-from src.schemas.user import UserRead, UserUpdate, UserPreferencesUpdate
+from src.schemas.user import ChangePasswordRequest, UserRead, UserUpdate, UserPreferencesUpdate
 
 router = APIRouter()
 
@@ -103,6 +105,30 @@ async def update_my_preferences(
         language_locale=prefs.language_locale,
         initials=prefs.initials if prefs.initials else _compute_initials(current_user.display_name),
     )
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_my_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Change the current user's password (local accounts only)."""
+    identity_result = await db.execute(
+        select(UserIdentity).where(
+            UserIdentity.user_id == current_user.id,
+            UserIdentity.provider == AuthProvider.LOCAL,
+        )
+    )
+    identity = identity_result.scalar_one_or_none()
+    if identity is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No local account found")
+
+    if not verify_password(body.old_password, identity.hashed_password or ""):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    identity.hashed_password = hash_password(body.new_password)
+    await db.commit()
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)

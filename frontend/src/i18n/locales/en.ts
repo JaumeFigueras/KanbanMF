@@ -35,6 +35,12 @@ const en = {
     initialsHint: 'Up to 3 letters. Leave blank to use display name initials.',
     displayNameRequired: 'Display name cannot be blank.',
     initialsInvalid: 'Initials must be 1–3 letters or digits.',
+    oldPassword: 'Current password',
+    newPassword: 'New password',
+    oldPasswordRequired: 'Current password is required.',
+    newPasswordRequired: 'New password is required.',
+    confirmPasswordRequired: 'Please confirm your new password.',
+    wrongOldPassword: 'Current password is incorrect.',
   },
   common: {
     or: 'or',

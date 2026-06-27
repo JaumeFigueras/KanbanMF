@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
 import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
+import ChangePasswordDialog from '../components/ChangePasswordDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -36,6 +37,7 @@ export default function Boards() {
   const [initials, setInitials] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   useEffect(() => {
     fetch('http://localhost:8000/api/v1/users/me', {
@@ -122,7 +124,7 @@ export default function Boards() {
               <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.changeDisplayName')}</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => setMenuAnchor(null)}>
+            <MenuItem onClick={() => { setMenuAnchor(null); setChangePasswordOpen(true) }}>
               <ListItemIcon><Lock fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.changePassword')}</ListItemText>
             </MenuItem>
@@ -142,6 +144,12 @@ export default function Boards() {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      <ChangePasswordDialog
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+        accessToken={accessToken ?? ''}
+      />
 
       {displayName !== null && (
         <ChangeDisplayNameDialog
