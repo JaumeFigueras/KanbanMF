@@ -20,48 +20,67 @@ interface Props {
   open: boolean
   onClose: () => void
   accessToken: string
+  hasAvatar: boolean
+  currentAvatarUrl: string | null
+  onSaved?: () => void
 }
 
-export default function UploadAvatarDialog({ open, onClose, accessToken }: Props) {
+export default function UploadAvatarDialog({
+  open,
+  onClose,
+  accessToken,
+  hasAvatar,
+  currentAvatarUrl,
+  onSaved,
+}: Props) {
   const { t } = useTranslation()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
+  // preview is either the currentAvatarUrl (not owned by us) or a blob URL we created
   const [preview, setPreview] = useState<string | null>(null)
+  const ownedPreviewRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
       setFile(null)
-      setPreview(null)
       setError(null)
+      // Revoke any previously created blob URL before resetting
+      if (ownedPreviewRef.current) {
+        URL.revokeObjectURL(ownedPreviewRef.current)
+        ownedPreviewRef.current = null
+      }
+      setPreview(currentAvatarUrl)
     }
-  }, [open])
+  }, [open, currentAvatarUrl])
 
-  // Revoke the object URL when it changes to avoid memory leaks
+  // Revoke owned blob URL on unmount
   useEffect(() => {
-    return () => { if (preview) URL.revokeObjectURL(preview) }
-  }, [preview])
+    return () => {
+      if (ownedPreviewRef.current) URL.revokeObjectURL(ownedPreviewRef.current)
+    }
+  }, [])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null
     setError(null)
 
-    if (!selected) { setFile(null); setPreview(null); return }
+    if (!selected) return
 
     if (!ALLOWED_MIME.includes(selected.type)) {
       setError(t('boards.avatarTypeError'))
-      setFile(null); setPreview(null)
       return
     }
     if (selected.size > MAX_SIZE_BYTES) {
       setError(t('boards.avatarSizeError'))
-      setFile(null); setPreview(null)
       return
     }
 
+    if (ownedPreviewRef.current) URL.revokeObjectURL(ownedPreviewRef.current)
+    const url = URL.createObjectURL(selected)
+    ownedPreviewRef.current = url
     setFile(selected)
-    setPreview(URL.createObjectURL(selected))
+    setPreview(url)
   }
 
   async function handleSave() {
@@ -81,6 +100,26 @@ export default function UploadAvatarDialog({ open, onClose, accessToken }: Props
       if (r.status === 413) { setError(t('boards.avatarSizeError')); return }
       if (r.status === 415) { setError(t('boards.avatarTypeError')); return }
       if (!r.ok) throw new Error()
+      onSaved?.()
+      onClose()
+    } catch {
+      setError(t('common.saveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove() {
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch('http://localhost:8000/api/v1/users/me/avatar', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      })
+      if (!r.ok) throw new Error()
+      onSaved?.()
       onClose()
     } catch {
       setError(t('common.saveError'))
@@ -91,7 +130,9 @@ export default function UploadAvatarDialog({ open, onClose, accessToken }: Props
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t('boards.uploadAvatar')}</DialogTitle>
+      <DialogTitle>
+        {hasAvatar ? t('boards.changeRemoveAvatar') : t('boards.uploadAvatar')}
+      </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
           {error && <Alert severity="error" sx={{ width: '100%' }}>{error}</Alert>}
@@ -114,7 +155,6 @@ export default function UploadAvatarDialog({ open, onClose, accessToken }: Props
           <Button variant="outlined" component="label" disabled={saving}>
             {t('boards.chooseFile')}
             <input
-              ref={inputRef}
               type="file"
               hidden
               accept="image/jpeg,image/png,image/webp,image/gif"
@@ -137,6 +177,11 @@ export default function UploadAvatarDialog({ open, onClose, accessToken }: Props
         <Button onClick={onClose} color="error" disabled={saving}>
           {t('common.cancel')}
         </Button>
+        {hasAvatar && (
+          <Button onClick={handleRemove} color="warning" variant="outlined" disabled={saving}>
+            {t('boards.removeAvatar')}
+          </Button>
+        )}
         <Button onClick={handleSave} color="success" variant="contained" disabled={saving || !file}>
           {t('common.save')}
         </Button>

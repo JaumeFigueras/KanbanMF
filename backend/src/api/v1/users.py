@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -147,6 +148,19 @@ async def change_my_password(
     await db.commit()
 
 
+@router.get("/me/avatar")
+async def get_my_avatar(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Return the current user's avatar image, or 404 if none is stored."""
+    result = await db.execute(select(UserAvatar).where(UserAvatar.user_id == current_user.id))
+    avatar = result.scalar_one_or_none()
+    if avatar is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
+    return Response(content=avatar.data, media_type=avatar.mime_type)
+
+
 @router.put("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_my_avatar(
     file: UploadFile,
@@ -175,6 +189,20 @@ async def upload_my_avatar(
         avatar.data = data
         avatar.mime_type = mime_type
 
+    await db.commit()
+
+
+@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_avatar(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete the current user's avatar."""
+    result = await db.execute(select(UserAvatar).where(UserAvatar.user_id == current_user.id))
+    avatar = result.scalar_one_or_none()
+    if avatar is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
+    await db.delete(avatar)
     await db.commit()
 
 

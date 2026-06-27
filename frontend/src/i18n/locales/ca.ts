@@ -41,6 +41,8 @@ const ca = {
     newPasswordRequired: 'La nova contrasenya és obligatòria.',
     confirmPasswordRequired: 'Confirma la nova contrasenya.',
     wrongOldPassword: 'La contrasenya actual és incorrecta.',
+    changeRemoveAvatar: 'Canvia / Elimina l\'avatar',
+    removeAvatar: 'Elimina l\'avatar',
     chooseFile: 'Tria una imatge…',
     avatarSizeLimit: 'Mida màxima: 100 KB. Formats acceptats: JPEG, PNG, WebP, GIF.',
     avatarTypeError: 'Només es permeten imatges (JPEG, PNG, WebP, GIF).',

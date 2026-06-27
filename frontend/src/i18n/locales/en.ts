@@ -41,6 +41,8 @@ const en = {
     newPasswordRequired: 'New password is required.',
     confirmPasswordRequired: 'Please confirm your new password.',
     wrongOldPassword: 'Current password is incorrect.',
+    changeRemoveAvatar: 'Change / Remove avatar',
+    removeAvatar: 'Remove avatar',
     chooseFile: 'Choose image…',
     avatarSizeLimit: 'Maximum file size: 100 KB. Accepted formats: JPEG, PNG, WebP, GIF.',
     avatarTypeError: 'Only image files are allowed (JPEG, PNG, WebP, GIF).',

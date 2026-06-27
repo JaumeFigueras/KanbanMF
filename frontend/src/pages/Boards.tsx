@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AppBar,
@@ -37,10 +37,32 @@ export default function Boards() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
   const [authProviders, setAuthProviders] = useState<string[]>([])
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const avatarUrlRef = useRef<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
+
+  const fetchAvatar = useCallback(async () => {
+    try {
+      const r = await fetch('http://localhost:8000/api/v1/users/me/avatar', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      })
+      if (r.ok) {
+        const blob = await r.blob()
+        const url = URL.createObjectURL(blob)
+        if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
+        avatarUrlRef.current = url
+        setAvatarUrl(url)
+      } else {
+        setAvatarUrl(null)
+      }
+    } catch {
+      setAvatarUrl(null)
+    }
+  }, [accessToken])
 
   useEffect(() => {
     fetch('http://localhost:8000/api/v1/users/me', {
@@ -58,7 +80,13 @@ export default function Boards() {
         i18n.changeLanguage(LOCALE_TO_I18N[data.language_locale] ?? 'en')
       })
       .catch(() => navigate('/signin'))
-  }, [accessToken, navigate])
+
+    fetchAvatar()
+
+    return () => {
+      if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
+    }
+  }, [accessToken, navigate, fetchAvatar])
 
   async function handleSignOut() {
     setMenuAnchor(null)
@@ -87,6 +115,7 @@ export default function Boards() {
               }}
             >
               <Avatar
+                src={avatarUrl ?? undefined}
                 sx={{
                   width: 32,
                   height: 32,
@@ -136,7 +165,9 @@ export default function Boards() {
             )}
             <MenuItem onClick={() => { setMenuAnchor(null); setUploadAvatarOpen(true) }}>
               <ListItemIcon><AddPhotoAlternate fontSize="small" /></ListItemIcon>
-              <ListItemText>{t('boards.uploadAvatar')}</ListItemText>
+              <ListItemText>
+                {avatarUrl ? t('boards.changeRemoveAvatar') : t('boards.uploadAvatar')}
+              </ListItemText>
             </MenuItem>
             <MenuItem onClick={() => setMenuAnchor(null)}>
               <ListItemIcon><CalendarToday fontSize="small" /></ListItemIcon>
@@ -155,6 +186,9 @@ export default function Boards() {
         open={uploadAvatarOpen}
         onClose={() => setUploadAvatarOpen(false)}
         accessToken={accessToken ?? ''}
+        hasAvatar={avatarUrl !== null}
+        currentAvatarUrl={avatarUrl}
+        onSaved={fetchAvatar}
       />
 
       <ChangePasswordDialog
