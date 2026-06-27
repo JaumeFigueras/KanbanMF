@@ -73,6 +73,12 @@ const en = {
     notImplementedYet: 'Not implemented yet.',
     archiveBoardConfirmMessage: 'Are you sure you want to archive "{{name}}"? It will be hidden from your boards list.',
     archive: 'Archive',
+    showArchivedBoards: 'Show Archived Boards',
+    archivedBoards: 'Archived Boards',
+    restoreBoard: 'Restore Board',
+    deleteBoard: 'Delete Board',
+    deleteBoardConfirmMessage: 'Are you sure you want to permanently delete "{{name}}"? This cannot be undone.',
+    delete: 'Delete',
   },
   common: {
     or: 'or',

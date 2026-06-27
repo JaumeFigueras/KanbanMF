@@ -73,6 +73,12 @@ const ca = {
     notImplementedYet: 'Encara no implementat.',
     archiveBoardConfirmMessage: 'Segur que vols arxivar "{{name}}"? Quedarà ocult de la llista de taulers.',
     archive: 'Arxiva',
+    showArchivedBoards: 'Mostra els taulers arxivats',
+    archivedBoards: 'Taulers arxivats',
+    restoreBoard: 'Restaura el tauler',
+    deleteBoard: 'Elimina el tauler',
+    deleteBoardConfirmMessage: 'Segur que vols eliminar permanentment "{{name}}"? Aquesta acció no es pot desfer.',
+    delete: 'Elimina',
   },
   common: {
     or: 'o',

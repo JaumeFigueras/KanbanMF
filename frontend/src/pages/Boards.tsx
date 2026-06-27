@@ -42,7 +42,9 @@ import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog
 import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
 import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
+import DeleteBoardDialog from '../components/DeleteBoardDialog'
 import BoardCard from '../components/BoardCard'
+import ArchivedBoardCard from '../components/ArchivedBoardCard'
 import type { BoardRead, BoardsResponse } from '../types/board'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
@@ -103,6 +105,10 @@ export default function Boards() {
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
   const [notImplementedOpen, setNotImplementedOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
+  const [boardToDelete, setBoardToDelete] = useState<BoardRead | null>(null)
+  const [deleteBoardOpen, setDeleteBoardOpen] = useState(false)
   const [accordion, setAccordion] = useState<AccordionState>(readAccordionState)
 
   function toggleAccordion(key: keyof AccordionState) {
@@ -130,6 +136,21 @@ export default function Boards() {
       }
     } catch {
       setAvatarUrl(null)
+    }
+  }, [accessToken])
+
+  const fetchArchivedBoards = useCallback(async () => {
+    try {
+      const r = await fetch('http://localhost:8000/api/v1/boards/archived', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      })
+      if (r.ok) {
+        const data: BoardRead[] = await r.json()
+        setArchivedBoards(data)
+      }
+    } catch {
+      // non-fatal
     }
   }, [accessToken])
 
@@ -216,6 +237,41 @@ export default function Boards() {
   function handleBoardArchived(boardId: string) {
     const remove = (list: BoardRead[]) => list.filter(b => b.id !== boardId)
     setBoards(prev => ({ owned: remove(prev.owned), shared: remove(prev.shared) }))
+    // If the archived accordion is open, add the board to it
+    if (showArchived) {
+      const archived = boards.owned.find(b => b.id === boardId)
+      if (archived) setArchivedBoards(prev => [{ ...archived, is_archived: true }, ...prev])
+    }
+  }
+
+  async function handleRestoreBoard(board: BoardRead) {
+    const r = await fetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ is_archived: false }),
+    })
+    if (r.ok) {
+      setArchivedBoards(prev => prev.filter(b => b.id !== board.id))
+      fetchBoards()
+    }
+  }
+
+  function handleDeleteBoard(board: BoardRead) {
+    setBoardToDelete(board)
+    setDeleteBoardOpen(true)
+  }
+
+  function handleBoardDeleted(boardId: string) {
+    setArchivedBoards(prev => prev.filter(b => b.id !== boardId))
+  }
+
+  function handleToggleArchived() {
+    setShowArchived(true)
+    fetchArchivedBoards()
   }
 
   // ── Derived board sections ────────────────────────────────────────────────
@@ -247,7 +303,7 @@ export default function Boards() {
 
   return (
     <>
-      <AppBar position="static">
+      <AppBar position="fixed">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, letterSpacing: 0.5 }}>
             KanbanMF
@@ -366,6 +422,14 @@ export default function Boards() {
         onArchived={handleBoardArchived}
       />
 
+      <DeleteBoardDialog
+        open={deleteBoardOpen}
+        onClose={() => setDeleteBoardOpen(false)}
+        board={boardToDelete}
+        accessToken={accessToken ?? ''}
+        onDeleted={handleBoardDeleted}
+      />
+
       <Snackbar
         open={notImplementedOpen}
         autoHideDuration={3000}
@@ -423,6 +487,7 @@ export default function Boards() {
 
       {/* ── Main content ─────────────────────────────────────────────────── */}
 
+      <Toolbar />{/* spacer matching the fixed AppBar height */}
       <Box sx={{ mt: 4, px: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
           <Button variant="contained" size="large" startIcon={<Add />} onClick={() => setCreateBoardOpen(true)}>
@@ -486,6 +551,49 @@ export default function Boards() {
             }
           </AccordionDetails>
         </Accordion>
+
+        {/* Archived Boards — shown when showArchived; collapsing the chevron hides it and restores the button */}
+        {showArchived && (
+          <Accordion
+            expanded={showArchived}
+            onChange={(_, expanded) => { if (!expanded) setShowArchived(false) }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMore sx={{ color: 'white' }} />}
+              sx={{ bgcolor: 'error.main', color: 'white', borderRadius: 0 }}
+            >
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                {t('boards.archivedBoards')} ({archivedBoards.length})
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              {archivedBoards.length === 0
+                ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+                : <Box sx={BOARD_GRID_SX}>
+                    {archivedBoards.map(board => (
+                      <ArchivedBoardCard
+                        key={board.id}
+                        board={board}
+                        numberLocale={numberLocale}
+                        dateFormat={dateFormat}
+                        onRestore={handleRestoreBoard}
+                        onDelete={handleDeleteBoard}
+                      />
+                    ))}
+                  </Box>
+              }
+            </AccordionDetails>
+          </Accordion>
+        )}
+
+        {/* Show button only when accordion is hidden */}
+        {!showArchived && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Button variant="outlined" color="error" size="small" onClick={handleToggleArchived}>
+              {t('boards.showArchivedBoards')}
+            </Button>
+          </Box>
+        )}
       </Box>
     </>
   )

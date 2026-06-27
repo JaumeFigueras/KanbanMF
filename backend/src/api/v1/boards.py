@@ -70,7 +70,11 @@ async def list_boards(
 
     owned_result = await db.execute(
         select(Board)
-        .where(Board.owner_id == current_user.id, Board.is_deleted.is_(False))
+        .where(
+            Board.owner_id == current_user.id,
+            Board.is_deleted.is_(False),
+            Board.is_archived.is_(False),
+        )
         .order_by(Board.created_at.desc())
     )
     owned = owned_result.scalars().all()
@@ -78,7 +82,11 @@ async def list_boards(
     shared_result = await db.execute(
         select(Board)
         .join(BoardShare, BoardShare.board_id == Board.id)
-        .where(BoardShare.user_id == current_user.id, Board.is_deleted.is_(False))
+        .where(
+            BoardShare.user_id == current_user.id,
+            Board.is_deleted.is_(False),
+            Board.is_archived.is_(False),
+        )
         .order_by(Board.created_at.desc())
     )
     shared = shared_result.scalars().all()
@@ -158,6 +166,66 @@ async def create_board(
         owner_initials,
         owner_has_avatar,
     )
+
+
+@router.get("/archived", response_model=list[BoardRead])
+async def list_archived_boards(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[BoardRead]:
+    """Return owned archived (but not deleted) boards for the current user."""
+    result = await db.execute(
+        select(Board)
+        .where(
+            Board.owner_id == current_user.id,
+            Board.is_archived.is_(True),
+            Board.is_deleted.is_(False),
+        )
+        .order_by(Board.created_at.desc())
+    )
+    boards = result.scalars().all()
+    if not boards:
+        return []
+
+    pref_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    pref = pref_result.scalar_one_or_none()
+    owner_initials = (
+        pref.initials if (pref and pref.initials)
+        else _compute_initials(current_user.display_name)
+    )
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
+    )
+    owner_has_avatar = avatar_result.scalar_one_or_none() is not None
+
+    starred = await _starred_ids(current_user.id, db)
+
+    return [
+        _to_read(b, starred, current_user.display_name, owner_initials, owner_has_avatar)
+        for b in boards
+    ]
+
+
+@router.delete("/{board_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_board(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Soft-delete a board (is_deleted=True). Only the owner can delete a board."""
+    result = await db.execute(
+        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
+    )
+    board = result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this board")
+
+    board.is_deleted = True
+    await db.commit()
 
 
 @router.patch("/{board_id}", response_model=BoardRead)
