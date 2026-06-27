@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
@@ -11,6 +11,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.model.base import Base
+from src.model.board_share import BoardShare
+
+if TYPE_CHECKING:
+    from src.model.board import Board
 
 
 class User(Base):
@@ -93,6 +97,24 @@ class User(Base):
         "UserPreferences",
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+    owned_boards: Mapped[List["Board"]] = relationship(
+        "Board",
+        foreign_keys="[Board.owner_id]",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    board_share_entries: Mapped[List["BoardShare"]] = relationship(
+        "BoardShare",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    # Convenience: direct access to Board objects without going through BoardShare
+    shared_boards: Mapped[List["Board"]] = relationship(
+        "Board",
+        secondary=BoardShare.__table__,
+        back_populates="shared_with",
+        viewonly=True,
     )
 
     def __repr__(self) -> str:

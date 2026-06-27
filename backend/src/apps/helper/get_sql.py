@@ -54,6 +54,8 @@ from src.model.user_avatar import UserAvatar
 from src.model.user_preferences import UserPreferences, DateFormat
 from src.model.user_identity import UserIdentity, AuthProvider
 from src.model.user_session import UserSession
+from src.model.board import Board
+from src.model.board_share import BoardShare
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
 # When a list is given, the enum CREATE TYPE statements are written before the table DDL,
@@ -84,6 +86,8 @@ def main(e: Engine):  # pragma: no cover
         [DateFormat, UserPreferences],
         [AuthProvider, UserIdentity],
         UserSession,
+        Board,
+        BoardShare,
     ]
 
     for entry in models:
