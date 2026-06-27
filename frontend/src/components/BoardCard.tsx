@@ -68,9 +68,9 @@ export default function BoardCard({
         display: 'flex',
         flexDirection: 'column',
         bgcolor: (theme) =>
-          theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.14)' : '#f3e5f5',
+          theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.14)' : 'background.paper',
         border: (theme) =>
-          `1px solid ${theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.35)' : '#e1bee7'}`,
+          `1px solid ${theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.35)' : theme.palette.divider}`,
         boxShadow: 'none',
       }}
     >
