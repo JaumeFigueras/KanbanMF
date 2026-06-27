@@ -30,6 +30,8 @@ const en = {
     changeDisplayName: 'Change display name and initials',
     changePassword: 'Change password',
     uploadAvatar: 'Upload avatar',
+    changeToDark: 'Change to Dark Theme',
+    changeToLight: 'Change to Light Theme',
     languageLocalization: 'Language and Localization',
     displayLanguage: 'Display language',
     dateTimeLocale: 'Dates & times format',

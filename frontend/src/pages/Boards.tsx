@@ -16,14 +16,17 @@ import {
 } from '@mui/material'
 import {
   AddPhotoAlternate,
+  DarkMode,
   DriveFileRenameOutline,
   Language,
+  LightMode,
   Lock,
   Logout,
 } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
+import { useThemeToggle } from '../context/ThemeToggleContext'
 import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
 import ChangePasswordDialog from '../components/ChangePasswordDialog'
 import UploadAvatarDialog from '../components/UploadAvatarDialog'
@@ -35,6 +38,7 @@ export default function Boards() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { accessToken, logout } = useAuth()
+  const { dark, toggleDark } = useThemeToggle()
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
   const [authProviders, setAuthProviders] = useState<string[]>([])
@@ -180,6 +184,14 @@ export default function Boards() {
             <MenuItem onClick={() => { setMenuAnchor(null); setLangLocOpen(true) }}>
               <ListItemIcon><Language fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.languageLocalization')}</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => { setMenuAnchor(null); toggleDark() }}>
+              <ListItemIcon>
+                {dark ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
+              </ListItemIcon>
+              <ListItemText>
+                {dark ? t('boards.changeToLight') : t('boards.changeToDark')}
+              </ListItemText>
             </MenuItem>
             <Divider />
             <MenuItem onClick={handleSignOut}>

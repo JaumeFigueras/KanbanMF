@@ -30,6 +30,8 @@ const ca = {
     changeDisplayName: 'Canvia el nom visible i les inicials',
     changePassword: 'Canvia la contrasenya',
     uploadAvatar: "Puja un avatar",
+    changeToDark: 'Canvia al tema fosc',
+    changeToLight: 'Canvia al tema clar',
     languageLocalization: 'Idioma i localització',
     displayLanguage: "Idioma de la interfície",
     dateTimeLocale: 'Format de dates i hores',
