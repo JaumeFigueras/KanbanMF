@@ -1,9 +1,12 @@
 
+CREATE TYPE dateformat AS ENUM ('numeric', 'textual');
+
 CREATE TABLE user_preferences (
 	user_id UUID NOT NULL,
 	language_locale VARCHAR(10) NOT NULL,
 	number_locale VARCHAR(10) NOT NULL,
 	initials VARCHAR(3) NULL,
+	date_format dateformat NOT NULL DEFAULT 'numeric',
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
 	PRIMARY KEY (user_id),
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE

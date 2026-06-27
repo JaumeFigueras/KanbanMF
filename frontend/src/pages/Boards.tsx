@@ -40,6 +40,7 @@ export default function Boards() {
   const [authProviders, setAuthProviders] = useState<string[]>([])
   const [languageLocale, setLanguageLocale] = useState('en')
   const [numberLocale, setNumberLocale] = useState('en')
+  const [dateFormat, setDateFormat] = useState<'numeric' | 'textual'>('numeric')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
@@ -83,6 +84,7 @@ export default function Boards() {
         setAuthProviders(data.auth_providers ?? [])
         setLanguageLocale(data.language_locale ?? 'en')
         setNumberLocale(data.number_locale ?? 'en')
+        setDateFormat(data.date_format ?? 'numeric')
         i18n.changeLanguage(LOCALE_TO_I18N[data.language_locale] ?? 'en')
       })
       .catch(() => navigate('/signin'))
@@ -202,10 +204,12 @@ export default function Boards() {
         onClose={() => setLangLocOpen(false)}
         currentLanguageLocale={languageLocale}
         currentNumberLocale={numberLocale}
+        currentDateFormat={dateFormat}
         accessToken={accessToken ?? ''}
-        onSaved={(newLangLocale, newNumberLocale) => {
+        onSaved={(newLangLocale, newNumberLocale, newDateFormat) => {
           setLanguageLocale(newLangLocale)
           setNumberLocale(newNumberLocale)
+          setDateFormat(newDateFormat)
           i18n.changeLanguage(LOCALE_TO_I18N[newLangLocale] ?? 'en')
         }}
       />

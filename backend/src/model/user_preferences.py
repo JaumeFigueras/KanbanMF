@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, LargeBinary, CheckConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from src.model.base import Base
 
-# Maximum avatar size: 100 KB
-MAX_AVATAR_SIZE_BYTES = 100 * 1024
+
+class DateFormat(str, enum.Enum):
+    NUMERIC = "numeric"
+    TEXTUAL = "textual"
 
 
 class UserPreferences(Base):
@@ -43,6 +46,12 @@ class UserPreferences(Base):
         comment="Up to 3 custom initials. NULL means use the computed default (first letter of each display_name word)."
     )
 
+    date_format: Mapped[DateFormat] = mapped_column(
+        SAEnum(DateFormat, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        server_default=DateFormat.NUMERIC.value,
+        comment="How dates are displayed on cards: 'numeric' (27/06/2026) or 'textual' (27 June 2026)."
+    )
 
     # Timestamp
     updated_at: Mapped[datetime] = mapped_column(
@@ -57,4 +66,3 @@ class UserPreferences(Base):
         "User",
         back_populates="preferences"
     )
-

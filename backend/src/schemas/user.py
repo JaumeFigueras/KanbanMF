@@ -6,6 +6,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from src.model.user_preferences import DateFormat
+
 
 class UserRead(BaseModel):
     """Public user profile returned by the API."""
@@ -19,6 +21,7 @@ class UserRead(BaseModel):
     updated_at: datetime
     language_locale: str = "en"
     number_locale: str = "en"
+    date_format: DateFormat = DateFormat.NUMERIC
     initials: str | None = None
     auth_providers: list[str] = []
 
@@ -50,6 +53,7 @@ class UserPreferencesUpdate(BaseModel):
     initials: str | None = None
     language_locale: str | None = None
     number_locale: str | None = None
+    date_format: DateFormat | None = None
 
     @field_validator("initials")
     @classmethod

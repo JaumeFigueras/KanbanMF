@@ -59,6 +59,7 @@ async def _build_user_read(user: User, db: AsyncSession) -> UserRead:
         updated_at=user.updated_at,
         language_locale=prefs.language_locale if prefs else "en",
         number_locale=prefs.number_locale if prefs else "en",
+        date_format=prefs.date_format if prefs else "numeric",
         initials=prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name),
         auth_providers=providers,
     )
@@ -119,6 +120,8 @@ async def update_my_preferences(
         prefs.language_locale = body.language_locale
     if body.number_locale is not None:
         prefs.number_locale = body.number_locale
+    if body.date_format is not None:
+        prefs.date_format = body.date_format
 
     await db.commit()
     await db.refresh(prefs)

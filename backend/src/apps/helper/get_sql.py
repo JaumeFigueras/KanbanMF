@@ -51,7 +51,7 @@ from sqlalchemy.dialects import postgresql
 from src.model import Base  # pragma: no cover
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
-from src.model.user_preferences import UserPreferences
+from src.model.user_preferences import UserPreferences, DateFormat
 from src.model.user_identity import UserIdentity, AuthProvider
 from src.model.user_session import UserSession
 
@@ -81,7 +81,7 @@ def main(e: Engine):  # pragma: no cover
     models: list[Entry] = [
         User,
         UserAvatar,
-        UserPreferences,
+        [DateFormat, UserPreferences],
         [AuthProvider, UserIdentity],
         UserSession,
     ]
