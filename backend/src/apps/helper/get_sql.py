@@ -92,6 +92,8 @@ def main(e: Engine):  # pragma: no cover
         UserBoardStar,
     ]
 
+    files_created = []
+
     for entry in models:
         if isinstance(entry, list):
             *enum_classes, model = entry
@@ -111,8 +113,16 @@ def main(e: Engine):  # pragma: no cover
 
         sql_str += table_sql
         print(sql_str)
-        with open(f"./src/model/sql/{model.__tablename__}.sql", "w") as file:
+        files_created.append(f"./src/model/sql/{model.__tablename__}.sql")
+        with open(files_created[-1], "w") as file:
             file.write(sql_str)
+
+    with open("./src/model/sql/all.sql", "w") as outfile:
+        for sql_file in files_created:
+            with open(sql_file, 'r', encoding='utf-8') as infile:
+                outfile.write(infile.read())
+                outfile.write('\n')
+
 
 if __name__ == "__main__":  # pragma: no cover
     # Config the program arguments
