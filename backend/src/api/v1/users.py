@@ -8,9 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_current_user, get_db
 from src.model.user import User
 from src.model.user_preferences import UserPreferences
-from src.schemas.user import UserRead, UserUpdate
+from src.schemas.user import UserRead, UserUpdate, UserPreferencesUpdate
 
 router = APIRouter()
+
+
+def _compute_initials(display_name: str) -> str:
+    """Return up to 3 uppercase initials derived from display_name words."""
+    return "".join(w[0].upper() for w in display_name.split() if w)[:3]
 
 
 @router.get("/me", response_model=UserRead)
@@ -32,6 +37,7 @@ async def get_me(
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         language_locale=prefs.language_locale if prefs else "en",
+        initials=prefs.initials if prefs and prefs.initials else _compute_initials(current_user.display_name),
     )
 
 
@@ -60,6 +66,43 @@ async def update_me(
     await db.commit()
     await db.refresh(current_user)
     return current_user
+
+
+@router.put("/me/preferences", response_model=UserRead)
+async def update_my_preferences(
+    body: UserPreferencesUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserRead:
+    """Update the current user's preferences (initials, language, number locale)."""
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    if prefs is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preferences not found")
+
+    if body.initials is not None:
+        prefs.initials = body.initials
+    if body.language_locale is not None:
+        prefs.language_locale = body.language_locale
+    if body.number_locale is not None:
+        prefs.number_locale = body.number_locale
+
+    await db.commit()
+    await db.refresh(prefs)
+
+    return UserRead(
+        id=current_user.id,
+        email=current_user.email,
+        display_name=current_user.display_name,
+        is_active=current_user.is_active,
+        is_verified=current_user.is_verified,
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at,
+        language_locale=prefs.language_locale,
+        initials=prefs.initials if prefs.initials else _compute_initials(current_user.display_name),
+    )
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)

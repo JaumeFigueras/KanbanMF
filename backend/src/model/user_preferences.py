@@ -37,6 +37,12 @@ class UserPreferences(Base):
         nullable=False
     )
 
+    initials: Mapped[str | None] = mapped_column(
+        String(3),
+        nullable=True,
+        comment="Up to 3 custom initials. NULL means use the computed default (first letter of each display_name word)."
+    )
+
 
     # Timestamp
     updated_at: Mapped[datetime] = mapped_column(

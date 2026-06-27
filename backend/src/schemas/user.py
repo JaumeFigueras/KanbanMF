@@ -18,6 +18,7 @@ class UserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     language_locale: str = "en"
+    initials: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -34,3 +35,25 @@ class UserUpdate(BaseModel):
         if v is not None and not v.strip():
             raise ValueError("display_name cannot be blank")
         return v
+
+
+class UserPreferencesUpdate(BaseModel):
+    """Allowed preference fields a user can change."""
+
+    initials: str | None = None
+    language_locale: str | None = None
+    number_locale: str | None = None
+
+    @field_validator("initials")
+    @classmethod
+    def initials_valid(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("initials cannot be blank")
+        if len(stripped) > 3:
+            raise ValueError("initials must be 3 characters or fewer")
+        if not stripped.isalpha():
+            raise ValueError("initials must contain only letters")
+        return stripped.upper()
