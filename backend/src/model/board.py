@@ -12,13 +12,14 @@ from sqlalchemy.sql import func
 
 from src.model.base import Base
 from src.model.board_share import BoardShare
+from src.model.user_board_star import UserBoardStar
 
 
 class Board(Base):
     """A Kanban board owned by a user and optionally shared with others.
 
     Deletion is soft: is_deleted=True hides the board without removing it from the DB.
-    Archived boards are read-only; starred boards are pinned in the UI.
+    Archived boards are read-only. Starring is per-user via UserBoardStar.
     """
 
     __tablename__ = "boards"
@@ -40,13 +41,6 @@ class Board(Base):
     name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
-    )
-
-    is_starred: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default="false",
     )
 
     is_archived: Mapped[bool] = mapped_column(
@@ -90,11 +84,24 @@ class Board(Base):
         cascade="all, delete-orphan",
     )
 
-    # Convenience: direct access to User objects without going through BoardShare
+    stars: Mapped[List["UserBoardStar"]] = relationship(
+        "UserBoardStar",
+        back_populates="board",
+        cascade="all, delete-orphan",
+    )
+
+    # Convenience: direct access to User objects without going through the join model
     shared_with: Mapped[List["User"]] = relationship(
         "User",
         secondary=BoardShare.__table__,
         back_populates="shared_boards",
+        viewonly=True,
+    )
+
+    starred_by: Mapped[List["User"]] = relationship(
+        "User",
+        secondary=UserBoardStar.__table__,
+        back_populates="starred_boards",
         viewonly=True,
     )
 

@@ -12,6 +12,7 @@ from sqlalchemy.sql import func
 
 from src.model.base import Base
 from src.model.board_share import BoardShare
+from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
     from src.model.board import Board
@@ -109,11 +110,22 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    # Convenience: direct access to Board objects without going through BoardShare
+    board_stars: Mapped[List["UserBoardStar"]] = relationship(
+        "UserBoardStar",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    # Convenience: direct access to Board objects without going through the join model
     shared_boards: Mapped[List["Board"]] = relationship(
         "Board",
         secondary=BoardShare.__table__,
         back_populates="shared_with",
+        viewonly=True,
+    )
+    starred_boards: Mapped[List["Board"]] = relationship(
+        "Board",
+        secondary=UserBoardStar.__table__,
+        back_populates="starred_by",
         viewonly=True,
     )
 
