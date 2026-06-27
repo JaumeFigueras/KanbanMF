@@ -12,18 +12,13 @@ import {
   TextField,
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
-
-interface CreatedBoard {
-  id: string
-  name: string
-  is_starred: boolean
-}
+import type { BoardRead } from '../types/board'
 
 interface Props {
   open: boolean
   onClose: () => void
   accessToken: string
-  onCreated: (board: CreatedBoard) => void
+  onCreated: (board: BoardRead) => void
 }
 
 export default function CreateBoardDialog({ open, onClose, accessToken, onCreated }: Props) {
@@ -61,7 +56,7 @@ export default function CreateBoardDialog({ open, onClose, accessToken, onCreate
         body: JSON.stringify({ name: trimmed, is_starred: starred }),
       })
       if (!r.ok) throw new Error()
-      const board: CreatedBoard = await r.json()
+      const board: BoardRead = await r.json()
       onCreated(board)
       onClose()
     } catch {

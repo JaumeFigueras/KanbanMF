@@ -63,6 +63,13 @@ const en = {
     avatarTypeError: 'Only image files are allowed (JPEG, PNG, WebP, GIF).',
     avatarSizeError: 'File is too large. Maximum size is 100 KB.',
     noFileSelected: 'Please select an image file.',
+    changeBoardName: 'Change Name',
+    changeBoardColor: 'Change Color',
+    archiveBoard: 'Archive Board',
+    star: 'Star',
+    unstar: 'Unstar',
+    reorderHint: 'Reorder (coming soon)',
+    shareBoard: 'Share',
   },
   common: {
     or: 'or',

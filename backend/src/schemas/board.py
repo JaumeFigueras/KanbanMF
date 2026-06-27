@@ -23,6 +23,9 @@ class BoardCreate(BaseModel):
 class BoardRead(BaseModel):
     id: uuid.UUID
     owner_id: uuid.UUID
+    owner_display_name: str
+    owner_initials: str | None
+    owner_has_avatar: bool
     name: str
     is_archived: bool
     is_deleted: bool

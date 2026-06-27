@@ -63,6 +63,13 @@ const ca = {
     avatarTypeError: 'Només es permeten imatges (JPEG, PNG, WebP, GIF).',
     avatarSizeError: "El fitxer és massa gran. La mida màxima és 100 KB.",
     noFileSelected: 'Selecciona un fitxer d\'imatge.',
+    changeBoardName: 'Canvia el nom',
+    changeBoardColor: 'Canvia el color',
+    archiveBoard: 'Arxiva el tauler',
+    star: 'Destaca',
+    unstar: 'Treu de destacats',
+    reorderHint: 'Reordena (pròximament)',
+    shareBoard: 'Comparteix',
   },
   common: {
     or: 'o',

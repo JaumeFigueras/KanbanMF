@@ -38,6 +38,8 @@ import ChangePasswordDialog from '../components/ChangePasswordDialog'
 import UploadAvatarDialog from '../components/UploadAvatarDialog'
 import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog'
 import CreateBoardDialog from '../components/CreateBoardDialog'
+import BoardCard from '../components/BoardCard'
+import type { BoardRead, BoardsResponse } from '../types/board'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -60,11 +62,20 @@ function readAccordionState(): AccordionState {
   }
 }
 
+const BOARD_GRID_SX = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+  gap: 2,
+  pt: 1,
+}
+
 export default function Boards() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { accessToken, logout } = useAuth()
   const { dark, toggleDark } = useThemeToggle()
+
+  // User profile
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
   const [authProviders, setAuthProviders] = useState<string[]>([])
@@ -73,6 +84,11 @@ export default function Boards() {
   const [dateFormat, setDateFormat] = useState<'numeric' | 'textual'>('numeric')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
+
+  // Boards
+  const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [] })
+
+  // UI state
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
@@ -109,6 +125,21 @@ export default function Boards() {
     }
   }, [accessToken])
 
+  const fetchBoards = useCallback(async () => {
+    try {
+      const r = await fetch('http://localhost:8000/api/v1/boards', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      })
+      if (r.ok) {
+        const data: BoardsResponse = await r.json()
+        setBoards(data)
+      }
+    } catch {
+      // Leave boards as empty — non-fatal
+    }
+  }, [accessToken])
+
   useEffect(() => {
     fetch('http://localhost:8000/api/v1/users/me', {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -130,11 +161,62 @@ export default function Boards() {
       .catch(() => navigate('/signin'))
 
     fetchAvatar()
+    fetchBoards()
 
     return () => {
       if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
     }
-  }, [accessToken, navigate, fetchAvatar])
+  }, [accessToken, navigate, fetchAvatar, fetchBoards])
+
+  // ── Board handlers ────────────────────────────────────────────────────────
+
+  function handleBoardCreated(board: BoardRead) {
+    setBoards(prev => ({ ...prev, owned: [board, ...prev.owned] }))
+  }
+
+  function handleStarToggle(boardId: string, starred: boolean) {
+    const update = (list: BoardRead[]) =>
+      list.map(b => b.id === boardId ? { ...b, is_starred: starred } : b)
+    setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared) }))
+    // TODO: connect to POST/DELETE /api/v1/boards/{id}/star when endpoint is available
+  }
+
+  function handleChangeBoardName(_board: BoardRead) {
+    // TODO: open rename dialog
+  }
+
+  function handleChangeBoardColor(_board: BoardRead) {
+    // TODO: open color picker dialog
+  }
+
+  function handleShareBoard(_board: BoardRead) {
+    // TODO: open share dialog
+  }
+
+  function handleArchiveBoard(_board: BoardRead) {
+    // TODO: call PATCH /api/v1/boards/{id} with is_archived=true
+  }
+
+  // ── Derived board sections ────────────────────────────────────────────────
+
+  const starredBoards = [
+    ...boards.owned.filter(b => b.is_starred),
+    ...boards.shared.filter(b => b.is_starred),
+  ]
+  const myBoards = boards.owned
+  const sharedBoards = boards.shared
+
+  const sharedCardProps = {
+    numberLocale,
+    dateFormat,
+    onStarToggle: handleStarToggle,
+    onChangeName: handleChangeBoardName,
+    onChangeColor: handleChangeBoardColor,
+    onShare: handleShareBoard,
+    onArchive: handleArchiveBoard,
+  }
+
+  // ── Sign out ──────────────────────────────────────────────────────────────
 
   async function handleSignOut() {
     setMenuAnchor(null)
@@ -238,13 +320,13 @@ export default function Boards() {
         </Toolbar>
       </AppBar>
 
+      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
+
       <CreateBoardDialog
         open={createBoardOpen}
         onClose={() => setCreateBoardOpen(false)}
         accessToken={accessToken ?? ''}
-        onCreated={(_board) => {
-          // boards list will be refreshed from the API in a later step
-        }}
+        onCreated={handleBoardCreated}
       />
 
       <UploadAvatarDialog
@@ -291,49 +373,69 @@ export default function Boards() {
         />
       )}
 
-      <Box sx={{ maxWidth: 900, mx: 'auto', mt: 4, px: 2 }}>
+      {/* ── Main content ─────────────────────────────────────────────────── */}
+
+      <Box sx={{ mt: 4, px: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
           <Button variant="contained" size="large" startIcon={<Add />} onClick={() => setCreateBoardOpen(true)}>
             {t('boards.createNewBoard')}
           </Button>
         </Box>
 
+        {/* Starred */}
         <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Typography variant="subtitle1" fontWeight={600}>
-              {t('boards.starredBoards')} (0)
+              {t('boards.starredBoards')} ({starredBoards.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography variant="body2" color="text.secondary">
-              {t('boards.noBoardsYet')}
-            </Typography>
+            {starredBoards.length === 0
+              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+              : <Box sx={BOARD_GRID_SX}>
+                  {starredBoards.map(board => (
+                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
+                  ))}
+                </Box>
+            }
           </AccordionDetails>
         </Accordion>
 
+        {/* My Boards */}
         <Accordion expanded={accordion.myBoards} onChange={() => toggleAccordion('myBoards')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Typography variant="subtitle1" fontWeight={600}>
-              {t('boards.myBoards')} (0)
+              {t('boards.myBoards')} ({myBoards.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography variant="body2" color="text.secondary">
-              {t('boards.noBoardsYet')}
-            </Typography>
+            {myBoards.length === 0
+              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+              : <Box sx={BOARD_GRID_SX}>
+                  {myBoards.map(board => (
+                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
+                  ))}
+                </Box>
+            }
           </AccordionDetails>
         </Accordion>
 
+        {/* Shared with me */}
         <Accordion expanded={accordion.sharedWithMe} onChange={() => toggleAccordion('sharedWithMe')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Typography variant="subtitle1" fontWeight={600}>
-              {t('boards.sharedWithMe')} (0)
+              {t('boards.sharedWithMe')} ({sharedBoards.length})
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography variant="body2" color="text.secondary">
-              {t('boards.noBoardsYet')}
-            </Typography>
+            {sharedBoards.length === 0
+              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+              : <Box sx={BOARD_GRID_SX}>
+                  {sharedBoards.map(board => (
+                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
+                  ))}
+                </Box>
+            }
           </AccordionDetails>
         </Accordion>
       </Box>

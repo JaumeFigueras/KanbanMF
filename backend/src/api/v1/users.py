@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -208,6 +210,19 @@ async def delete_my_avatar(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
     await db.delete(avatar)
     await db.commit()
+
+
+@router.get("/{user_id}/avatar")
+async def get_user_avatar(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Return any user's avatar image. No authentication required — avatars are public."""
+    result = await db.execute(select(UserAvatar).where(UserAvatar.user_id == user_id))
+    avatar = result.scalar_one_or_none()
+    if avatar is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
+    return Response(content=avatar.data, media_type=avatar.mime_type)
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
