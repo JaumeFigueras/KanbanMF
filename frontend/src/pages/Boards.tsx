@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   AppBar,
   Avatar,
   Box,
+  Button,
   Divider,
   IconButton,
   ListItemIcon,
@@ -15,9 +19,11 @@ import {
   Typography,
 } from '@mui/material'
 import {
+  Add,
   AddPhotoAlternate,
   DarkMode,
   DriveFileRenameOutline,
+  ExpandMore,
   Language,
   LightMode,
   Lock,
@@ -31,8 +37,28 @@ import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
 import ChangePasswordDialog from '../components/ChangePasswordDialog'
 import UploadAvatarDialog from '../components/UploadAvatarDialog'
 import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog'
+import CreateBoardDialog from '../components/CreateBoardDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
+
+const ACCORDION_KEY = 'kanbanmf.boards.accordions'
+
+interface AccordionState {
+  starred: boolean
+  myBoards: boolean
+  sharedWithMe: boolean
+}
+
+const DEFAULT_ACCORDION: AccordionState = { starred: true, myBoards: true, sharedWithMe: true }
+
+function readAccordionState(): AccordionState {
+  try {
+    const stored = localStorage.getItem(ACCORDION_KEY)
+    return stored ? { ...DEFAULT_ACCORDION, ...JSON.parse(stored) } : DEFAULT_ACCORDION
+  } catch {
+    return DEFAULT_ACCORDION
+  }
+}
 
 export default function Boards() {
   const { t } = useTranslation()
@@ -52,6 +78,16 @@ export default function Boards() {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
   const [langLocOpen, setLangLocOpen] = useState(false)
+  const [createBoardOpen, setCreateBoardOpen] = useState(false)
+  const [accordion, setAccordion] = useState<AccordionState>(readAccordionState)
+
+  function toggleAccordion(key: keyof AccordionState) {
+    setAccordion(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      localStorage.setItem(ACCORDION_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   const fetchAvatar = useCallback(async () => {
     try {
@@ -202,6 +238,15 @@ export default function Boards() {
         </Toolbar>
       </AppBar>
 
+      <CreateBoardDialog
+        open={createBoardOpen}
+        onClose={() => setCreateBoardOpen(false)}
+        accessToken={accessToken ?? ''}
+        onCreated={(_board) => {
+          // boards list will be refreshed from the API in a later step
+        }}
+      />
+
       <UploadAvatarDialog
         open={uploadAvatarOpen}
         onClose={() => setUploadAvatarOpen(false)}
@@ -246,16 +291,51 @@ export default function Boards() {
         />
       )}
 
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: 'calc(100vh - 64px)',
-          bgcolor: 'background.default',
-        }}
-      >
-        <Typography variant="h5">{t('boards.signedIn')}</Typography>
+      <Box sx={{ maxWidth: 900, mx: 'auto', mt: 4, px: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
+          <Button variant="contained" size="large" startIcon={<Add />} onClick={() => setCreateBoardOpen(true)}>
+            {t('boards.createNewBoard')}
+          </Button>
+        </Box>
+
+        <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {t('boards.starredBoards')} (0)
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary">
+              {t('boards.noBoardsYet')}
+            </Typography>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion expanded={accordion.myBoards} onChange={() => toggleAccordion('myBoards')}>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {t('boards.myBoards')} (0)
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary">
+              {t('boards.noBoardsYet')}
+            </Typography>
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion expanded={accordion.sharedWithMe} onChange={() => toggleAccordion('sharedWithMe')}>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Typography variant="subtitle1" fontWeight={600}>
+              {t('boards.sharedWithMe')} (0)
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary">
+              {t('boards.noBoardsYet')}
+            </Typography>
+          </AccordionDetails>
+        </Accordion>
       </Box>
     </>
   )
