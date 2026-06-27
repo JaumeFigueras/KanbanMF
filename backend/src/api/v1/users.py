@@ -20,27 +20,39 @@ def _compute_initials(display_name: str) -> str:
     return "".join(w[0].upper() for w in display_name.split() if w)[:3]
 
 
+async def _build_user_read(user: User, db: AsyncSession) -> UserRead:
+    """Assemble a UserRead by querying preferences and identity providers."""
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+
+    identities_result = await db.execute(
+        select(UserIdentity).where(UserIdentity.user_id == user.id)
+    )
+    providers = [i.provider.value for i in identities_result.scalars()]
+
+    return UserRead(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        language_locale=prefs.language_locale if prefs else "en",
+        initials=prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name),
+        auth_providers=providers,
+    )
+
+
 @router.get("/me", response_model=UserRead)
 async def get_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
     """Return the profile of the currently authenticated user."""
-    prefs_result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
-    )
-    prefs = prefs_result.scalar_one_or_none()
-    return UserRead(
-        id=current_user.id,
-        email=current_user.email,
-        display_name=current_user.display_name,
-        is_active=current_user.is_active,
-        is_verified=current_user.is_verified,
-        created_at=current_user.created_at,
-        updated_at=current_user.updated_at,
-        language_locale=prefs.language_locale if prefs else "en",
-        initials=prefs.initials if prefs and prefs.initials else _compute_initials(current_user.display_name),
-    )
+    return await _build_user_read(current_user, db)
 
 
 @router.put("/me", response_model=UserRead)
@@ -48,13 +60,12 @@ async def update_me(
     body: UserUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> User:
+) -> UserRead:
     """Update the current user's display name and/or email.
 
     Changing the email resets is_verified to False and requires re-verification.
     """
     if body.email and body.email != current_user.email:
-        # Ensure the new email is not already taken
         conflict = await db.execute(select(User).where(User.email == body.email))
         if conflict.scalar_one_or_none() is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
@@ -67,7 +78,7 @@ async def update_me(
 
     await db.commit()
     await db.refresh(current_user)
-    return current_user
+    return await _build_user_read(current_user, db)
 
 
 @router.put("/me/preferences", response_model=UserRead)
@@ -93,18 +104,7 @@ async def update_my_preferences(
 
     await db.commit()
     await db.refresh(prefs)
-
-    return UserRead(
-        id=current_user.id,
-        email=current_user.email,
-        display_name=current_user.display_name,
-        is_active=current_user.is_active,
-        is_verified=current_user.is_verified,
-        created_at=current_user.created_at,
-        updated_at=current_user.updated_at,
-        language_locale=prefs.language_locale,
-        initials=prefs.initials if prefs.initials else _compute_initials(current_user.display_name),
-    )
+    return await _build_user_read(current_user, db)
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)

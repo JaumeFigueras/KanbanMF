@@ -19,6 +19,7 @@ class UserRead(BaseModel):
     updated_at: datetime
     language_locale: str = "en"
     initials: str | None = None
+    auth_providers: list[str] = []
 
     model_config = {"from_attributes": True}
 
