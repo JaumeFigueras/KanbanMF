@@ -25,3 +25,4 @@ httpx>=0.28.1
 fastapi-mail>=1.6.5
 python-dotenv>=1.2.2
 uvicorn[standard]>=0.34.0
+python-multipart>=0.0.20

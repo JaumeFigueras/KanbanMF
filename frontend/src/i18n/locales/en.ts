@@ -41,6 +41,11 @@ const en = {
     newPasswordRequired: 'New password is required.',
     confirmPasswordRequired: 'Please confirm your new password.',
     wrongOldPassword: 'Current password is incorrect.',
+    chooseFile: 'Choose image…',
+    avatarSizeLimit: 'Maximum file size: 100 KB. Accepted formats: JPEG, PNG, WebP, GIF.',
+    avatarTypeError: 'Only image files are allowed (JPEG, PNG, WebP, GIF).',
+    avatarSizeError: 'File is too large. Maximum size is 100 KB.',
+    noFileSelected: 'Please select an image file.',
   },
   common: {
     or: 'or',

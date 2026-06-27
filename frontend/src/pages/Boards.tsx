@@ -26,6 +26,7 @@ import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
 import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
 import ChangePasswordDialog from '../components/ChangePasswordDialog'
+import UploadAvatarDialog from '../components/UploadAvatarDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -35,9 +36,11 @@ export default function Boards() {
   const { accessToken, logout } = useAuth()
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
+  const [authProviders, setAuthProviders] = useState<string[]>([])
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
 
   useEffect(() => {
     fetch('http://localhost:8000/api/v1/users/me', {
@@ -51,6 +54,7 @@ export default function Boards() {
       .then((data) => {
         setDisplayName(data.display_name)
         setInitials(data.initials ?? null)
+        setAuthProviders(data.auth_providers ?? [])
         i18n.changeLanguage(LOCALE_TO_I18N[data.language_locale] ?? 'en')
       })
       .catch(() => navigate('/signin'))
@@ -124,11 +128,13 @@ export default function Boards() {
               <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.changeDisplayName')}</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { setMenuAnchor(null); setChangePasswordOpen(true) }}>
-              <ListItemIcon><Lock fontSize="small" /></ListItemIcon>
-              <ListItemText>{t('boards.changePassword')}</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={() => setMenuAnchor(null)}>
+            {authProviders.includes('local') && (
+              <MenuItem onClick={() => { setMenuAnchor(null); setChangePasswordOpen(true) }}>
+                <ListItemIcon><Lock fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('boards.changePassword')}</ListItemText>
+              </MenuItem>
+            )}
+            <MenuItem onClick={() => { setMenuAnchor(null); setUploadAvatarOpen(true) }}>
               <ListItemIcon><AddPhotoAlternate fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.uploadAvatar')}</ListItemText>
             </MenuItem>
@@ -144,6 +150,12 @@ export default function Boards() {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      <UploadAvatarDialog
+        open={uploadAvatarOpen}
+        onClose={() => setUploadAvatarOpen(false)}
+        accessToken={accessToken ?? ''}
+      />
 
       <ChangePasswordDialog
         open={changePasswordOpen}

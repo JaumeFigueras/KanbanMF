@@ -1,16 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.core.security import hash_password, verify_password
 from src.model.user import User
+from src.model.user_avatar import MAX_AVATAR_SIZE_BYTES, UserAvatar
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
 from src.schemas.user import ChangePasswordRequest, UserRead, UserUpdate, UserPreferencesUpdate
+
+_ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+def _detect_mime(data: bytes) -> str | None:
+    """Return MIME type by inspecting magic bytes, ignoring client-supplied Content-Type."""
+    if data[:3] == b'\xff\xd8\xff':
+        return 'image/jpeg'
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'image/png'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'image/gif'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'image/webp'
+    return None
 
 router = APIRouter()
 
@@ -128,6 +144,37 @@ async def change_my_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     identity.hashed_password = hash_password(body.new_password)
+    await db.commit()
+
+
+@router.put("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_my_avatar(
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Upload or replace the current user's avatar (JPEG, PNG, WebP or GIF, max 100 KB).
+
+    The file is read entirely into memory — no temporary files are created.
+    MIME type is determined from magic bytes, not from the client-supplied Content-Type.
+    """
+    data = await file.read()
+
+    if len(data) > MAX_AVATAR_SIZE_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File exceeds 100 KB limit")
+
+    mime_type = _detect_mime(data)
+    if mime_type is None or mime_type not in _ALLOWED_MIME:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Only JPEG, PNG, WebP and GIF images are accepted")
+
+    existing = await db.execute(select(UserAvatar).where(UserAvatar.user_id == current_user.id))
+    avatar = existing.scalar_one_or_none()
+    if avatar is None:
+        db.add(UserAvatar(user_id=current_user.id, data=data, mime_type=mime_type))
+    else:
+        avatar.data = data
+        avatar.mime_type = mime_type
+
     await db.commit()
 
 
