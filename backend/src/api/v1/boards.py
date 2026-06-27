@@ -177,7 +177,10 @@ async def update_board(
     if board.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can update this board")
 
-    board.name = body.name
+    if body.name is not None:
+        board.name = body.name
+    if body.is_archived is not None:
+        board.is_archived = body.is_archived
     await db.commit()
     await db.refresh(board)
 

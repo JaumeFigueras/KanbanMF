@@ -71,6 +71,8 @@ const en = {
     reorderHint: 'Reorder (coming soon)',
     shareBoard: 'Share',
     notImplementedYet: 'Not implemented yet.',
+    archiveBoardConfirmMessage: 'Are you sure you want to archive "{{name}}"? It will be hidden from your boards list.',
+    archive: 'Archive',
   },
   common: {
     or: 'or',

@@ -37,14 +37,16 @@ class BoardRead(BaseModel):
 
 
 class BoardUpdate(BaseModel):
-    name: str
+    name: str | None = None
+    is_archived: bool | None = None
 
     @field_validator("name")
     @classmethod
-    def name_not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Board name cannot be blank.")
+    def name_not_empty(cls, v: str | None) -> str | None:
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("Board name cannot be blank.")
         return v
 
 

@@ -41,6 +41,7 @@ import UploadAvatarDialog from '../components/UploadAvatarDialog'
 import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog'
 import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
+import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
 import BoardCard from '../components/BoardCard'
 import type { BoardRead, BoardsResponse } from '../types/board'
 
@@ -101,6 +102,7 @@ export default function Boards() {
   const [changeBoardNameOpen, setChangeBoardNameOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
   const [notImplementedOpen, setNotImplementedOpen] = useState(false)
+  const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
   const [accordion, setAccordion] = useState<AccordionState>(readAccordionState)
 
   function toggleAccordion(key: keyof AccordionState) {
@@ -206,8 +208,14 @@ export default function Boards() {
     setNotImplementedOpen(true)
   }
 
-  function handleArchiveBoard(_board: BoardRead) {
-    // TODO: call PATCH /api/v1/boards/{id} with is_archived=true
+  function handleArchiveBoard(board: BoardRead) {
+    setSelectedBoard(board)
+    setArchiveBoardOpen(true)
+  }
+
+  function handleBoardArchived(boardId: string) {
+    const remove = (list: BoardRead[]) => list.filter(b => b.id !== boardId)
+    setBoards(prev => ({ owned: remove(prev.owned), shared: remove(prev.shared) }))
   }
 
   // ── Derived board sections ────────────────────────────────────────────────
@@ -348,6 +356,14 @@ export default function Boards() {
         board={selectedBoard}
         accessToken={accessToken ?? ''}
         onSaved={handleBoardNameSaved}
+      />
+
+      <ArchiveBoardDialog
+        open={archiveBoardOpen}
+        onClose={() => setArchiveBoardOpen(false)}
+        board={selectedBoard}
+        accessToken={accessToken ?? ''}
+        onArchived={handleBoardArchived}
       />
 
       <Snackbar

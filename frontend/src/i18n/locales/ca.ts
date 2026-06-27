@@ -71,6 +71,8 @@ const ca = {
     reorderHint: 'Reordena (pròximament)',
     shareBoard: 'Comparteix',
     notImplementedYet: 'Encara no implementat.',
+    archiveBoardConfirmMessage: 'Segur que vols arxivar "{{name}}"? Quedarà ocult de la llista de taulers.',
+    archive: 'Arxiva',
   },
   common: {
     or: 'o',
