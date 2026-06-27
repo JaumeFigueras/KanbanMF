@@ -70,6 +70,7 @@ const ca = {
     unstar: 'Treu de destacats',
     reorderHint: 'Reordena (pròximament)',
     shareBoard: 'Comparteix',
+    notImplementedYet: 'Encara no implementat.',
   },
   common: {
     or: 'o',

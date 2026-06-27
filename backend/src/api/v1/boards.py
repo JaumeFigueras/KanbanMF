@@ -3,7 +3,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_board_star import UserBoardStar
 from src.model.user_preferences import UserPreferences
-from src.schemas.board import BoardCreate, BoardRead, BoardsResponse
+from src.schemas.board import BoardCreate, BoardRead, BoardUpdate, BoardsResponse
 
 router = APIRouter()
 
@@ -158,3 +158,49 @@ async def create_board(
         owner_initials,
         owner_has_avatar,
     )
+
+
+@router.patch("/{board_id}", response_model=BoardRead)
+async def update_board(
+    board_id: uuid.UUID,
+    body: BoardUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardRead:
+    """Update a board's name. Only the owner can update a board."""
+    result = await db.execute(
+        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
+    )
+    board = result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can update this board")
+
+    board.name = body.name
+    await db.commit()
+    await db.refresh(board)
+
+    # Resolve owner info (always the current user for owned boards)
+    pref_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    pref = pref_result.scalar_one_or_none()
+    owner_initials = (
+        pref.initials if (pref and pref.initials)
+        else _compute_initials(current_user.display_name)
+    )
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
+    )
+    owner_has_avatar = avatar_result.scalar_one_or_none() is not None
+
+    star_result = await db.execute(
+        select(UserBoardStar.board_id).where(
+            UserBoardStar.user_id == current_user.id,
+            UserBoardStar.board_id == board.id,
+        )
+    )
+    starred: set[uuid.UUID] = {board.id} if star_result.scalar_one_or_none() else set()
+
+    return _to_read(board, starred, current_user.display_name, owner_initials, owner_has_avatar)

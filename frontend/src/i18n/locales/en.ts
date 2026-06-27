@@ -70,6 +70,7 @@ const en = {
     unstar: 'Unstar',
     reorderHint: 'Reorder (coming soon)',
     shareBoard: 'Share',
+    notImplementedYet: 'Not implemented yet.',
   },
   common: {
     or: 'or',

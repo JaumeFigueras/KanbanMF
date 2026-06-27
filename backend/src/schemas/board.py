@@ -36,6 +36,18 @@ class BoardRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BoardUpdate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Board name cannot be blank.")
+        return v
+
+
 class BoardsResponse(BaseModel):
     owned: list[BoardRead]
     shared: list[BoardRead]

@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Alert,
   AppBar,
   Avatar,
   Box,
@@ -14,6 +15,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Snackbar,
   Toolbar,
   Tooltip,
   Typography,
@@ -38,6 +40,7 @@ import ChangePasswordDialog from '../components/ChangePasswordDialog'
 import UploadAvatarDialog from '../components/UploadAvatarDialog'
 import LanguageLocalizationDialog from '../components/LanguageLocalizationDialog'
 import CreateBoardDialog from '../components/CreateBoardDialog'
+import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
 import BoardCard from '../components/BoardCard'
 import type { BoardRead, BoardsResponse } from '../types/board'
 
@@ -95,6 +98,9 @@ export default function Boards() {
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
   const [langLocOpen, setLangLocOpen] = useState(false)
   const [createBoardOpen, setCreateBoardOpen] = useState(false)
+  const [changeBoardNameOpen, setChangeBoardNameOpen] = useState(false)
+  const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
+  const [notImplementedOpen, setNotImplementedOpen] = useState(false)
   const [accordion, setAccordion] = useState<AccordionState>(readAccordionState)
 
   function toggleAccordion(key: keyof AccordionState) {
@@ -181,16 +187,23 @@ export default function Boards() {
     // TODO: connect to POST/DELETE /api/v1/boards/{id}/star when endpoint is available
   }
 
-  function handleChangeBoardName(_board: BoardRead) {
-    // TODO: open rename dialog
+  function handleChangeBoardName(board: BoardRead) {
+    setSelectedBoard(board)
+    setChangeBoardNameOpen(true)
+  }
+
+  function handleBoardNameSaved(boardId: string, newName: string) {
+    const update = (list: BoardRead[]) =>
+      list.map(b => b.id === boardId ? { ...b, name: newName } : b)
+    setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared) }))
   }
 
   function handleChangeBoardColor(_board: BoardRead) {
-    // TODO: open color picker dialog
+    setNotImplementedOpen(true)
   }
 
   function handleShareBoard(_board: BoardRead) {
-    // TODO: open share dialog
+    setNotImplementedOpen(true)
   }
 
   function handleArchiveBoard(_board: BoardRead) {
@@ -328,6 +341,25 @@ export default function Boards() {
         accessToken={accessToken ?? ''}
         onCreated={handleBoardCreated}
       />
+
+      <ChangeBoardNameDialog
+        open={changeBoardNameOpen}
+        onClose={() => setChangeBoardNameOpen(false)}
+        board={selectedBoard}
+        accessToken={accessToken ?? ''}
+        onSaved={handleBoardNameSaved}
+      />
+
+      <Snackbar
+        open={notImplementedOpen}
+        autoHideDuration={3000}
+        onClose={() => setNotImplementedOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="info" onClose={() => setNotImplementedOpen(false)}>
+          {t('boards.notImplementedYet')}
+        </Alert>
+      </Snackbar>
 
       <UploadAvatarDialog
         open={uploadAvatarOpen}
