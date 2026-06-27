@@ -2,6 +2,7 @@
 -- Run this to wipe the schema before recreating it from the sql/ files.
 --
 -- Order rationale:
+--   board_lists                     →  reference boards
 --   board_shares, user_board_stars  →  reference boards + users
 --   boards                          →  references users
 --   user_preferences                →  references users, uses dateformat type
@@ -10,6 +11,7 @@
 --   users                           →  root table
 --   custom types                    →  must be dropped after all tables that use them
 
+DROP TABLE IF EXISTS board_lists       CASCADE;
 DROP TABLE IF EXISTS board_shares      CASCADE;
 DROP TABLE IF EXISTS user_board_stars  CASCADE;
 DROP TABLE IF EXISTS boards            CASCADE;
