@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AppBar,
+  Avatar,
   Box,
   Divider,
   IconButton,
@@ -14,7 +15,6 @@ import {
   Typography,
 } from '@mui/material'
 import {
-  AccountCircle,
   AddPhotoAlternate,
   CalendarToday,
   DriveFileRenameOutline,
@@ -24,6 +24,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
+import ChangeDisplayNameDialog from '../components/ChangeDisplayNameDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -32,7 +33,9 @@ export default function Boards() {
   const navigate = useNavigate()
   const { accessToken, logout } = useAuth()
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const [initials, setInitials] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [changeNameOpen, setChangeNameOpen] = useState(false)
 
   useEffect(() => {
     fetch('http://localhost:8000/api/v1/users/me', {
@@ -45,6 +48,7 @@ export default function Boards() {
       })
       .then((data) => {
         setDisplayName(data.display_name)
+        setInitials(data.initials ?? null)
         i18n.changeLanguage(LOCALE_TO_I18N[data.language_locale] ?? 'en')
       })
       .catch(() => navigate('/signin'))
@@ -76,14 +80,23 @@ export default function Boards() {
                 '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
               }}
             >
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  bgcolor: 'primary.dark',
+                  mr: displayName ? 1 : 0,
+                }}
+              >
+                {initials}
+              </Avatar>
               {displayName && (
-                <Typography variant="body2" sx={{ mr: 0.5 }}>
+                <Typography variant="body2">
                   {displayName}
                 </Typography>
               )}
-              <IconButton color="inherit" size="small" disableRipple tabIndex={-1}>
-                <AccountCircle />
-              </IconButton>
             </Box>
           </Tooltip>
 
@@ -105,7 +118,7 @@ export default function Boards() {
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={() => setMenuAnchor(null)}>
+            <MenuItem onClick={() => { setMenuAnchor(null); setChangeNameOpen(true) }}>
               <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.changeDisplayName')}</ListItemText>
             </MenuItem>
@@ -129,6 +142,20 @@ export default function Boards() {
           </Menu>
         </Toolbar>
       </AppBar>
+
+      {displayName !== null && (
+        <ChangeDisplayNameDialog
+          open={changeNameOpen}
+          onClose={() => setChangeNameOpen(false)}
+          currentDisplayName={displayName}
+          currentInitials={initials}
+          accessToken={accessToken ?? ''}
+          onSaved={(newName, newInitials) => {
+            setDisplayName(newName)
+            setInitials(newInitials)
+          }}
+        />
+      )}
 
       <Box
         sx={{

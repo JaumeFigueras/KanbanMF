@@ -54,6 +54,6 @@ class UserPreferencesUpdate(BaseModel):
             raise ValueError("initials cannot be blank")
         if len(stripped) > 3:
             raise ValueError("initials must be 3 characters or fewer")
-        if not stripped.isalpha():
-            raise ValueError("initials must contain only letters")
+        if not stripped.isalnum():
+            raise ValueError("initials must contain only letters or digits")
         return stripped.upper()

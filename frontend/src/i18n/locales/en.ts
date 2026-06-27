@@ -31,10 +31,17 @@ const en = {
     changePassword: 'Change password',
     uploadAvatar: 'Upload avatar',
     setFirstDayOfWeek: 'Set 1st day of week',
+    initials: 'Initials',
+    initialsHint: 'Up to 3 letters. Leave blank to use display name initials.',
+    displayNameRequired: 'Display name cannot be blank.',
+    initialsInvalid: 'Initials must be 1–3 letters or digits.',
   },
   common: {
     or: 'or',
     continueWithGoogle: 'Continue with Google',
+    cancel: 'Cancel',
+    save: 'Save',
+    saveError: 'Something went wrong. Please try again.',
   },
 } as const
 

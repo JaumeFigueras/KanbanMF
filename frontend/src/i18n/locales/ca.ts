@@ -31,10 +31,17 @@ const ca = {
     changePassword: 'Canvia la contrasenya',
     uploadAvatar: "Puja un avatar",
     setFirstDayOfWeek: 'Estableix el 1r dia de la setmana',
+    initials: 'Inicials',
+    initialsHint: 'Màxim 3 lletres. Deixa-ho en blanc per usar les inicials del nom visible.',
+    displayNameRequired: 'El nom visible no pot estar en blanc.',
+    initialsInvalid: 'Les inicials han de ser entre 1 i 3 lletres o dígits.',
   },
   common: {
     or: 'o',
     continueWithGoogle: 'Continua amb Google',
+    cancel: 'Cancel·la',
+    save: 'Desa',
+    saveError: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
   },
 } as const
 
