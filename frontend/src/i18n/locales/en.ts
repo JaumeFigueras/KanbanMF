@@ -68,7 +68,7 @@ const en = {
     archiveBoard: 'Archive Board',
     star: 'Star',
     unstar: 'Unstar',
-    reorderHint: 'Reorder (coming soon)',
+    reorderHint: 'Reorder',
     shareBoard: 'Share',
     notImplementedYet: 'Not implemented yet.',
     archiveBoardConfirmMessage: 'Are you sure you want to archive "{{name}}"? It will be hidden from your boards list.',

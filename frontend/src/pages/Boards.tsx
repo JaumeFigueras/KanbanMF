@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable'
+import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
@@ -50,9 +59,13 @@ const BOARD_GRID_SX = {
 
 const EMPTY_ORDER: BoardOrderRead = { starred_ids: [], owned_ids: [], shared_ids: [] }
 
+type Section = 'starred' | 'owned' | 'shared'
+
 export default function Boards() {
   const { t } = useTranslation()
   const { accessToken } = useAuth()
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   // Locale settings received from MainAppBar (used for card date formatting)
   const [numberLocale, setNumberLocale] = useState('en')
@@ -136,11 +149,34 @@ export default function Boards() {
     }))
   }
 
-  function handleStarToggle(boardId: string, starred: boolean) {
-    const update = (list: BoardRead[]) =>
-      list.map(b => b.id === boardId ? { ...b, is_starred: starred } : b)
-    setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared) }))
-    // TODO: connect to POST/DELETE /api/v1/boards/{id}/star when endpoint is available
+  async function handleStarToggle(boardId: string, starred: boolean) {
+    // Optimistic update
+    const applyToggle = (list: BoardRead[], value: boolean) =>
+      list.map(b => b.id === boardId ? { ...b, is_starred: value } : b)
+    setBoards(prev => ({ owned: applyToggle(prev.owned, starred), shared: applyToggle(prev.shared, starred) }))
+    setOrder(prev => ({
+      ...prev,
+      starred_ids: starred
+        ? [...prev.starred_ids, boardId]
+        : prev.starred_ids.filter(id => id !== boardId),
+    }))
+
+    const r = await fetch(`http://localhost:8000/api/v1/boards/${boardId}/star`, {
+      method: starred ? 'POST' : 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+    })
+
+    if (!r.ok) {
+      // Revert on failure
+      setBoards(prev => ({ owned: applyToggle(prev.owned, !starred), shared: applyToggle(prev.shared, !starred) }))
+      setOrder(prev => ({
+        ...prev,
+        starred_ids: starred
+          ? prev.starred_ids.filter(id => id !== boardId)
+          : [...prev.starred_ids, boardId],
+      }))
+    }
   }
 
   function handleChangeBoardName(board: BoardRead) {
@@ -241,6 +277,30 @@ export default function Boards() {
     [boards.shared, order.shared_ids],
   )
 
+  function handleSectionDragEnd(event: DragEndEvent, section: Section) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const sectionBoards = section === 'starred' ? starredBoards : section === 'owned' ? myBoards : sharedBoards
+    const orderKey = section === 'starred' ? 'starred_ids' : section === 'owned' ? 'owned_ids' : 'shared_ids'
+
+    const ids = sectionBoards.map(b => b.id)
+    const oldIdx = ids.indexOf(active.id as string)
+    const newIdx = ids.indexOf(over.id as string)
+    if (oldIdx === -1 || newIdx === -1) return
+
+    const newIds = arrayMove(ids, oldIdx, newIdx)
+    const newOrder = { ...order, [orderKey]: newIds }
+    setOrder(newOrder)
+
+    fetch('http://localhost:8000/api/v1/boards/order', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+      body: JSON.stringify(newOrder),
+    }).catch(() => {})
+  }
+
   const sharedCardProps = {
     numberLocale,
     dateFormat,
@@ -319,11 +379,15 @@ export default function Boards() {
           <AccordionDetails>
             {starredBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <Box sx={BOARD_GRID_SX}>
-                  {starredBoards.map(board => (
-                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
-                  ))}
-                </Box>
+              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'starred')}>
+                  <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                    <Box sx={BOARD_GRID_SX}>
+                      {starredBoards.map(board => (
+                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                      ))}
+                    </Box>
+                  </SortableContext>
+                </DndContext>
             }
           </AccordionDetails>
         </Accordion>
@@ -338,11 +402,15 @@ export default function Boards() {
           <AccordionDetails>
             {myBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <Box sx={BOARD_GRID_SX}>
-                  {myBoards.map(board => (
-                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
-                  ))}
-                </Box>
+              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'owned')}>
+                  <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                    <Box sx={BOARD_GRID_SX}>
+                      {myBoards.map(board => (
+                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                      ))}
+                    </Box>
+                  </SortableContext>
+                </DndContext>
             }
           </AccordionDetails>
         </Accordion>
@@ -357,11 +425,15 @@ export default function Boards() {
           <AccordionDetails>
             {sharedBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <Box sx={BOARD_GRID_SX}>
-                  {sharedBoards.map(board => (
-                    <BoardCard key={board.id} board={board} {...sharedCardProps} />
-                  ))}
-                </Box>
+              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'shared')}>
+                  <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                    <Box sx={BOARD_GRID_SX}>
+                      {sharedBoards.map(board => (
+                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                      ))}
+                    </Box>
+                  </SortableContext>
+                </DndContext>
             }
           </AccordionDetails>
         </Accordion>

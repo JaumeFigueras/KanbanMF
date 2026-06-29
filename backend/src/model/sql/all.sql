@@ -10,8 +10,8 @@ CREATE TABLE users (
 	PRIMARY KEY (id)
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_users_id ON users (id);
 CREATE UNIQUE INDEX ix_users_email ON users (email);
+CREATE INDEX ix_users_id ON users (id);
 ALTER TABLE public.users OWNER TO kanbanmf_user;
 GRANT SELECT on public.users to kanbanmf_remoteuser;
 
@@ -93,8 +93,8 @@ CREATE TABLE boards (
 	FOREIGN KEY(owner_id) REFERENCES users (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_boards_owner_id ON boards (owner_id);
 CREATE INDEX ix_boards_id ON boards (id);
+CREATE INDEX ix_boards_owner_id ON boards (owner_id);
 ALTER TABLE public.boards OWNER TO kanbanmf_user;
 GRANT SELECT on public.boards to kanbanmf_remoteuser;
 

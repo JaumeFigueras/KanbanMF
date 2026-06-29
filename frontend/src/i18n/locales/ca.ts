@@ -68,7 +68,7 @@ const ca = {
     archiveBoard: 'Arxiva el tauler',
     star: 'Destaca',
     unstar: 'Treu de destacats',
-    reorderHint: 'Reordena (pròximament)',
+    reorderHint: 'Reordena',
     shareBoard: 'Comparteix',
     notImplementedYet: 'Encara no implementat.',
     archiveBoardConfirmMessage: 'Segur que vols arxivar "{{name}}"? Quedarà ocult de la llista de taulers.',

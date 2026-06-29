@@ -4,7 +4,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -374,6 +374,30 @@ async def delete_board(
     await db.commit()
 
 
+async def _check_board_access(
+    board_id: uuid.UUID,
+    current_user: User,
+    db: AsyncSession,
+) -> Board:
+    """Return the board if the user is the owner or a shared member, else raise."""
+    result = await db.execute(
+        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
+    )
+    board = result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    if board.owner_id != current_user.id:
+        share = await db.execute(
+            select(BoardShare.board_id).where(
+                BoardShare.board_id == board_id,
+                BoardShare.user_id == current_user.id,
+            )
+        )
+        if share.scalar_one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    return board
+
+
 @router.patch("/{board_id}", response_model=BoardRead)
 async def update_board(
     board_id: uuid.UUID,
@@ -443,3 +467,63 @@ async def update_board(
     starred: set[uuid.UUID] = {board.id} if star_result.scalar_one_or_none() else set()
 
     return _to_read(board, starred, current_user.display_name, owner_initials, owner_has_avatar)
+
+
+@router.post("/{board_id}/star", status_code=status.HTTP_204_NO_CONTENT)
+async def star_board(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Star a board. Idempotent — starring an already-starred board is a no-op."""
+    await _check_board_access(board_id, current_user, db)
+
+    result = await db.execute(
+        pg_insert(UserBoardStar)
+        .values(user_id=current_user.id, board_id=board_id)
+        .on_conflict_do_nothing()
+    )
+
+    if result.rowcount > 0:
+        # Only update the order array when a new star was actually inserted.
+        await db.execute(
+            pg_insert(UIBoardOrder)
+            .values(user_id=current_user.id, starred_ids=[board_id], owned_ids=[], shared_ids=[])
+            .on_conflict_do_update(
+                index_elements=["user_id"],
+                set_={
+                    "starred_ids": func.array_append(UIBoardOrder.starred_ids, board_id),
+                    "updated_at": func.now(),
+                },
+            )
+        )
+
+    await db.commit()
+
+
+@router.delete("/{board_id}/star", status_code=status.HTTP_204_NO_CONTENT)
+async def unstar_board(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove a star from a board. Idempotent."""
+    await _check_board_access(board_id, current_user, db)
+
+    await db.execute(
+        delete(UserBoardStar).where(
+            UserBoardStar.user_id == current_user.id,
+            UserBoardStar.board_id == board_id,
+        )
+    )
+
+    await db.execute(
+        update(UIBoardOrder)
+        .where(UIBoardOrder.user_id == current_user.id)
+        .values(
+            starred_ids=func.array_remove(UIBoardOrder.starred_ids, board_id),
+            updated_at=func.now(),
+        )
+    )
+
+    await db.commit()

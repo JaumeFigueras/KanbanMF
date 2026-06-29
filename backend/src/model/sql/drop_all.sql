@@ -12,6 +12,7 @@
 --   custom types                    →  must be dropped after all tables that use them
 
 DROP TABLE IF EXISTS ui_board_list_orders       CASCADE;
+DROP TABLE IF EXISTS ui_board_orders       CASCADE;
 DROP TABLE IF EXISTS board_lists       CASCADE;
 DROP TABLE IF EXISTS board_shares      CASCADE;
 DROP TABLE IF EXISTS user_board_stars  CASCADE;
