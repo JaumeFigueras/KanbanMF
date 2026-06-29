@@ -1,0 +1,297 @@
+import { useEffect, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  IconButton,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material'
+import { Delete, Edit } from '@mui/icons-material'
+import { useTranslation } from 'react-i18next'
+import type { LabelRead } from '../types/board'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  boardId: string
+  accessToken: string
+}
+
+interface LabelForm {
+  name: string
+  color: string
+}
+
+const DEFAULT_COLOR = '#6366F1'
+
+function contrastColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000000' : '#ffffff'
+}
+
+function LabelChip({ label }: { label: LabelRead }) {
+  return (
+    <Box
+      sx={{
+        flexGrow: 1,
+        px: 1.5,
+        py: 0.75,
+        borderRadius: 1,
+        bgcolor: label.color,
+        color: contrastColor(label.color),
+        fontWeight: 700,
+        fontSize: '0.875rem',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label.name}
+    </Box>
+  )
+}
+
+function InlineForm({
+  initial,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  initial: LabelForm
+  onSave: (form: LabelForm) => void
+  onCancel: () => void
+  saving?: boolean
+}) {
+  const { t } = useTranslation()
+  const [form, setForm] = useState<LabelForm>(initial)
+  const [nameError, setNameError] = useState(false)
+
+  function handleSave() {
+    if (!form.name.trim()) { setNameError(true); return }
+    onSave({ name: form.name.trim(), color: form.color })
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+        <Box
+          component="input"
+          type="color"
+          value={form.color}
+          onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
+          sx={{
+            width: 40,
+            height: 40,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            cursor: 'pointer',
+            p: '2px',
+            bgcolor: 'transparent',
+            flexShrink: 0,
+            mt: nameError ? '4px' : 0,
+          }}
+        />
+        <TextField
+          size="small"
+          label={t('board.labelName')}
+          value={form.name}
+          onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(false) }}
+          onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+          error={nameError}
+          helperText={nameError ? t('board.labelNameRequired') : undefined}
+          sx={{ flexGrow: 1 }}
+          autoFocus
+          disabled={saving}
+        />
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          variant="contained"
+          onClick={handleSave}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : undefined}
+        >
+          {t('common.save')}
+        </Button>
+        <Button size="small" onClick={onCancel} disabled={saving}>
+          {t('common.cancel')}
+        </Button>
+      </Box>
+    </Box>
+  )
+}
+
+export default function ManageLabelsDialog({ open, onClose, boardId, accessToken }: Props) {
+  const { t } = useTranslation()
+  const [labels, setLabels] = useState<LabelRead[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const authHeader = { Authorization: `Bearer ${accessToken}` }
+  const jsonHeaders = { 'Content-Type': 'application/json', ...authHeader }
+  const API = `http://localhost:8000/api/v1/boards/${boardId}/labels`
+
+  useEffect(() => {
+    if (!open) return
+    setEditingId(null)
+    setCreating(false)
+    setError(null)
+    fetch(API, { headers: authHeader, credentials: 'include' })
+      .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+      .then(setLabels)
+      .catch(err => setError(String(err)))
+  }, [open, boardId, accessToken])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCreate(form: LabelForm) {
+    setError(null)
+    setSaving(true)
+    try {
+      const r = await fetch(API, {
+        method: 'POST',
+        headers: jsonHeaders,
+        credentials: 'include',
+        body: JSON.stringify({ name: form.name, color: form.color }),
+      })
+      if (r.ok) {
+        const created: LabelRead = await r.json()
+        setLabels(prev => [...prev, created])
+        setCreating(false)
+      } else {
+        const body = await r.json().catch(() => ({}))
+        setError(body.detail ?? `HTTP ${r.status}`)
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleEdit(label: LabelRead, form: LabelForm) {
+    setError(null)
+    setSaving(true)
+    try {
+      const r = await fetch(`${API}/${label.id}`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        credentials: 'include',
+        body: JSON.stringify({ name: form.name, color: form.color }),
+      })
+      if (r.ok) {
+        const updated: LabelRead = await r.json()
+        setLabels(prev => prev.map(l => l.id === updated.id ? updated : l))
+        setEditingId(null)
+      } else {
+        const body = await r.json().catch(() => ({}))
+        setError(body.detail ?? `HTTP ${r.status}`)
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(labelId: string) {
+    setError(null)
+    const r = await fetch(`${API}/${labelId}`, {
+      method: 'DELETE',
+      headers: authHeader,
+      credentials: 'include',
+    })
+    if (r.ok) {
+      setLabels(prev => prev.filter(l => l.id !== labelId))
+    } else {
+      const body = await r.json().catch(() => ({}))
+      setError(body.detail ?? `HTTP ${r.status}`)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>{t('board.manageLabels')}</DialogTitle>
+
+      <DialogContent sx={{ pt: 2.5, pb: 1 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        {labels.length === 0 && !creating && !error && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t('board.noLabels')}
+          </Typography>
+        )}
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
+          {labels.map(label =>
+            editingId === label.id ? (
+              <InlineForm
+                key={label.id}
+                initial={{ name: label.name, color: label.color }}
+                onSave={form => handleEdit(label, form)}
+                onCancel={() => setEditingId(null)}
+                saving={saving}
+              />
+            ) : (
+              <Box key={label.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LabelChip label={label} />
+                <Tooltip title={t('board.editLabel')}>
+                  <IconButton
+                    size="small"
+                    onClick={() => { setCreating(false); setEditingId(label.id) }}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t('board.deleteLabel')}>
+                  <IconButton size="small" color="error" onClick={() => handleDelete(label.id)}>
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )
+          )}
+
+          {creating && (
+            <InlineForm
+              initial={{ name: '', color: DEFAULT_COLOR }}
+              onSave={handleCreate}
+              onCancel={() => setCreating(false)}
+              saving={saving}
+            />
+          )}
+        </Box>
+      </DialogContent>
+
+      <Divider />
+
+      <DialogActions sx={{ justifyContent: 'space-between', px: 2.5, py: 2 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={creating || editingId !== null}
+          onClick={() => { setEditingId(null); setCreating(true); setError(null) }}
+        >
+          {t('board.createNewLabel')}
+        </Button>
+        <Button onClick={onClose}>{t('common.close')}</Button>
+      </DialogActions>
+    </Dialog>
+  )
+}

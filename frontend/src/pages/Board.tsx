@@ -8,7 +8,7 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
-import { Add, Menu as MenuIcon } from '@mui/icons-material'
+import { Add, Label, Menu as MenuIcon } from '@mui/icons-material'
 import {
   DndContext,
   closestCenter,
@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import MainAppBar from '../components/MainAppBar'
 import CreateListDialog from '../components/CreateListDialog'
+import ManageLabelsDialog from '../components/ManageLabelsDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import type { BoardListRead, BoardListOrderRead, BoardRead } from '../types/board'
 
@@ -37,6 +38,7 @@ export default function Board() {
   const [lists, setLists] = useState<BoardListRead[]>([])
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
+  const [manageLabelsOpen, setManageLabelsOpen] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -139,6 +141,16 @@ export default function Board() {
           >
             {t('board.addList')}
           </Button>
+          <Button
+            variant="outlined"
+            color="inherit"
+            startIcon={<Label />}
+            size="small"
+            sx={{ ml: 1 }}
+            onClick={() => setManageLabelsOpen(true)}
+          >
+            {t('board.manageLabels')}
+          </Button>
           <Box sx={{ flexGrow: 1 }} />
           <IconButton color="inherit" aria-label={t('board.boardMenu')}>
             <MenuIcon />
@@ -185,6 +197,13 @@ export default function Board() {
         boardId={boardId ?? ''}
         accessToken={accessToken ?? ''}
         onCreated={handleListCreated}
+      />
+
+      <ManageLabelsDialog
+        open={manageLabelsOpen}
+        onClose={() => setManageLabelsOpen(false)}
+        boardId={boardId ?? ''}
+        accessToken={accessToken ?? ''}
       />
     </>
   )

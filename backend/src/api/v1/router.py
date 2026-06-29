@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter
 
-from src.api.v1 import boards, lists, users
+from src.api.v1 import boards, labels, lists, users
 from src.api.v1.auth import google, local
 
 router = APIRouter(prefix="/api/v1")
@@ -11,5 +11,6 @@ router = APIRouter(prefix="/api/v1")
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(boards.router, prefix="/boards", tags=["boards"])
 router.include_router(lists.router, prefix="/boards/{board_id}/lists", tags=["lists"])
+router.include_router(labels.router, prefix="/boards/{board_id}/labels", tags=["labels"])
 router.include_router(local.router, prefix="/auth/local", tags=["auth:local"])
 router.include_router(google.router, prefix="/auth/google", tags=["auth:google"])

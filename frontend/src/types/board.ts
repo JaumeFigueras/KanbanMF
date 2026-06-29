@@ -37,3 +37,12 @@ export interface BoardOrderRead {
   owned_ids: string[]
   shared_ids: string[]
 }
+
+export interface LabelRead {
+  id: string
+  board_id: string
+  name: string
+  color: string
+  created_at: string
+  updated_at: string
+}
