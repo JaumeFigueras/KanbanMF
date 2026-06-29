@@ -16,6 +16,7 @@ from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
     from src.model.board_list import BoardList
+    from src.model.label import Label
     from src.model.ui_board_list_order import UIBoardListOrder
 
 
@@ -120,6 +121,12 @@ class Board(Base):
         secondary=UserBoardStar.__table__,
         back_populates="starred_boards",
         viewonly=True,
+    )
+
+    labels: Mapped[List["Label"]] = relationship(
+        "Label",
+        back_populates="board",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

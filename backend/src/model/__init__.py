@@ -8,7 +8,9 @@ from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.card_member import CardMember
 from src.model.card_assignee import CardAssignee
+from src.model.card_label import CardLabel
 from src.model.card import Card
+from src.model.label import Label
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_board_order import UIBoardOrder
 from src.model.user import User
@@ -18,7 +20,7 @@ from src.model.user_session import UserSession
 from src.model.user_preferences import UserPreferences
 
 __all__ = [
-    "Base", "Board", "BoardList", "Card", "CardMember", "CardAssignee",
+    "Base", "Board", "BoardList", "Card", "CardMember", "CardAssignee", "CardLabel", "Label",
     "UIBoardListOrder", "UIBoardOrder", "BoardShare", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
 ]

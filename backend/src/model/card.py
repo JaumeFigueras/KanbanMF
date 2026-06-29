@@ -13,9 +13,11 @@ from sqlalchemy.sql import func
 from src.model.base import Base
 from src.model.card_member import CardMember
 from src.model.card_assignee import CardAssignee
+from src.model.card_label import CardLabel
 
 if TYPE_CHECKING:
     from src.model.board_list import BoardList
+    from src.model.label import Label
     from src.model.user import User
 
 
@@ -123,6 +125,12 @@ class Card(Base):
         "User",
         secondary=CardAssignee.__table__,
         back_populates="assignee_cards",
+    )
+
+    labels: Mapped[List["Label"]] = relationship(
+        "Label",
+        secondary=CardLabel.__table__,
+        back_populates="cards",
     )
 
     def __repr__(self) -> str:
