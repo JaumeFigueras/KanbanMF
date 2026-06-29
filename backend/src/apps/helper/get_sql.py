@@ -56,6 +56,7 @@ from src.model.user_identity import UserIdentity, AuthProvider
 from src.model.user_session import UserSession
 from src.model.board import Board
 from src.model.board_share import BoardShare
+from src.model.board_list import BoardList
 from src.model.user_board_star import UserBoardStar
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
@@ -89,6 +90,7 @@ def main(e: Engine):  # pragma: no cover
         UserSession,
         Board,
         BoardShare,
+        BoardList,
         UserBoardStar,
     ]
 

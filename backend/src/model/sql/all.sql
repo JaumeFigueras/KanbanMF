@@ -10,8 +10,8 @@ CREATE TABLE users (
 	PRIMARY KEY (id)
 )
 WITH (OIDS = FALSE);
-CREATE UNIQUE INDEX ix_users_email ON users (email);
 CREATE INDEX ix_users_id ON users (id);
+CREATE UNIQUE INDEX ix_users_email ON users (email);
 ALTER TABLE public.users OWNER TO kanbanmf_user;
 GRANT SELECT on public.users to kanbanmf_remoteuser;
 
@@ -110,31 +110,31 @@ WITH (OIDS = FALSE);
 ALTER TABLE public.board_shares OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_shares to kanbanmf_remoteuser;
 
+CREATE TABLE board_lists (
+	id UUID NOT NULL, 
+	board_id UUID NOT NULL, 
+	name VARCHAR(255) NOT NULL, 
+	is_archived BOOLEAN DEFAULT 'false' NOT NULL, 
+	is_deleted BOOLEAN DEFAULT 'false' NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
+CREATE INDEX ix_board_lists_id ON board_lists (id);
+ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
+GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
+
 CREATE TABLE user_board_stars (
-	user_id UUID NOT NULL,
-	board_id UUID NOT NULL,
-	starred_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
-	PRIMARY KEY (user_id, board_id),
-	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE,
+	user_id UUID NOT NULL, 
+	board_id UUID NOT NULL, 
+	starred_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (user_id, board_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
 ALTER TABLE public.user_board_stars OWNER TO kanbanmf_user;
 GRANT SELECT on public.user_board_stars to kanbanmf_remoteuser;
-
-CREATE TABLE board_lists (
-	id UUID NOT NULL,
-	board_id UUID NOT NULL,
-	name VARCHAR(255) NOT NULL,
-	is_archived BOOLEAN DEFAULT 'false' NOT NULL,
-	is_deleted BOOLEAN DEFAULT 'false' NOT NULL,
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
-	PRIMARY KEY (id),
-	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
-)
-WITH (OIDS = FALSE);
-CREATE INDEX ix_board_lists_id ON board_lists (id);
-CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
-ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
-GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
