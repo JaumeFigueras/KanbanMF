@@ -57,6 +57,9 @@ from src.model.user_session import UserSession
 from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.board_list import BoardList
+from src.model.card_member import CardMember
+from src.model.card_assignee import CardAssignee
+from src.model.card import Card
 from src.model.user_board_star import UserBoardStar
 from src.model.ui_board_order import UIBoardOrder
 from src.model.ui_board_list_order import UIBoardListOrder
@@ -97,6 +100,9 @@ def main(e: Engine):  # pragma: no cover
         UserBoardStar,
         UIBoardOrder,
         UIBoardListOrder,
+        Card,
+        CardMember,
+        CardAssignee,
     ]
 
     files_created = []

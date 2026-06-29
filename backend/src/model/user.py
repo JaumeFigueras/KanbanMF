@@ -13,9 +13,12 @@ from sqlalchemy.sql import func
 from src.model.base import Base
 from src.model.board_share import BoardShare
 from src.model.user_board_star import UserBoardStar
+from src.model.card_member import CardMember
+from src.model.card_assignee import CardAssignee
 
 if TYPE_CHECKING:
     from src.model.board import Board
+    from src.model.card import Card
     from src.model.ui_board_order import UIBoardOrder
 
 
@@ -134,6 +137,24 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+
+    created_cards: Mapped[List["Card"]] = relationship(
+        "Card",
+        foreign_keys="[Card.creator_id]",
+        back_populates="creator",
+    )
+
+    member_cards: Mapped[List["Card"]] = relationship(
+        "Card",
+        secondary=CardMember.__table__,
+        back_populates="members",
+    )
+
+    assignee_cards: Mapped[List["Card"]] = relationship(
+        "Card",
+        secondary=CardAssignee.__table__,
+        back_populates="assignees",
     )
 
     def __repr__(self) -> str:

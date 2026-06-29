@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -14,6 +14,7 @@ from src.model.base import Base
 
 if TYPE_CHECKING:
     from src.model.board import Board
+    from src.model.card import Card
 
 
 class BoardList(Base):
@@ -71,6 +72,12 @@ class BoardList(Base):
     )
 
     board: Mapped["Board"] = relationship("Board", back_populates="board_lists")
+
+    cards: Mapped[List["Card"]] = relationship(
+        "Card",
+        back_populates="board_list",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<BoardList id={self.id} name={self.name!r} board_id={self.board_id}>"
