@@ -24,13 +24,13 @@ export default function SignIn() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState(false)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const data = new FormData(e.currentTarget)
-    setError(false)
+    setErrorKey(null)
     setLoading(true)
     try {
       const res = await fetch('http://localhost:8000/api/v1/auth/local/login', {
@@ -43,14 +43,19 @@ export default function SignIn() {
         }),
       })
       if (!res.ok) {
-        setError(true)
+        if (res.status === 403) {
+          const body = await res.json().catch(() => ({}))
+          setErrorKey(body.detail === 'Email not verified' ? 'signIn.errorNotVerified' : 'signIn.errorCredentials')
+        } else {
+          setErrorKey('signIn.errorCredentials')
+        }
         return
       }
       const { access_token } = await res.json()
       login(access_token)
       navigate('/boards')
     } catch {
-      setError(true)
+      setErrorKey('signIn.errorCredentials')
     } finally {
       setLoading(false)
     }
@@ -74,9 +79,9 @@ export default function SignIn() {
             {t('signIn.title')}
           </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {t('signIn.errorCredentials')}
+          {errorKey && (
+            <Alert severity={errorKey === 'signIn.errorNotVerified' ? 'warning' : 'error'} sx={{ mb: 2 }}>
+              {t(errorKey)}
             </Alert>
           )}
 

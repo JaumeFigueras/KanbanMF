@@ -126,6 +126,9 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
 
+    if not user.is_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
+
     plain_refresh = generate_refresh_token()
     session = UserSession(
         user_id=user.id,

@@ -7,6 +7,7 @@ const ca = {
     noAccount: 'No tens compte?',
     signUpLink: "Registra't",
     errorCredentials: 'Correu electrònic o contrasenya incorrectes',
+    errorNotVerified: 'Verifica el teu correu electrònic abans d\'iniciar sessió.',
   },
   signUp: {
     title: 'Crea el teu compte a KanbanMF',
@@ -22,6 +23,16 @@ const ca = {
     errorGeneric: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
     checkEmailTitle: 'Comprova el teu correu',
     checkEmailBody: "Hem enviat un enllaç de verificació a la teva adreça de correu. Fes-hi clic per activar el teu compte.",
+  },
+  verifyEmail: {
+    verifying: 'Verificant el teu correu…',
+    successTitle: 'Correu verificat!',
+    successBody: 'El teu compte ja és actiu. Ja pots iniciar sessió.',
+    signInNow: 'Inicia sessió',
+    errorTitle: 'La verificació ha fallat',
+    errorExpired: 'Aquest enllaç de verificació ha caducat. Registra\'t de nou per obtenir-ne un de nou.',
+    errorInvalid: 'Aquest enllaç de verificació no és vàlid o ja s\'ha utilitzat.',
+    tryAgain: 'Torna al registre',
   },
   boards: {
     createNewBoard: 'Crea un nou tauler',

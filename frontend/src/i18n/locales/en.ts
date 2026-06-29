@@ -7,6 +7,7 @@ const en = {
     noAccount: "Don't have an account?",
     signUpLink: 'Sign up',
     errorCredentials: 'Incorrect email or password',
+    errorNotVerified: 'Please verify your email address before signing in.',
   },
   signUp: {
     title: 'Create your account in KanbanMF',
@@ -22,6 +23,16 @@ const en = {
     errorGeneric: 'Something went wrong. Please try again.',
     checkEmailTitle: 'Check your email',
     checkEmailBody: 'We sent a verification link to your email address. Please click it to activate your account.',
+  },
+  verifyEmail: {
+    verifying: 'Verifying your email…',
+    successTitle: 'Email verified!',
+    successBody: 'Your account is now active. You can sign in.',
+    signInNow: 'Sign in',
+    errorTitle: 'Verification failed',
+    errorExpired: 'This verification link has expired. Please sign up again to get a new one.',
+    errorInvalid: 'This verification link is invalid or has already been used.',
+    tryAgain: 'Back to sign up',
   },
   boards: {
     createNewBoard: 'Create a new Board',
