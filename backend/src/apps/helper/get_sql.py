@@ -62,6 +62,8 @@ from src.model.card_assignee import CardAssignee
 from src.model.card_label import CardLabel
 from src.model.card import Card
 from src.model.label import Label
+from src.model.checklist import Checklist
+from src.model.checklist_item import ChecklistItem
 from src.model.user_board_star import UserBoardStar
 from src.model.ui_board_order import UIBoardOrder
 from src.model.ui_board_list_order import UIBoardListOrder
@@ -107,6 +109,8 @@ def main(e: Engine):  # pragma: no cover
         CardMember,
         CardAssignee,
         CardLabel,
+        Checklist,
+        ChecklistItem,
     ]
 
     files_created = []

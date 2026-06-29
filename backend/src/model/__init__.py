@@ -11,6 +11,8 @@ from src.model.card_assignee import CardAssignee
 from src.model.card_label import CardLabel
 from src.model.card import Card
 from src.model.label import Label
+from src.model.checklist import Checklist
+from src.model.checklist_item import ChecklistItem
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_board_order import UIBoardOrder
 from src.model.user import User
@@ -20,7 +22,10 @@ from src.model.user_session import UserSession
 from src.model.user_preferences import UserPreferences
 
 __all__ = [
-    "Base", "Board", "BoardList", "Card", "CardMember", "CardAssignee", "CardLabel", "Label",
+    "Base", "Board", "BoardList",
+    "Card", "CardMember", "CardAssignee", "CardLabel",
+    "Checklist", "ChecklistItem",
+    "Label",
     "UIBoardListOrder", "UIBoardOrder", "BoardShare", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
 ]
