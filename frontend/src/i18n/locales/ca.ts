@@ -83,6 +83,14 @@ const ca = {
   board: {
     addList: 'Afegeix una llista',
     boardMenu: 'Menú del tauler',
+    createList: 'Crea una nova llista',
+    listName: 'Nom de la llista',
+    listNameRequired: 'El nom de la llista és obligatori.',
+    renameList: 'Reanomena la llista',
+    archiveList: 'Arxiva la llista',
+    listMenu: 'Menú de la llista',
+    addCard: 'Afegeix una tarja',
+    moveList: 'Mou la llista',
   },
   common: {
     or: 'o',

@@ -122,8 +122,8 @@ CREATE TABLE board_lists (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 CREATE INDEX ix_board_lists_id ON board_lists (id);
+CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
 
@@ -138,3 +138,14 @@ CREATE TABLE user_board_stars (
 WITH (OIDS = FALSE);
 ALTER TABLE public.user_board_stars OWNER TO kanbanmf_user;
 GRANT SELECT on public.user_board_stars to kanbanmf_remoteuser;
+
+CREATE TABLE ui_board_list_orders (
+	board_id UUID NOT NULL, 
+	list_ids UUID[] DEFAULT '{}' NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (board_id), 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.ui_board_list_orders OWNER TO kanbanmf_user;
+GRANT SELECT on public.ui_board_list_orders to kanbanmf_remoteuser;

@@ -4,15 +4,23 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
+from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.user import User
-from src.schemas.board_list import BoardListCreate, BoardListRead, BoardListUpdate
+from src.schemas.board_list import (
+    BoardListCreate,
+    BoardListOrderRead,
+    BoardListOrderUpdate,
+    BoardListRead,
+    BoardListUpdate,
+)
 
 router = APIRouter()
 
@@ -69,11 +77,26 @@ async def create_board_list(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardListRead:
-    """Create a new list on a board. User must be the owner or a shared member."""
+    """Create a new list on a board and append it to the order. User must be owner or shared member."""
     await _get_accessible_board(board_id, current_user, db)
 
     board_list = BoardList(board_id=board_id, name=body.name)
     db.add(board_list)
+    await db.flush()  # assigns board_list.id before the order upsert
+
+    # Append new list to the order array (creates the row if it doesn't exist yet)
+    stmt = pg_insert(UIBoardListOrder).values(
+        board_id=board_id,
+        list_ids=[board_list.id],
+    ).on_conflict_do_update(
+        index_elements=["board_id"],
+        set_={
+            "list_ids": func.array_append(UIBoardListOrder.list_ids, board_list.id),
+            "updated_at": func.now(),
+        },
+    )
+    await db.execute(stmt)
+
     await db.commit()
     await db.refresh(board_list)
     return BoardListRead.model_validate(board_list)
@@ -105,7 +128,82 @@ async def update_board_list(
         board_list.name = body.name
     if body.is_archived is not None:
         board_list.is_archived = body.is_archived
+        if body.is_archived:
+            # Remove from order array so the board layout stays clean
+            await db.execute(
+                update(UIBoardListOrder)
+                .where(UIBoardListOrder.board_id == board_id)
+                .values(
+                    list_ids=func.array_remove(UIBoardListOrder.list_ids, list_id),
+                    updated_at=func.now(),
+                )
+            )
 
     await db.commit()
     await db.refresh(board_list)
     return BoardListRead.model_validate(board_list)
+
+
+@router.get("/order", response_model=BoardListOrderRead)
+async def get_list_order(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardListOrderRead:
+    """Return the stored column order for a board's lists."""
+    await _get_accessible_board(board_id, current_user, db)
+
+    result = await db.execute(
+        select(UIBoardListOrder).where(UIBoardListOrder.board_id == board_id)
+    )
+    order = result.scalar_one_or_none()
+    return BoardListOrderRead(
+        board_id=board_id,
+        list_ids=order.list_ids if order else [],
+    )
+
+
+@router.put("/order", response_model=BoardListOrderRead)
+async def update_list_order(
+    board_id: uuid.UUID,
+    body: BoardListOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardListOrderRead:
+    """Replace the column order. Only the board owner can reorder lists."""
+    board = await _get_accessible_board(board_id, current_user, db)
+    if board.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can reorder lists",
+        )
+
+    # Validate that every submitted ID is a live (non-deleted) list on this board
+    valid_result = await db.execute(
+        select(BoardList.id).where(
+            BoardList.board_id == board_id,
+            BoardList.is_deleted.is_(False),
+        )
+    )
+    valid_ids = set(valid_result.scalars().all())
+    for lid in body.list_ids:
+        if lid not in valid_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"List {lid} does not belong to this board or has been deleted",
+            )
+
+    stmt = pg_insert(UIBoardListOrder).values(
+        board_id=board_id,
+        list_ids=body.list_ids,
+    ).on_conflict_do_update(
+        index_elements=["board_id"],
+        set_={
+            "list_ids": body.list_ids,
+            "updated_at": func.now(),
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+    return BoardListOrderRead(board_id=board_id, list_ids=body.list_ids)

@@ -58,6 +58,7 @@ from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.board_list import BoardList
 from src.model.user_board_star import UserBoardStar
+from src.model.ui_board_list_order import UIBoardListOrder
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
 # When a list is given, the enum CREATE TYPE statements are written before the table DDL,
@@ -92,6 +93,7 @@ def main(e: Engine):  # pragma: no cover
         BoardShare,
         BoardList,
         UserBoardStar,
+        UIBoardListOrder,
     ]
 
     files_created = []

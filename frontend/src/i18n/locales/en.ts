@@ -83,6 +83,14 @@ const en = {
   board: {
     addList: 'Add List',
     boardMenu: 'Board menu',
+    createList: 'Create a new List',
+    listName: 'List name',
+    listNameRequired: 'List name is required.',
+    renameList: 'Rename List',
+    archiveList: 'Archive List',
+    listMenu: 'List menu',
+    addCard: 'Add card',
+    moveList: 'Move list',
   },
   common: {
     or: 'or',

@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -16,6 +16,7 @@ from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
     from src.model.board_list import BoardList
+    from src.model.ui_board_list_order import UIBoardListOrder
 
 
 class Board(Base):
@@ -97,6 +98,13 @@ class Board(Base):
         "BoardList",
         back_populates="board",
         cascade="all, delete-orphan",
+    )
+
+    ui_list_order: Mapped[Optional["UIBoardListOrder"]] = relationship(
+        "UIBoardListOrder",
+        back_populates="board",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     # Convenience: direct access to User objects without going through the join model

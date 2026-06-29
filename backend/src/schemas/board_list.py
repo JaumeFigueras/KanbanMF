@@ -43,3 +43,12 @@ class BoardListUpdate(BaseModel):
             if not v:
                 raise ValueError("List name cannot be blank.")
         return v
+
+
+class BoardListOrderRead(BaseModel):
+    board_id: uuid.UUID
+    list_ids: list[uuid.UUID]
+
+
+class BoardListOrderUpdate(BaseModel):
+    list_ids: list[uuid.UUID]
