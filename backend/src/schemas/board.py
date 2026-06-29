@@ -53,3 +53,15 @@ class BoardUpdate(BaseModel):
 class BoardsResponse(BaseModel):
     owned: list[BoardRead]
     shared: list[BoardRead]
+
+
+class BoardOrderRead(BaseModel):
+    starred_ids: list[uuid.UUID]
+    owned_ids: list[uuid.UUID]
+    shared_ids: list[uuid.UUID]
+
+
+class BoardOrderUpdate(BaseModel):
+    starred_ids: list[uuid.UUID] | None = None
+    owned_ids: list[uuid.UUID] | None = None
+    shared_ids: list[uuid.UUID] | None = None

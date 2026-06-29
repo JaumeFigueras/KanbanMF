@@ -31,3 +31,9 @@ export interface BoardListOrderRead {
   board_id: string
   list_ids: string[]
 }
+
+export interface BoardOrderRead {
+  starred_ids: string[]
+  owned_ids: string[]
+  shared_ids: string[]
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AppBar,
@@ -53,6 +53,11 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
 
+  // Keep a stable ref to the callback so the fetch effect never re-fires just
+  // because the parent re-rendered and passed a new inline function reference.
+  const onLocaleChangedRef = useRef(onLocaleChanged)
+  useLayoutEffect(() => { onLocaleChangedRef.current = onLocaleChanged })
+
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
@@ -99,7 +104,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
         setNumberLocale(num)
         setDateFormat(fmt)
         i18n.changeLanguage(LOCALE_TO_I18N[lang] ?? 'en')
-        onLocaleChanged?.(num, fmt)
+        onLocaleChangedRef.current?.(num, fmt)
       })
       .catch(() => navigate('/signin'))
 
@@ -108,7 +113,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
     return () => {
       if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
     }
-  }, [accessToken, navigate, fetchAvatar, onLocaleChanged])
+  }, [accessToken, navigate, fetchAvatar])
 
   async function handleSignOut() {
     setMenuAnchor(null)

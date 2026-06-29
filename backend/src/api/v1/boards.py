@@ -4,17 +4,26 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.model.board import Board
 from src.model.board_share import BoardShare
+from src.model.ui_board_order import UIBoardOrder
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_board_star import UserBoardStar
 from src.model.user_preferences import UserPreferences
-from src.schemas.board import BoardCreate, BoardRead, BoardUpdate, BoardsResponse
+from src.schemas.board import (
+    BoardCreate,
+    BoardOrderRead,
+    BoardOrderUpdate,
+    BoardRead,
+    BoardUpdate,
+    BoardsResponse,
+)
 
 router = APIRouter()
 
@@ -53,19 +62,35 @@ def _to_read(
     )
 
 
+async def _get_order(user_id: uuid.UUID, db: AsyncSession) -> UIBoardOrder | None:
+    result = await db.execute(
+        select(UIBoardOrder).where(UIBoardOrder.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _remove_from_order(
+    user_id: uuid.UUID, board_id: uuid.UUID, db: AsyncSession
+) -> None:
+    """Remove a board ID from all three order arrays in one statement."""
+    await db.execute(
+        update(UIBoardOrder)
+        .where(UIBoardOrder.user_id == user_id)
+        .values(
+            owned_ids=func.array_remove(UIBoardOrder.owned_ids, board_id),
+            starred_ids=func.array_remove(UIBoardOrder.starred_ids, board_id),
+            shared_ids=func.array_remove(UIBoardOrder.shared_ids, board_id),
+            updated_at=func.now(),
+        )
+    )
+
+
 @router.get("", response_model=BoardsResponse)
 async def list_boards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardsResponse:
-    """Return all non-deleted boards for the current user.
-
-    - owned: boards where the current user is the owner.
-    - shared: boards shared with the current user by someone else.
-
-    Each board carries is_starred and owner info scoped to the current user.
-    Owner info is batch-fetched in two queries regardless of board count.
-    """
+    """Return all non-deleted boards for the current user."""
     starred = await _starred_ids(current_user.id, db)
 
     owned_result = await db.execute(
@@ -91,21 +116,18 @@ async def list_boards(
     )
     shared = shared_result.scalars().all()
 
-    # Batch-fetch owner display names and initials for all unique owners
     owner_ids = {b.owner_id for b in list(owned) + list(shared)}
     users_by_id: dict[uuid.UUID, User] = {}
     prefs_by_id: dict[uuid.UUID, UserPreferences] = {}
-
     avatar_ids: set[uuid.UUID] = set()
+
     if owner_ids:
         u_result = await db.execute(select(User).where(User.id.in_(owner_ids)))
         users_by_id = {u.id: u for u in u_result.scalars()}
-
         p_result = await db.execute(
             select(UserPreferences).where(UserPreferences.user_id.in_(owner_ids))
         )
         prefs_by_id = {p.user_id: p for p in p_result.scalars()}
-
         a_result = await db.execute(
             select(UserAvatar.user_id).where(UserAvatar.user_id.in_(owner_ids))
         )
@@ -130,17 +152,33 @@ async def create_board(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardRead:
-    """Create a new board owned by the current user.
-
-    If is_starred is True, a UserBoardStar entry is created in the same
-    transaction so the board appears in the Starred accordion immediately.
-    """
+    """Create a new board and append it to the owner's board order."""
     board = Board(owner_id=current_user.id, name=body.name)
     db.add(board)
-    await db.flush()  # assigns board.id before we reference it in UserBoardStar
+    await db.flush()
 
     if body.is_starred:
         db.add(UserBoardStar(user_id=current_user.id, board_id=board.id))
+
+    # Append to owned_ids (and starred_ids if requested)
+    order_update: dict = {
+        "owned_ids": func.array_append(UIBoardOrder.owned_ids, board.id),
+        "updated_at": func.now(),
+    }
+    if body.is_starred:
+        order_update["starred_ids"] = func.array_append(UIBoardOrder.starred_ids, board.id)
+
+    await db.execute(
+        pg_insert(UIBoardOrder).values(
+            user_id=current_user.id,
+            starred_ids=[board.id] if body.is_starred else [],
+            owned_ids=[board.id],
+            shared_ids=[],
+        ).on_conflict_do_update(
+            index_elements=["user_id"],
+            set_=order_update,
+        )
+    )
 
     await db.commit()
     await db.refresh(board)
@@ -153,7 +191,6 @@ async def create_board(
         pref.initials if (pref and pref.initials)
         else _compute_initials(current_user.display_name)
     )
-
     avatar_result = await db.execute(
         select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
     )
@@ -199,13 +236,72 @@ async def list_archived_boards(
         select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
     )
     owner_has_avatar = avatar_result.scalar_one_or_none() is not None
-
     starred = await _starred_ids(current_user.id, db)
 
     return [
         _to_read(b, starred, current_user.display_name, owner_initials, owner_has_avatar)
         for b in boards
     ]
+
+
+# NOTE: /order must be defined before /{board_id} so FastAPI matches the
+# literal "order" segment before trying to parse it as a UUID.
+
+@router.get("/order", response_model=BoardOrderRead)
+async def get_board_order(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardOrderRead:
+    """Return the stored board display order for the current user."""
+    order = await _get_order(current_user.id, db)
+    if order is None:
+        return BoardOrderRead(starred_ids=[], owned_ids=[], shared_ids=[])
+    return BoardOrderRead(
+        starred_ids=order.starred_ids,
+        owned_ids=order.owned_ids,
+        shared_ids=order.shared_ids,
+    )
+
+
+@router.put("/order", response_model=BoardOrderRead)
+async def update_board_order(
+    body: BoardOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardOrderRead:
+    """Replace one or more section orderings. Omit a field to leave it unchanged."""
+    order = await _get_order(current_user.id, db)
+    current_starred = order.starred_ids if order else []
+    current_owned = order.owned_ids if order else []
+    current_shared = order.shared_ids if order else []
+
+    new_starred = body.starred_ids if body.starred_ids is not None else current_starred
+    new_owned = body.owned_ids if body.owned_ids is not None else current_owned
+    new_shared = body.shared_ids if body.shared_ids is not None else current_shared
+
+    await db.execute(
+        pg_insert(UIBoardOrder).values(
+            user_id=current_user.id,
+            starred_ids=new_starred,
+            owned_ids=new_owned,
+            shared_ids=new_shared,
+        ).on_conflict_do_update(
+            index_elements=["user_id"],
+            set_={
+                "starred_ids": new_starred,
+                "owned_ids": new_owned,
+                "shared_ids": new_shared,
+                "updated_at": func.now(),
+            },
+        )
+    )
+    await db.commit()
+
+    return BoardOrderRead(
+        starred_ids=new_starred,
+        owned_ids=new_owned,
+        shared_ids=new_shared,
+    )
 
 
 @router.get("/{board_id}", response_model=BoardRead)
@@ -232,7 +328,6 @@ async def get_board(
         if share_result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    # Fetch owner info
     owner_name = current_user.display_name
     pref_owner_id = current_user.id
     if board.owner_id != current_user.id:
@@ -264,7 +359,7 @@ async def delete_board(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft-delete a board (is_deleted=True). Only the owner can delete a board."""
+    """Soft-delete a board and remove it from the owner's order."""
     result = await db.execute(
         select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
     )
@@ -275,6 +370,7 @@ async def delete_board(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this board")
 
     board.is_deleted = True
+    await _remove_from_order(current_user.id, board_id, db)
     await db.commit()
 
 
@@ -285,7 +381,7 @@ async def update_board(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardRead:
-    """Update a board's name. Only the owner can update a board."""
+    """Update a board's name or archived status. Only the owner can update a board."""
     result = await db.execute(
         select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
     )
@@ -297,12 +393,34 @@ async def update_board(
 
     if body.name is not None:
         board.name = body.name
+
     if body.is_archived is not None:
+        was_archived = board.is_archived
         board.is_archived = body.is_archived
+
+        if body.is_archived and not was_archived:
+            # Archiving: remove from all order arrays
+            await _remove_from_order(current_user.id, board_id, db)
+        elif not body.is_archived and was_archived:
+            # Restoring: append back to owned_ids
+            await db.execute(
+                pg_insert(UIBoardOrder).values(
+                    user_id=current_user.id,
+                    starred_ids=[],
+                    owned_ids=[board_id],
+                    shared_ids=[],
+                ).on_conflict_do_update(
+                    index_elements=["user_id"],
+                    set_={
+                        "owned_ids": func.array_append(UIBoardOrder.owned_ids, board_id),
+                        "updated_at": func.now(),
+                    },
+                )
+            )
+
     await db.commit()
     await db.refresh(board)
 
-    # Resolve owner info (always the current user for owned boards)
     pref_result = await db.execute(
         select(UserPreferences).where(UserPreferences.user_id == current_user.id)
     )

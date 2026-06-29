@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
   AccordionDetails,
@@ -21,7 +20,7 @@ import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
 import DeleteBoardDialog from '../components/DeleteBoardDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
-import type { BoardRead, BoardsResponse } from '../types/board'
+import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
 
 const ACCORDION_KEY = 'kanbanmf.boards.accordions'
 
@@ -49,9 +48,10 @@ const BOARD_GRID_SX = {
   pt: 1,
 }
 
+const EMPTY_ORDER: BoardOrderRead = { starred_ids: [], owned_ids: [], shared_ids: [] }
+
 export default function Boards() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { accessToken } = useAuth()
 
   // Locale settings received from MainAppBar (used for card date formatting)
@@ -60,6 +60,7 @@ export default function Boards() {
 
   // Boards
   const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [] })
+  const [order, setOrder] = useState<BoardOrderRead>(EMPTY_ORDER)
 
   // Board UI state
   const [createBoardOpen, setCreateBoardOpen] = useState(false)
@@ -81,16 +82,25 @@ export default function Boards() {
     })
   }
 
+  const handleLocaleChanged = useCallback((num: string, fmt: 'numeric' | 'textual') => {
+    setNumberLocale(num)
+    setDateFormat(fmt)
+  }, [])
+
   const fetchBoards = useCallback(async () => {
     try {
-      const r = await fetch('http://localhost:8000/api/v1/boards', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      })
-      if (r.ok) {
-        const data: BoardsResponse = await r.json()
-        setBoards(data)
-      }
+      const [boardsRes, orderRes] = await Promise.all([
+        fetch('http://localhost:8000/api/v1/boards', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          credentials: 'include',
+        }),
+        fetch('http://localhost:8000/api/v1/boards/order', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          credentials: 'include',
+        }),
+      ])
+      if (boardsRes.ok) setBoards(await boardsRes.json())
+      if (orderRes.ok) setOrder(await orderRes.json())
     } catch {
       // non-fatal
     }
@@ -118,7 +128,12 @@ export default function Boards() {
   // ── Board handlers ────────────────────────────────────────────────────────
 
   function handleBoardCreated(board: BoardRead) {
-    setBoards(prev => ({ ...prev, owned: [board, ...prev.owned] }))
+    setBoards(prev => ({ ...prev, owned: [...prev.owned, board] }))
+    setOrder(prev => ({
+      ...prev,
+      owned_ids: [...prev.owned_ids, board.id],
+      starred_ids: board.is_starred ? [...prev.starred_ids, board.id] : prev.starred_ids,
+    }))
   }
 
   function handleStarToggle(boardId: string, starred: boolean) {
@@ -155,6 +170,11 @@ export default function Boards() {
   function handleBoardArchived(boardId: string) {
     const remove = (list: BoardRead[]) => list.filter(b => b.id !== boardId)
     setBoards(prev => ({ owned: remove(prev.owned), shared: remove(prev.shared) }))
+    setOrder(prev => ({
+      owned_ids: prev.owned_ids.filter(id => id !== boardId),
+      starred_ids: prev.starred_ids.filter(id => id !== boardId),
+      shared_ids: prev.shared_ids.filter(id => id !== boardId),
+    }))
     if (showArchived) {
       const archived = boards.owned.find(b => b.id === boardId)
       if (archived) setArchivedBoards(prev => [{ ...archived, is_archived: true }, ...prev])
@@ -173,6 +193,7 @@ export default function Boards() {
     })
     if (r.ok) {
       setArchivedBoards(prev => prev.filter(b => b.id !== board.id))
+      setOrder(prev => ({ ...prev, owned_ids: [...prev.owned_ids, board.id] }))
       fetchBoards()
     }
   }
@@ -184,6 +205,11 @@ export default function Boards() {
 
   function handleBoardDeleted(boardId: string) {
     setArchivedBoards(prev => prev.filter(b => b.id !== boardId))
+    setOrder(prev => ({
+      owned_ids: prev.owned_ids.filter(id => id !== boardId),
+      starred_ids: prev.starred_ids.filter(id => id !== boardId),
+      shared_ids: prev.shared_ids.filter(id => id !== boardId),
+    }))
   }
 
   function handleToggleArchived() {
@@ -191,14 +217,29 @@ export default function Boards() {
     fetchArchivedBoards()
   }
 
-  // ── Derived board sections ────────────────────────────────────────────────
+  // ── Derived board sections (sorted by stored order) ──────────────────────
 
-  const starredBoards = [
-    ...boards.owned.filter(b => b.is_starred),
-    ...boards.shared.filter(b => b.is_starred),
-  ]
-  const myBoards = boards.owned
-  const sharedBoards = boards.shared
+  function applySectionOrder<T extends { id: string }>(items: T[], ids: string[]): T[] {
+    const byId = new Map(items.map(i => [i.id, i]))
+    const ordered = ids.filter(id => byId.has(id)).map(id => byId.get(id)!)
+    const unordered = items.filter(i => !ids.includes(i.id))
+    return [...ordered, ...unordered]
+  }
+
+  const starredBoards = useMemo(() => {
+    const all = [...boards.owned, ...boards.shared].filter(b => b.is_starred)
+    return applySectionOrder(all, order.starred_ids)
+  }, [boards, order.starred_ids])
+
+  const myBoards = useMemo(
+    () => applySectionOrder(boards.owned, order.owned_ids),
+    [boards.owned, order.owned_ids],
+  )
+
+  const sharedBoards = useMemo(
+    () => applySectionOrder(boards.shared, order.shared_ids),
+    [boards.shared, order.shared_ids],
+  )
 
   const sharedCardProps = {
     numberLocale,
@@ -212,12 +253,7 @@ export default function Boards() {
 
   return (
     <>
-      <MainAppBar
-        onLocaleChanged={(num, fmt) => {
-          setNumberLocale(num)
-          setDateFormat(fmt)
-        }}
-      />
+      <MainAppBar onLocaleChanged={handleLocaleChanged} />
 
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
 

@@ -16,6 +16,7 @@ from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
     from src.model.board import Board
+    from src.model.ui_board_order import UIBoardOrder
 
 
 class User(Base):
@@ -127,6 +128,12 @@ class User(Base):
         secondary=UserBoardStar.__table__,
         back_populates="starred_by",
         viewonly=True,
+    )
+    ui_board_order: Mapped[Optional["UIBoardOrder"]] = relationship(
+        "UIBoardOrder",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     def __repr__(self) -> str:
