@@ -54,6 +54,20 @@ export interface PersonSummary {
   has_avatar: boolean
 }
 
+// Frontend-only for now — no checklist API exists yet, so ids are generated
+// client-side and nothing here is persisted.
+export interface ChecklistItemData {
+  id: string
+  text: string
+  is_done: boolean
+}
+
+export interface ChecklistData {
+  id: string
+  name: string
+  items: ChecklistItemData[]
+}
+
 export interface CardRead {
   id: string
   list_id: string

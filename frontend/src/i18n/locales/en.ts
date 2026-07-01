@@ -138,6 +138,18 @@ const en = {
     selectMembers: 'Select Members',
     selectAssignees: 'Select Assignees',
     noUsersAvailable: 'No users available yet.',
+    checklists: 'Checklists',
+    addChecklist: 'Add checklist',
+    noChecklists: 'No checklists yet.',
+    createChecklist: 'Create Checklist',
+    editChecklist: 'Edit Checklist',
+    deleteChecklist: 'Delete checklist',
+    checklistName: 'Checklist name',
+    checklistNameRequired: 'Checklist name is required.',
+    checklistItems: 'Items',
+    noChecklistItems: 'No items yet.',
+    addChecklistItem: 'Add an item',
+    removeChecklistItem: 'Remove item',
   },
   common: {
     or: 'or',
@@ -146,6 +158,7 @@ const en = {
     close: 'Close',
     save: 'Save',
     saveError: 'Something went wrong. Please try again.',
+    add: 'Add',
   },
 } as const
 

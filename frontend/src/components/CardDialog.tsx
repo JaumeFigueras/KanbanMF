@@ -3,24 +3,35 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
+  Stack,
   TextField,
   Typography,
 } from '@mui/material'
-import { Add, Label as LabelIcon, People as PeopleIcon } from '@mui/icons-material'
+import {
+  Add,
+  Checklist as ChecklistIcon,
+  Delete,
+  Edit,
+  Label as LabelIcon,
+  People as PeopleIcon,
+} from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { CardRead, LabelRead, PersonSummary } from '../types/board'
+import type { CardRead, ChecklistData, LabelRead, PersonSummary } from '../types/board'
 import CardDateField from './CardDateField'
 import CardLabelPickerDialog from './CardLabelPickerDialog'
+import ChecklistDialog from './ChecklistDialog'
 import PersonAvatar from './PersonAvatar'
 import SelectUserDialog from './SelectUserDialog'
 import { dayjsLocaleFor } from '../utils/locale'
@@ -62,6 +73,9 @@ export default function CardDialog({
   const [assignees, setAssignees] = useState<PersonSummary[]>([])
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [candidates, setCandidates] = useState<PersonSummary[]>([])
+  const [checklists, setChecklists] = useState<ChecklistData[]>([])
+  const [checklistDialogOpen, setChecklistDialogOpen] = useState(false)
+  const [editingChecklist, setEditingChecklist] = useState<ChecklistData | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,9 +91,39 @@ export default function CardDialog({
       setSelectedLabels(card?.labels ?? [])
       setMembers(card?.members ?? [])
       setAssignees(card?.assignees ?? [])
+      // No checklist API yet — always starts empty (see ChecklistData).
+      setChecklists([])
       setError(null)
     }
   }, [open, card])
+
+  function handleAddChecklist() {
+    setEditingChecklist(null)
+    setChecklistDialogOpen(true)
+  }
+
+  function handleEditChecklist(checklist: ChecklistData) {
+    setEditingChecklist(checklist)
+    setChecklistDialogOpen(true)
+  }
+
+  function handleChecklistSaved(checklist: ChecklistData) {
+    setChecklists((prev) => {
+      const exists = prev.some((c) => c.id === checklist.id)
+      return exists ? prev.map((c) => c.id === checklist.id ? checklist : c) : [...prev, checklist]
+    })
+  }
+
+  function handleRemoveChecklist(checklistId: string) {
+    setChecklists((prev) => prev.filter((c) => c.id !== checklistId))
+  }
+
+  function handleToggleChecklistItem(checklistId: string, itemId: string) {
+    setChecklists((prev) => prev.map((c) => c.id !== checklistId ? c : {
+      ...c,
+      items: c.items.map((i) => i.id === itemId ? { ...i, is_done: !i.is_done } : i),
+    }))
+  }
 
   useEffect(() => {
     if (!open) return
@@ -162,13 +206,13 @@ export default function CardDialog({
           onChange={(e) => setDescription(e.target.value)}
           fullWidth
           multiline
-          rows={4}
-          sx={{ mt: 2 }}
+          rows={2}
+          sx={{ mt: 1.5 }}
         />
 
-        <Divider sx={{ mt: 3, mb: 2 }} />
+        <Divider sx={{ mt: 2, mb: 1 }} />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
           <LabelIcon fontSize="small" color="action" />
           <Typography variant="overline" color="text.secondary">
             {t('board.labels')}
@@ -200,14 +244,14 @@ export default function CardDialog({
           </IconButton>
         </Box>
 
-        <Divider sx={{ mt: 3, mb: 2 }} />
+        <Divider sx={{ mt: 2, mb: 1 }} />
 
-        <Typography variant="overline" color="text.secondary">
+        <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {t('board.dates')}
         </Typography>
 
         <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={dayjsLocale}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
             <CardDateField
               label={t('board.startDate')}
               value={startAt}
@@ -226,16 +270,16 @@ export default function CardDialog({
           </Box>
         </LocalizationProvider>
 
-        <Divider sx={{ mt: 3, mb: 2 }} />
+        <Divider sx={{ mt: 2, mb: 1 }} />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
           <PeopleIcon fontSize="small" color="action" />
           <Typography variant="overline" color="text.secondary">
             {t('board.people')}
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               {t('board.creator')}
@@ -255,7 +299,7 @@ export default function CardDialog({
             )}
           </Box>
 
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 140 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               {t('board.members')}
             </Typography>
@@ -273,7 +317,7 @@ export default function CardDialog({
             </Box>
           </Box>
 
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 140 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
               {t('board.assignees')}
             </Typography>
@@ -291,6 +335,89 @@ export default function CardDialog({
             </Box>
           </Box>
         </Box>
+
+        <Divider sx={{ mt: 2, mb: 1 }} />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ChecklistIcon fontSize="small" color="action" />
+            <Typography variant="overline" color="text.secondary">
+              {t('board.checklists')}
+            </Typography>
+          </Box>
+          <IconButton size="small" onClick={handleAddChecklist} aria-label={t('board.addChecklist')}>
+            <Add fontSize="small" />
+          </IconButton>
+        </Box>
+
+        {checklists.length === 0 && (
+          <Typography variant="body2" color="text.secondary">
+            {t('board.noChecklists')}
+          </Typography>
+        )}
+
+        <Stack spacing={1.5}>
+          {checklists.map((checklist) => {
+            const doneCount = checklist.items.filter((i) => i.is_done).length
+            return (
+              <Box key={checklist.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="subtitle2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+                    {checklist.name}
+                  </Typography>
+                  {checklist.items.length > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      {doneCount}/{checklist.items.length}
+                    </Typography>
+                  )}
+                  <IconButton
+                    size="small"
+                    onClick={() => handleEditChecklist(checklist)}
+                    aria-label={t('board.editChecklist')}
+                  >
+                    <Edit fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveChecklist(checklist.id)}
+                    aria-label={t('board.deleteChecklist')}
+                  >
+                    <Delete fontSize="small" />
+                  </IconButton>
+                </Box>
+
+                {checklist.items.length > 0 && (
+                  <Stack sx={{ mt: 0.5 }}>
+                    {checklist.items.map((item) => (
+                      <FormControlLabel
+                        key={item.id}
+                        sx={{ ml: 0 }}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={item.is_done}
+                            onChange={() => handleToggleChecklistItem(checklist.id, item.id)}
+                          />
+                        }
+                        label={
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              textDecoration: item.is_done ? 'line-through' : 'none',
+                              color: item.is_done ? 'text.disabled' : 'text.primary',
+                            }}
+                          >
+                            {item.text}
+                          </Typography>
+                        }
+                      />
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            )
+          })}
+        </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} color="error" disabled={saving}>
@@ -325,6 +452,13 @@ export default function CardDialog({
         candidates={candidates}
         selectedIds={assignees.map((p) => p.id)}
         onSave={setAssignees}
+      />
+
+      <ChecklistDialog
+        open={checklistDialogOpen}
+        onClose={() => setChecklistDialogOpen(false)}
+        checklist={editingChecklist}
+        onSave={handleChecklistSaved}
       />
     </Dialog>
   )

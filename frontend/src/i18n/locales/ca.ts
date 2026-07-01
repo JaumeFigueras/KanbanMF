@@ -138,6 +138,18 @@ const ca = {
     selectMembers: 'Selecciona membres',
     selectAssignees: 'Selecciona assignats',
     noUsersAvailable: 'Encara no hi ha usuaris disponibles.',
+    checklists: 'Llistes de verificació',
+    addChecklist: 'Afegeix una llista de verificació',
+    noChecklists: 'Encara no hi ha llistes de verificació.',
+    createChecklist: 'Crea una llista de verificació',
+    editChecklist: 'Edita la llista de verificació',
+    deleteChecklist: 'Elimina la llista de verificació',
+    checklistName: 'Nom de la llista',
+    checklistNameRequired: 'El nom de la llista és obligatori.',
+    checklistItems: 'Elements',
+    noChecklistItems: 'Encara no hi ha elements.',
+    addChecklistItem: 'Afegeix un element',
+    removeChecklistItem: 'Elimina l\'element',
   },
   common: {
     or: 'o',
@@ -146,6 +158,7 @@ const ca = {
     close: 'Tanca',
     save: 'Desa',
     saveError: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
+    add: 'Afegeix',
   },
 } as const
 
