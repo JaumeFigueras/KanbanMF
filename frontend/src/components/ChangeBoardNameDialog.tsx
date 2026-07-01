@@ -10,16 +10,16 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   board: BoardRead | null
-  accessToken: string
   onSaved: (boardId: string, newName: string) => void
 }
 
-export default function ChangeBoardNameDialog({ open, onClose, board, accessToken, onSaved }: Props) {
+export default function ChangeBoardNameDialog({ open, onClose, board, onSaved }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -43,13 +43,9 @@ export default function ChangeBoardNameDialog({ open, onClose, board, accessToke
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
       })
       if (!r.ok) throw new Error()

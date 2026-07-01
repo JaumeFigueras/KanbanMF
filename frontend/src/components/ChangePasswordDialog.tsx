@@ -13,14 +13,14 @@ import {
 } from '@mui/material'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
-  accessToken: string
 }
 
-export default function ChangePasswordDialog({ open, onClose, accessToken }: Props) {
+export default function ChangePasswordDialog({ open, onClose }: Props) {
   const { t } = useTranslation()
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -58,13 +58,9 @@ export default function ChangePasswordDialog({ open, onClose, accessToken }: Pro
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch('http://localhost:8000/api/v1/users/me/password', {
+      const r = await apiFetch('http://localhost:8000/api/v1/users/me/password', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
       })
       if (r.status === 400) {

@@ -10,16 +10,16 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardListRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   list: BoardListRead | null
-  accessToken: string
   onSaved: (listId: string, newName: string) => void
 }
 
-export default function RenameListDialog({ open, onClose, list, accessToken, onSaved }: Props) {
+export default function RenameListDialog({ open, onClose, list, onSaved }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -43,15 +43,11 @@ export default function RenameListDialog({ open, onClose, list, accessToken, onS
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch(
+      const r = await apiFetch(
         `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: trimmed }),
         },
       )

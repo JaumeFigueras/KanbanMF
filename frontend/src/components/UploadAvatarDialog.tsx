@@ -12,6 +12,7 @@ import {
 } from '@mui/material'
 import { CloudUpload } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
+import { apiFetch } from '../api/client'
 
 const MAX_SIZE_BYTES = 100 * 1024
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
@@ -19,7 +20,6 @@ const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 interface Props {
   open: boolean
   onClose: () => void
-  accessToken: string
   hasAvatar: boolean
   currentAvatarUrl: string | null
   onSaved?: () => void
@@ -28,7 +28,6 @@ interface Props {
 export default function UploadAvatarDialog({
   open,
   onClose,
-  accessToken,
   hasAvatar,
   currentAvatarUrl,
   onSaved,
@@ -91,10 +90,8 @@ export default function UploadAvatarDialog({
     try {
       const form = new FormData()
       form.append('file', file)
-      const r = await fetch('http://localhost:8000/api/v1/users/me/avatar', {
+      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar', {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
         body: form,
       })
       if (r.status === 413) { setError(t('boards.avatarSizeError')); return }
@@ -113,10 +110,8 @@ export default function UploadAvatarDialog({
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch('http://localhost:8000/api/v1/users/me/avatar', {
+      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
       })
       if (!r.ok) throw new Error()
       onSaved?.()

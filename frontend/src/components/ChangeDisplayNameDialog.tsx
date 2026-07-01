@@ -10,13 +10,13 @@ import {
   TextField,
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   currentDisplayName: string
   currentInitials: string | null
-  accessToken: string
   onSaved: (displayName: string, initials: string | null) => void
 }
 
@@ -25,7 +25,6 @@ export default function ChangeDisplayNameDialog({
   onClose,
   currentDisplayName,
   currentInitials,
-  accessToken,
   onSaved,
 }: Props) {
   const { t } = useTranslation()
@@ -55,21 +54,16 @@ export default function ChangeDisplayNameDialog({
     setSaving(true)
     setError(null)
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      }
+      const headers = { 'Content-Type': 'application/json' }
       const [r1, r2] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/users/me', {
+        apiFetch('http://localhost:8000/api/v1/users/me', {
           method: 'PUT',
           headers,
-          credentials: 'include',
           body: JSON.stringify({ display_name: displayName.trim() }),
         }),
-        fetch('http://localhost:8000/api/v1/users/me/preferences', {
+        apiFetch('http://localhost:8000/api/v1/users/me/preferences', {
           method: 'PUT',
           headers,
-          credentials: 'include',
           body: JSON.stringify({ initials: initials.trim() || null }),
         }),
       ])

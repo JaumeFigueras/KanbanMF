@@ -18,13 +18,13 @@ import dayjs, { type Dayjs } from 'dayjs'
 import type { CardRead } from '../types/board'
 import CardDateField from './CardDateField'
 import { dayjsLocaleFor } from '../utils/locale'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   listId: string
   boardId: string
-  accessToken: string
   numberLocale: string
   card?: CardRead | null
   onCreated?: (card: CardRead) => void
@@ -36,7 +36,6 @@ export default function CardDialog({
   onClose,
   listId,
   boardId,
-  accessToken,
   numberLocale,
   card,
   onCreated,
@@ -80,13 +79,9 @@ export default function CardDialog({
       const url = isEdit
         ? `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card!.id}`
         : `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards`
-      const r = await fetch(url, {
+      const r = await apiFetch(url, {
         method: isEdit ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmedName,
           description: description.trim() || null,

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import i18n from '../i18n'
+import { apiFetch, onAccessTokenChange, setAccessToken } from '../api/client'
 
 const API = 'http://localhost:8000'
 
@@ -28,74 +29,51 @@ const AuthContext = createContext<AuthCtx>({
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Single place that keeps React state and localStorage in sync with the
+  // module-level token — covers explicit login/logout as well as silent
+  // refreshes triggered by apiFetch() elsewhere in the app.
+  useEffect(() => {
+    return onAccessTokenChange((token) => {
+      setAccessTokenState(token)
+      if (token) localStorage.setItem('access_token', token)
+      else localStorage.removeItem('access_token')
+    })
+  }, [])
 
   useEffect(() => {
     async function verifyOrRefresh() {
       const stored = localStorage.getItem('access_token')
+      setAccessToken(stored)
 
-      if (stored) {
-        const res = await fetch(`${API}/api/v1/users/me`, {
-          headers: { Authorization: `Bearer ${stored}` },
-          credentials: 'include',
-        })
-        if (res.ok) {
-          const data = await res.json()
-          applyLanguage(data.language_locale)
-          setAccessToken(stored)
-          return
-        }
-      }
-
-      // Token missing or expired — attempt silent refresh via cookie
-      const refreshRes = await fetch(`${API}/api/v1/auth/local/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (!refreshRes.ok) {
-        localStorage.removeItem('access_token')
-        setAccessToken(null)
+      // apiFetch already retries once via a silent refresh on a 401, so a
+      // single call here covers both "token still valid" and "token expired
+      // but refresh cookie still good".
+      const res = await apiFetch(`${API}/api/v1/users/me`)
+      if (res.ok) {
+        const data = await res.json()
+        applyLanguage(data.language_locale)
         return
       }
 
-      const { access_token } = await refreshRes.json()
-      localStorage.setItem('access_token', access_token)
-
-      // Fetch user data with the new token to apply language preference
-      const meRes = await fetch(`${API}/api/v1/users/me`, {
-        headers: { Authorization: `Bearer ${access_token}` },
-        credentials: 'include',
-      })
-      if (meRes.ok) {
-        const data = await meRes.json()
-        applyLanguage(data.language_locale)
-      }
-      setAccessToken(access_token)
+      setAccessToken(null)
     }
 
     verifyOrRefresh()
-      .catch(() => {
-        localStorage.removeItem('access_token')
-        setAccessToken(null)
-      })
+      .catch(() => setAccessToken(null))
       .finally(() => setLoading(false))
   }, [])
 
   function login(token: string) {
-    localStorage.setItem('access_token', token)
     setAccessToken(token)
   }
 
   async function logout() {
     try {
-      await fetch(`${API}/api/v1/auth/local/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      })
+      await apiFetch(`${API}/api/v1/auth/local/logout`, { method: 'POST' })
     } finally {
-      localStorage.removeItem('access_token')
       setAccessToken(null)
     }
   }

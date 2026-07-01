@@ -10,16 +10,16 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   board: BoardRead | null
-  accessToken: string
   onDeleted: (boardId: string) => void
 }
 
-export default function DeleteBoardDialog({ open, onClose, board, accessToken, onDeleted }: Props) {
+export default function DeleteBoardDialog({ open, onClose, board, onDeleted }: Props) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,10 +29,8 @@ export default function DeleteBoardDialog({ open, onClose, board, accessToken, o
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
       })
       if (!r.ok) throw new Error()
       onDeleted(board.id)

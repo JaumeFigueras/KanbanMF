@@ -10,16 +10,16 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   board: BoardRead | null
-  accessToken: string
   onArchived: (boardId: string) => void
 }
 
-export default function ArchiveBoardDialog({ open, onClose, board, accessToken, onArchived }: Props) {
+export default function ArchiveBoardDialog({ open, onClose, board, onArchived }: Props) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,13 +29,9 @@ export default function ArchiveBoardDialog({ open, onClose, board, accessToken, 
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_archived: true }),
       })
       if (!r.ok) throw new Error()

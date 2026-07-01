@@ -17,6 +17,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '../i18n'
 import { DATE_LOCALES, type DateFormat, type DateLocaleCode, formatDateTime, intlCodeFor } from '../utils/locale'
+import { apiFetch } from '../api/client'
 
 // Maps backend language_locale → i18n code  and back
 const BACKEND_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
@@ -28,7 +29,6 @@ interface Props {
   currentLanguageLocale: string  // backend code: "en" | "ca_ES"
   currentNumberLocale: string    // backend code: "en" | "en_GB" | "ca_ES"
   currentDateFormat: DateFormat
-  accessToken: string
   onSaved: (languageLocale: string, numberLocale: string, dateFormat: DateFormat) => void
 }
 
@@ -38,7 +38,6 @@ export default function LanguageLocalizationDialog({
   currentLanguageLocale,
   currentNumberLocale,
   currentDateFormat,
-  accessToken,
   onSaved,
 }: Props) {
   const { t } = useTranslation()
@@ -68,13 +67,9 @@ export default function LanguageLocalizationDialog({
     setError(null)
     const backendLanguageLocale = I18N_TO_BACKEND[langCode] ?? 'en'
     try {
-      const r = await fetch('http://localhost:8000/api/v1/users/me/preferences', {
+      const r = await apiFetch('http://localhost:8000/api/v1/users/me/preferences', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           language_locale: backendLanguageLocale,
           number_locale: numberLocale,

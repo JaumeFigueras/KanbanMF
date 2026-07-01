@@ -23,18 +23,17 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useTranslation } from 'react-i18next'
-import { useAuth } from '../context/AuthContext'
 import MainAppBar from '../components/MainAppBar'
 import CreateListDialog from '../components/CreateListDialog'
 import ManageLabelsDialog from '../components/ManageLabelsDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import type { BoardListRead, BoardListOrderRead, BoardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
+import { apiFetch } from '../api/client'
 
 export default function Board() {
   const { t } = useTranslation()
   const { boardId } = useParams<{ boardId: string }>()
-  const { accessToken } = useAuth()
   const [board, setBoard] = useState<BoardRead | null>(null)
   const [lists, setLists] = useState<BoardListRead[]>([])
   const [order, setOrder] = useState<string[]>([])
@@ -47,33 +46,26 @@ export default function Board() {
 
   useEffect(() => {
     if (!boardId) return
-    fetch(`http://localhost:8000/api/v1/boards/${boardId}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      credentials: 'include',
-    })
+    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setBoard(data) })
       .catch(() => {})
-  }, [boardId, accessToken])
+  }, [boardId])
 
   useEffect(() => {
     if (!boardId) return
     Promise.all([
-      fetch(`http://localhost:8000/api/v1/boards/${boardId}/lists`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      }).then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
-      fetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      }).then(r => r.ok ? r.json() as Promise<BoardListOrderRead> : { board_id: boardId, list_ids: [] }),
+      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists`)
+        .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
+      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`)
+        .then(r => r.ok ? r.json() as Promise<BoardListOrderRead> : { board_id: boardId, list_ids: [] }),
     ])
       .then(([fetchedLists, fetchedOrder]) => {
         setLists(fetchedLists)
         setOrder(fetchedOrder.list_ids)
       })
       .catch(() => {})
-  }, [boardId, accessToken])
+  }, [boardId])
 
   // Merge lists with the stored order: ordered first, then any unordered remainders
   const sortedLists = useMemo(() => {
@@ -109,13 +101,9 @@ export default function Board() {
     setLists(reordered)
     setOrder(newOrder)
 
-    fetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`, {
+    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_ids: newOrder }),
     }).catch(() => {})
   }
@@ -190,7 +178,6 @@ export default function Board() {
               <BoardListColumn
                 key={list.id}
                 list={list}
-                accessToken={accessToken ?? ''}
                 numberLocale={numberLocale}
                 dateFormat={dateFormat}
                 onRenamed={handleListRenamed}
@@ -205,7 +192,6 @@ export default function Board() {
         open={createListOpen}
         onClose={() => setCreateListOpen(false)}
         boardId={boardId ?? ''}
-        accessToken={accessToken ?? ''}
         onCreated={handleListCreated}
       />
 
@@ -213,7 +199,6 @@ export default function Board() {
         open={manageLabelsOpen}
         onClose={() => setManageLabelsOpen(false)}
         boardId={boardId ?? ''}
-        accessToken={accessToken ?? ''}
       />
     </>
   )

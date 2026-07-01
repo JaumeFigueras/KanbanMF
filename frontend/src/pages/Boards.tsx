@@ -21,7 +21,7 @@ import {
 } from '@mui/material'
 import { Add, ExpandMore } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
-import { useAuth } from '../context/AuthContext'
+import { apiFetch } from '../api/client'
 import MainAppBar from '../components/MainAppBar'
 import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
@@ -63,7 +63,6 @@ type Section = 'starred' | 'owned' | 'shared'
 
 export default function Boards() {
   const { t } = useTranslation()
-  const { accessToken } = useAuth()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -103,28 +102,19 @@ export default function Boards() {
   const fetchBoards = useCallback(async () => {
     try {
       const [boardsRes, orderRes] = await Promise.all([
-        fetch('http://localhost:8000/api/v1/boards', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          credentials: 'include',
-        }),
-        fetch('http://localhost:8000/api/v1/boards/order', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          credentials: 'include',
-        }),
+        apiFetch('http://localhost:8000/api/v1/boards'),
+        apiFetch('http://localhost:8000/api/v1/boards/order'),
       ])
       if (boardsRes.ok) setBoards(await boardsRes.json())
       if (orderRes.ok) setOrder(await orderRes.json())
     } catch {
       // non-fatal
     }
-  }, [accessToken])
+  }, [])
 
   const fetchArchivedBoards = useCallback(async () => {
     try {
-      const r = await fetch('http://localhost:8000/api/v1/boards/archived', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      })
+      const r = await apiFetch('http://localhost:8000/api/v1/boards/archived')
       if (r.ok) {
         const data: BoardRead[] = await r.json()
         setArchivedBoards(data)
@@ -132,7 +122,7 @@ export default function Boards() {
     } catch {
       // non-fatal
     }
-  }, [accessToken])
+  }, [])
 
   useEffect(() => {
     fetchBoards()
@@ -161,10 +151,8 @@ export default function Boards() {
         : prev.starred_ids.filter(id => id !== boardId),
     }))
 
-    const r = await fetch(`http://localhost:8000/api/v1/boards/${boardId}/star`, {
+    const r = await apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/star`, {
       method: starred ? 'POST' : 'DELETE',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      credentials: 'include',
     })
 
     if (!r.ok) {
@@ -218,13 +206,9 @@ export default function Boards() {
   }
 
   async function handleRestoreBoard(board: BoardRead) {
-    const r = await fetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+    const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_archived: false }),
     })
     if (r.ok) {
@@ -293,10 +277,9 @@ export default function Boards() {
     const newOrder = { ...order, [orderKey]: newIds }
     setOrder(newOrder)
 
-    fetch('http://localhost:8000/api/v1/boards/order', {
+    apiFetch('http://localhost:8000/api/v1/boards/order', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newOrder),
     }).catch(() => {})
   }
@@ -320,7 +303,6 @@ export default function Boards() {
       <CreateBoardDialog
         open={createBoardOpen}
         onClose={() => setCreateBoardOpen(false)}
-        accessToken={accessToken ?? ''}
         onCreated={handleBoardCreated}
       />
 
@@ -328,7 +310,6 @@ export default function Boards() {
         open={changeBoardNameOpen}
         onClose={() => setChangeBoardNameOpen(false)}
         board={selectedBoard}
-        accessToken={accessToken ?? ''}
         onSaved={handleBoardNameSaved}
       />
 
@@ -336,7 +317,6 @@ export default function Boards() {
         open={archiveBoardOpen}
         onClose={() => setArchiveBoardOpen(false)}
         board={selectedBoard}
-        accessToken={accessToken ?? ''}
         onArchived={handleBoardArchived}
       />
 
@@ -344,7 +324,6 @@ export default function Boards() {
         open={deleteBoardOpen}
         onClose={() => setDeleteBoardOpen(false)}
         board={boardToDelete}
-        accessToken={accessToken ?? ''}
         onDeleted={handleBoardDeleted}
       />
 

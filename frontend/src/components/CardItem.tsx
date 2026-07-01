@@ -6,13 +6,13 @@ import type { CardRead } from '../types/board'
 import { formatDateTime, intlCodeFor, type DateFormat } from '../utils/locale'
 import { dueDateStyle } from '../utils/dueDateColor'
 import dayjs from 'dayjs'
+import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 
 interface Props {
   card: CardRead
   boardId: string
   listId: string
-  accessToken: string
   numberLocale: string
   dateFormat: DateFormat
   onArchived: (cardId: string) => void
@@ -23,7 +23,6 @@ export default function CardItem({
   card,
   boardId,
   listId,
-  accessToken,
   numberLocale,
   dateFormat,
   onArchived,
@@ -49,15 +48,11 @@ export default function CardItem({
   async function handleArchive() {
     closeMenu()
     try {
-      const r = await fetch(
+      const r = await apiFetch(
         `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_archived: true }),
         },
       )
@@ -171,7 +166,6 @@ export default function CardItem({
         onClose={() => setEditOpen(false)}
         listId={listId}
         boardId={boardId}
-        accessToken={accessToken}
         numberLocale={numberLocale}
         card={card}
         onUpdated={onUpdated}

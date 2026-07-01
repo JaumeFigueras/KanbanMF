@@ -13,13 +13,13 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { BoardListRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
+import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
 import RenameListDialog from './RenameListDialog'
 
 interface Props {
   list: BoardListRead
-  accessToken: string
   numberLocale: string
   dateFormat: DateFormat
   onRenamed: (listId: string, newName: string) => void
@@ -28,7 +28,6 @@ interface Props {
 
 export default function BoardListColumn({
   list,
-  accessToken,
   numberLocale,
   dateFormat,
   onRenamed,
@@ -41,17 +40,11 @@ export default function BoardListColumn({
   const [cards, setCards] = useState<CardRead[]>([])
 
   useEffect(() => {
-    fetch(
-      `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/cards`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      },
-    )
+    apiFetch(`http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/cards`)
       .then(r => r.ok ? r.json() as Promise<CardRead[]> : [])
       .then(setCards)
       .catch(() => {})
-  }, [list.board_id, list.id, accessToken])
+  }, [list.board_id, list.id])
 
   function handleCardCreated(card: CardRead) {
     setCards(prev => [...prev, card])
@@ -89,15 +82,11 @@ export default function BoardListColumn({
   async function handleArchive() {
     closeMenu()
     try {
-      const r = await fetch(
+      const r = await apiFetch(
         `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_archived: true }),
         },
       )
@@ -168,7 +157,6 @@ export default function BoardListColumn({
               card={card}
               boardId={list.board_id}
               listId={list.id}
-              accessToken={accessToken}
               numberLocale={numberLocale}
               dateFormat={dateFormat}
               onArchived={handleCardArchived}
@@ -187,7 +175,6 @@ export default function BoardListColumn({
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
         list={list}
-        accessToken={accessToken}
         onSaved={onRenamed}
       />
 
@@ -196,7 +183,6 @@ export default function BoardListColumn({
         onClose={() => setCardDialogOpen(false)}
         listId={list.id}
         boardId={list.board_id}
-        accessToken={accessToken}
         numberLocale={numberLocale}
         onCreated={handleCardCreated}
       />

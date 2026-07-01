@@ -17,12 +17,12 @@ import {
 import { Delete, Edit } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   boardId: string
-  accessToken: string
 }
 
 interface LabelForm {
@@ -133,7 +133,7 @@ function InlineForm({
   )
 }
 
-export default function ManageLabelsDialog({ open, onClose, boardId, accessToken }: Props) {
+export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   const { t } = useTranslation()
   const [labels, setLabels] = useState<LabelRead[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -141,8 +141,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId, accessToken
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const authHeader = { Authorization: `Bearer ${accessToken}` }
-  const jsonHeaders = { 'Content-Type': 'application/json', ...authHeader }
+  const jsonHeaders = { 'Content-Type': 'application/json' }
   const API = `http://localhost:8000/api/v1/boards/${boardId}/labels`
 
   useEffect(() => {
@@ -150,20 +149,19 @@ export default function ManageLabelsDialog({ open, onClose, boardId, accessToken
     setEditingId(null)
     setCreating(false)
     setError(null)
-    fetch(API, { headers: authHeader, credentials: 'include' })
+    apiFetch(API)
       .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then(setLabels)
       .catch(err => setError(String(err)))
-  }, [open, boardId, accessToken])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, boardId, API])
 
   async function handleCreate(form: LabelForm) {
     setError(null)
     setSaving(true)
     try {
-      const r = await fetch(API, {
+      const r = await apiFetch(API, {
         method: 'POST',
         headers: jsonHeaders,
-        credentials: 'include',
         body: JSON.stringify({ name: form.name, color: form.color }),
       })
       if (r.ok) {
@@ -185,10 +183,9 @@ export default function ManageLabelsDialog({ open, onClose, boardId, accessToken
     setError(null)
     setSaving(true)
     try {
-      const r = await fetch(`${API}/${label.id}`, {
+      const r = await apiFetch(`${API}/${label.id}`, {
         method: 'PATCH',
         headers: jsonHeaders,
-        credentials: 'include',
         body: JSON.stringify({ name: form.name, color: form.color }),
       })
       if (r.ok) {
@@ -208,11 +205,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId, accessToken
 
   async function handleDelete(labelId: string) {
     setError(null)
-    const r = await fetch(`${API}/${labelId}`, {
-      method: 'DELETE',
-      headers: authHeader,
-      credentials: 'include',
-    })
+    const r = await apiFetch(`${API}/${labelId}`, { method: 'DELETE' })
     if (r.ok) {
       setLabels(prev => prev.filter(l => l.id !== labelId))
     } else {

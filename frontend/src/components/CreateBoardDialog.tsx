@@ -13,15 +13,15 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardRead } from '../types/board'
+import { apiFetch } from '../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
-  accessToken: string
   onCreated: (board: BoardRead) => void
 }
 
-export default function CreateBoardDialog({ open, onClose, accessToken, onCreated }: Props) {
+export default function CreateBoardDialog({ open, onClose, onCreated }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [starred, setStarred] = useState(false)
@@ -46,13 +46,9 @@ export default function CreateBoardDialog({ open, onClose, accessToken, onCreate
     setSaving(true)
     setError(null)
     try {
-      const r = await fetch('http://localhost:8000/api/v1/boards', {
+      const r = await apiFetch('http://localhost:8000/api/v1/boards', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, is_starred: starred }),
       })
       if (!r.ok) throw new Error()

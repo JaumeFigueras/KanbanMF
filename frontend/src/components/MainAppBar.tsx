@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
 import { useThemeToggle } from '../context/ThemeToggleContext'
+import { apiFetch } from '../api/client'
 import ChangeDisplayNameDialog from './ChangeDisplayNameDialog'
 import ChangePasswordDialog from './ChangePasswordDialog'
 import UploadAvatarDialog from './UploadAvatarDialog'
@@ -41,7 +42,7 @@ interface Props {
 export default function MainAppBar({ onLocaleChanged }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { accessToken, logout } = useAuth()
+  const { logout } = useAuth()
   const { dark, toggleDark } = useThemeToggle()
 
   const [displayName, setDisplayName] = useState<string | null>(null)
@@ -66,10 +67,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
 
   const fetchAvatar = useCallback(async () => {
     try {
-      const r = await fetch('http://localhost:8000/api/v1/users/me/avatar', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      })
+      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar')
       if (r.ok) {
         const blob = await r.blob()
         const url = URL.createObjectURL(blob)
@@ -82,13 +80,10 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
     } catch {
       setAvatarUrl(null)
     }
-  }, [accessToken])
+  }, [])
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/v1/users/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      credentials: 'include',
-    })
+    apiFetch('http://localhost:8000/api/v1/users/me')
       .then((r) => {
         if (!r.ok) throw new Error()
         return r.json()
@@ -113,7 +108,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
     return () => {
       if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
     }
-  }, [accessToken, navigate, fetchAvatar])
+  }, [navigate, fetchAvatar])
 
   async function handleSignOut() {
     setMenuAnchor(null)
@@ -217,7 +212,6 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
       <UploadAvatarDialog
         open={uploadAvatarOpen}
         onClose={() => setUploadAvatarOpen(false)}
-        accessToken={accessToken ?? ''}
         hasAvatar={avatarUrl !== null}
         currentAvatarUrl={avatarUrl}
         onSaved={fetchAvatar}
@@ -229,7 +223,6 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
         currentLanguageLocale={languageLocale}
         currentNumberLocale={numberLocale}
         currentDateFormat={dateFormat}
-        accessToken={accessToken ?? ''}
         onSaved={(newLang, newNum, newFmt) => {
           setLanguageLocale(newLang)
           setNumberLocale(newNum)
@@ -242,7 +235,6 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
       <ChangePasswordDialog
         open={changePasswordOpen}
         onClose={() => setChangePasswordOpen(false)}
-        accessToken={accessToken ?? ''}
       />
 
       {displayName !== null && (
@@ -251,7 +243,6 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
           onClose={() => setChangeNameOpen(false)}
           currentDisplayName={displayName}
           currentInitials={initials}
-          accessToken={accessToken ?? ''}
           onSaved={(newName, newInitials) => {
             setDisplayName(newName)
             setInitials(newInitials)
