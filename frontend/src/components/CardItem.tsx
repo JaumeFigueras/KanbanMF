@@ -191,7 +191,7 @@ export default function CardItem({
           <CardActions sx={{ px: 1, py: 0.5, justifyContent: 'flex-end' }}>
             <AvatarGroup max={5}>
               {card.assignees.map((person) => (
-                <PersonAvatar key={person.id} person={person} />
+                <PersonAvatar key={person.id} person={person} size={32} />
               ))}
             </AvatarGroup>
           </CardActions>
