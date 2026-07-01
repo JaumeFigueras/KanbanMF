@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Box,
   IconButton,
@@ -11,7 +11,9 @@ import { Add, Menu as HamburgerIcon, OpenWith } from '@mui/icons-material'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
-import type { BoardListRead } from '../types/board'
+import type { BoardListRead, CardRead } from '../types/board'
+import CardDialog from './CardDialog'
+import CardItem from './CardItem'
 import RenameListDialog from './RenameListDialog'
 
 interface Props {
@@ -25,6 +27,29 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
+  const [cardDialogOpen, setCardDialogOpen] = useState(false)
+  const [cards, setCards] = useState<CardRead[]>([])
+
+  useEffect(() => {
+    fetch(
+      `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/cards`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        credentials: 'include',
+      },
+    )
+      .then(r => r.ok ? r.json() as Promise<CardRead[]> : [])
+      .then(setCards)
+      .catch(() => {})
+  }, [list.board_id, list.id, accessToken])
+
+  function handleCardCreated(card: CardRead) {
+    setCards(prev => [...prev, card])
+  }
+
+  function handleCardArchived(cardId: string) {
+    setCards(prev => prev.filter(c => c.id !== cardId))
+  }
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: list.id })
@@ -75,7 +100,7 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
         style={style}
         elevation={2}
         sx={{
-          width: 272,
+          width: 300,
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -113,7 +138,7 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
           >
             <OpenWith fontSize="small" />
           </IconButton>
-          <IconButton size="small" aria-label={t('board.addCard')}>
+          <IconButton size="small" aria-label={t('board.addCard')} onClick={() => setCardDialogOpen(true)}>
             <Add fontSize="small" />
           </IconButton>
           <IconButton size="small" onClick={openMenu} aria-label={t('board.listMenu')}>
@@ -122,7 +147,18 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
         </Box>
 
         {/* Card area (scrolls vertically) */}
-        <Box sx={{ overflowY: 'auto', flex: 1, p: 1, minHeight: 80 }} />
+        <Box sx={{ overflowY: 'auto', flex: 1, p: 1, minHeight: 80 }}>
+          {cards.map(card => (
+            <CardItem
+              key={card.id}
+              card={card}
+              boardId={list.board_id}
+              listId={list.id}
+              accessToken={accessToken}
+              onArchived={handleCardArchived}
+            />
+          ))}
+        </Box>
       </Paper>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
@@ -136,6 +172,15 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
         list={list}
         accessToken={accessToken}
         onSaved={onRenamed}
+      />
+
+      <CardDialog
+        open={cardDialogOpen}
+        onClose={() => setCardDialogOpen(false)}
+        listId={list.id}
+        boardId={list.board_id}
+        accessToken={accessToken}
+        onCreated={handleCardCreated}
       />
     </>
   )

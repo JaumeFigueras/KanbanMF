@@ -46,3 +46,14 @@ export interface LabelRead {
   created_at: string
   updated_at: string
 }
+
+export interface CardRead {
+  id: string
+  list_id: string
+  name: string
+  description: string | null
+  is_archived: boolean
+  is_deleted: boolean
+  created_at: string
+  updated_at: string
+}
