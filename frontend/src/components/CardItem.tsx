@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { Box, Card, Chip, IconButton, Menu, MenuItem, Typography } from '@mui/material'
+import {
+  AvatarGroup,
+  Box,
+  Card,
+  CardActions,
+  CardContent,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  Typography,
+} from '@mui/material'
 import { CalendarToday, CheckCircle, Menu as HamburgerIcon, OpenWith } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
@@ -76,110 +87,114 @@ export default function CardItem({
       <Card
         variant="outlined"
         onClick={() => setEditOpen(true)}
-        sx={{ px: 1, py: 0.5, mb: 1, cursor: 'pointer' }}
+        sx={{ mb: 1, cursor: 'pointer' }}
       >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            ...((hasLabels || hasDates) && { borderBottom: 1, borderColor: 'divider', pb: 1 }),
-          }}
-        >
-          <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
-            {card.name}
-          </Typography>
+        <CardContent sx={{ p: 1, '&:last-child': { pb: 1 } }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              ...((hasLabels || hasDates) && { borderBottom: 1, borderColor: 'divider', pb: 1 }),
+            }}
+          >
+            <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+              {card.name}
+            </Typography>
 
-          {isCompleted && (
-            // Sized to match IconButton's own box (20px icon + 5px padding on
-            // each side) so it lines up with the buttons next to it.
-            <Box sx={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle fontSize="small" sx={{ color: 'success.main' }} />
+            {isCompleted && (
+              // Sized to match IconButton's own box (20px icon + 5px padding on
+              // each side) so it lines up with the buttons next to it.
+              <Box sx={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle fontSize="small" sx={{ color: 'success.main' }} />
+              </Box>
+            )}
+
+            <IconButton
+              size="small"
+              aria-label={t('board.moveCard')}
+              sx={{ cursor: 'grab' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <OpenWith fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={(e) => { e.stopPropagation(); openMenu(e) }}
+              aria-label={t('board.cardMenu')}
+            >
+              <HamburgerIcon fontSize="small" />
+            </IconButton>
+          </Box>
+
+          {(hasLabels || hasDates) && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+              {hasLabels && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {card.labels.map((label) => (
+                    <Chip
+                      key={label.id}
+                      label={label.name}
+                      size="small"
+                      sx={{ bgcolor: label.color, color: contrastColor(label.color), fontWeight: 700 }}
+                    />
+                  ))}
+                </Box>
+              )}
+              {card.due_at && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 1,
+                    width: 'fit-content',
+                    ...(dueStyle && { bgcolor: dueStyle.background, color: dueStyle.color }),
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                    {t('board.dueLabel')}
+                  </Typography>
+                  <CalendarToday sx={{ fontSize: 14 }} />
+                  <Typography variant="caption">
+                    {formatDateTime(card.due_at, intlCode, dateFormat)}
+                  </Typography>
+                </Box>
+              )}
+              {card.end_at && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 1,
+                    width: 'fit-content',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                    {t('board.endLabel')}
+                  </Typography>
+                  <CalendarToday sx={{ fontSize: 14 }} />
+                  <Typography variant="caption">
+                    {formatDateTime(card.end_at, intlCode, dateFormat)}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
-
-          <IconButton
-            size="small"
-            aria-label={t('board.moveCard')}
-            sx={{ cursor: 'grab' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <OpenWith fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); openMenu(e) }}
-            aria-label={t('board.cardMenu')}
-          >
-            <HamburgerIcon fontSize="small" />
-          </IconButton>
-        </Box>
-
-        {(hasLabels || hasDates) && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-            {hasLabels && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                {card.labels.map((label) => (
-                  <Chip
-                    key={label.id}
-                    label={label.name}
-                    size="small"
-                    sx={{ bgcolor: label.color, color: contrastColor(label.color), fontWeight: 700 }}
-                  />
-                ))}
-              </Box>
-            )}
-            {card.due_at && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  px: 0.75,
-                  py: 0.25,
-                  borderRadius: 1,
-                  width: 'fit-content',
-                  ...(dueStyle && { bgcolor: dueStyle.background, color: dueStyle.color }),
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                  {t('board.dueLabel')}
-                </Typography>
-                <CalendarToday sx={{ fontSize: 14 }} />
-                <Typography variant="caption">
-                  {formatDateTime(card.due_at, intlCode, dateFormat)}
-                </Typography>
-              </Box>
-            )}
-            {card.end_at && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  px: 0.75,
-                  py: 0.25,
-                  borderRadius: 1,
-                  width: 'fit-content',
-                }}
-              >
-                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                  {t('board.endLabel')}
-                </Typography>
-                <CalendarToday sx={{ fontSize: 14 }} />
-                <Typography variant="caption">
-                  {formatDateTime(card.end_at, intlCode, dateFormat)}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        )}
+        </CardContent>
 
         {card.assignees.length > 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
-            {[...card.assignees].reverse().map((person) => (
-              <PersonAvatar key={person.id} person={person} />
-            ))}
-          </Box>
+          <CardActions sx={{ px: 1, py: 0.5, justifyContent: 'flex-end' }}>
+            <AvatarGroup max={5}>
+              {card.assignees.map((person) => (
+                <PersonAvatar key={person.id} person={person} />
+              ))}
+            </AvatarGroup>
+          </CardActions>
         )}
       </Card>
 
