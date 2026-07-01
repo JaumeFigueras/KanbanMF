@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel, field_validator, model_validator
 
 from src.schemas.label import LabelRead
+from src.schemas.person import PersonRead
 
 
 class CardCreate(BaseModel):
@@ -16,6 +17,8 @@ class CardCreate(BaseModel):
     due_at: datetime | None = None
     end_at: datetime | None = None
     label_ids: list[uuid.UUID] = []
+    member_ids: list[uuid.UUID] = []
+    assignee_ids: list[uuid.UUID] = []
 
     @field_validator("name")
     @classmethod
@@ -43,6 +46,9 @@ class CardRead(BaseModel):
     due_at: datetime | None
     end_at: datetime | None
     labels: list[LabelRead]
+    creator: PersonRead | None
+    members: list[PersonRead]
+    assignees: list[PersonRead]
     created_at: datetime
     updated_at: datetime
 
@@ -57,6 +63,8 @@ class CardUpdate(BaseModel):
     due_at: datetime | None = None
     end_at: datetime | None = None
     label_ids: list[uuid.UUID] | None = None
+    member_ids: list[uuid.UUID] | None = None
+    assignee_ids: list[uuid.UUID] | None = None
 
     @field_validator("name")
     @classmethod

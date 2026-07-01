@@ -47,6 +47,13 @@ export interface LabelRead {
   updated_at: string
 }
 
+export interface PersonSummary {
+  id: string
+  display_name: string
+  initials: string | null
+  has_avatar: boolean
+}
+
 export interface CardRead {
   id: string
   list_id: string
@@ -58,6 +65,9 @@ export interface CardRead {
   due_at: string | null
   end_at: string | null
   labels: LabelRead[]
+  creator: PersonSummary | null
+  members: PersonSummary[]
+  assignees: PersonSummary[]
   created_at: string
   updated_at: string
 }

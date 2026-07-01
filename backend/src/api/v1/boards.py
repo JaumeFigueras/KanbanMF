@@ -24,6 +24,7 @@ from src.schemas.board import (
     BoardUpdate,
     BoardsResponse,
 )
+from src.schemas.person import PersonRead
 
 router = APIRouter()
 
@@ -396,6 +397,50 @@ async def _check_board_access(
         if share.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return board
+
+
+@router.get("/{board_id}/members", response_model=list[PersonRead])
+async def list_board_members(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PersonRead]:
+    """Return the users allowed to work with the board: its owner plus everyone it's shared with."""
+    board = await _check_board_access(board_id, current_user, db)
+
+    share_result = await db.execute(
+        select(BoardShare.user_id).where(BoardShare.board_id == board_id)
+    )
+    member_ids = {board.owner_id, *share_result.scalars().all()}
+
+    users_result = await db.execute(select(User).where(User.id.in_(member_ids)))
+    users = list(users_result.scalars().all())
+
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id.in_(member_ids))
+    )
+    prefs_by_id = {p.user_id: p for p in prefs_result.scalars()}
+
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id.in_(member_ids))
+    )
+    avatar_ids = set(avatar_result.scalars().all())
+
+    people = [
+        PersonRead(
+            id=user.id,
+            display_name=user.display_name,
+            initials=(
+                prefs_by_id[user.id].initials
+                if user.id in prefs_by_id and prefs_by_id[user.id].initials
+                else _compute_initials(user.display_name)
+            ),
+            has_avatar=user.id in avatar_ids,
+        )
+        for user in users
+    ]
+    people.sort(key=lambda p: p.display_name.lower())
+    return people
 
 
 @router.patch("/{board_id}", response_model=BoardRead)

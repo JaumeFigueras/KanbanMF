@@ -9,6 +9,7 @@ import { contrastColor } from '../utils/labelColor'
 import dayjs from 'dayjs'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
+import PersonAvatar from './PersonAvatar'
 
 interface Props {
   card: CardRead
@@ -170,6 +171,14 @@ export default function CardItem({
                 </Typography>
               </Box>
             )}
+          </Box>
+        )}
+
+        {card.assignees.length > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 1 }}>
+            {[...card.assignees].reverse().map((person) => (
+              <PersonAvatar key={person.id} person={person} />
+            ))}
           </Box>
         )}
       </Card>

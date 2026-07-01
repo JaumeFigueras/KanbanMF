@@ -15,7 +15,11 @@ from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.label import Label
 from src.model.user import User
+from src.model.user_avatar import UserAvatar
+from src.model.user_preferences import UserPreferences
 from src.schemas.card import CardCreate, CardRead, CardUpdate
+from src.schemas.label import LabelRead
+from src.schemas.person import PersonRead
 
 router = APIRouter()
 
@@ -70,6 +74,100 @@ async def _get_labels(
     return list(result.scalars().all())
 
 
+async def _get_board_user_ids(board_id: uuid.UUID, db: AsyncSession) -> set[uuid.UUID]:
+    """The users allowed to work with the board: its owner plus everyone it's shared with."""
+    board_result = await db.execute(select(Board.owner_id).where(Board.id == board_id))
+    owner_id = board_result.scalar_one_or_none()
+    share_result = await db.execute(
+        select(BoardShare.user_id).where(BoardShare.board_id == board_id)
+    )
+    ids = set(share_result.scalars().all())
+    if owner_id:
+        ids.add(owner_id)
+    return ids
+
+
+async def _get_users(
+    board_id: uuid.UUID, user_ids: list[uuid.UUID], db: AsyncSession
+) -> list[User]:
+    """Resolve user ids to User rows, scoped to users allowed to work with the
+    board so a client can't add a member/assignee who isn't on the board."""
+    if not user_ids:
+        return []
+    allowed_ids = await _get_board_user_ids(board_id, db)
+    scoped_ids = [uid for uid in user_ids if uid in allowed_ids]
+    if not scoped_ids:
+        return []
+    result = await db.execute(select(User).where(User.id.in_(scoped_ids)))
+    return list(result.scalars().all())
+
+
+def _compute_initials(display_name: str) -> str:
+    return "".join(w[0].upper() for w in display_name.split() if w)[:3]
+
+
+async def _people_by_id(
+    user_ids: set[uuid.UUID], db: AsyncSession
+) -> dict[uuid.UUID, PersonRead]:
+    """Batch-resolve user ids to PersonRead summaries (display name, initials,
+    whether they have an avatar) for creator/members/assignees."""
+    if not user_ids:
+        return {}
+    users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    users = list(users_result.scalars().all())
+
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id.in_(user_ids))
+    )
+    prefs_by_id = {p.user_id: p for p in prefs_result.scalars()}
+
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id.in_(user_ids))
+    )
+    avatar_ids = set(avatar_result.scalars().all())
+
+    return {
+        user.id: PersonRead(
+            id=user.id,
+            display_name=user.display_name,
+            initials=(
+                prefs_by_id[user.id].initials
+                if user.id in prefs_by_id and prefs_by_id[user.id].initials
+                else _compute_initials(user.display_name)
+            ),
+            has_avatar=user.id in avatar_ids,
+        )
+        for user in users
+    }
+
+
+def _card_to_read(card: Card, people_by_id: dict[uuid.UUID, PersonRead]) -> CardRead:
+    return CardRead(
+        id=card.id,
+        list_id=card.list_id,
+        name=card.name,
+        description=card.description,
+        is_archived=card.is_archived,
+        is_deleted=card.is_deleted,
+        start_at=card.start_at,
+        due_at=card.due_at,
+        end_at=card.end_at,
+        labels=[LabelRead.model_validate(lbl) for lbl in card.labels],
+        creator=people_by_id.get(card.creator_id) if card.creator_id else None,
+        members=[people_by_id[u.id] for u in card.members if u.id in people_by_id],
+        assignees=[people_by_id[u.id] for u in card.assignees if u.id in people_by_id],
+        created_at=card.created_at,
+        updated_at=card.updated_at,
+    )
+
+
+def _card_people_ids(card: Card) -> set[uuid.UUID]:
+    ids = {u.id for u in card.members} | {u.id for u in card.assignees}
+    if card.creator_id:
+        ids.add(card.creator_id)
+    return ids
+
+
 @router.get("", response_model=list[CardRead])
 async def list_cards(
     board_id: uuid.UUID,
@@ -82,14 +180,25 @@ async def list_cards(
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
-        .options(selectinload(Card.labels))
+        .options(
+            selectinload(Card.labels),
+            selectinload(Card.members),
+            selectinload(Card.assignees),
+        )
         .where(
             Card.list_id == list_id,
             Card.is_deleted.is_(False),
         )
         .order_by(Card.created_at.asc())
     )
-    return [CardRead.model_validate(c) for c in result.scalars().all()]
+    cards = list(result.scalars().all())
+
+    user_ids: set[uuid.UUID] = set()
+    for c in cards:
+        user_ids |= _card_people_ids(c)
+    people_by_id = await _people_by_id(user_ids, db)
+
+    return [_card_to_read(c, people_by_id) for c in cards]
 
 
 @router.post("", response_model=CardRead, status_code=status.HTTP_201_CREATED)
@@ -103,6 +212,14 @@ async def create_card(
     """Create a card inside a list."""
     await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
+
+    # The creator is always a member by default, regardless of what the
+    # client sent — it can't be left out.
+    member_ids = {*body.member_ids, current_user.id}
+    members = await _get_users(board_id, list(member_ids), db)
+    if current_user not in members:
+        members.append(current_user)
+
     card = Card(
         list_id=list_id,
         creator_id=current_user.id,
@@ -112,11 +229,15 @@ async def create_card(
         due_at=body.due_at,
         end_at=body.end_at,
         labels=await _get_labels(board_id, body.label_ids, db),
+        members=members,
+        assignees=await _get_users(board_id, body.assignee_ids, db),
     )
     db.add(card)
     await db.commit()
-    await db.refresh(card, attribute_names=["labels"])
-    return CardRead.model_validate(card)
+    await db.refresh(card, attribute_names=["labels", "members", "assignees"])
+
+    people_by_id = await _people_by_id(_card_people_ids(card), db)
+    return _card_to_read(card, people_by_id)
 
 
 @router.patch("/{card_id}", response_model=CardRead)
@@ -133,7 +254,11 @@ async def update_card(
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
-        .options(selectinload(Card.labels))
+        .options(
+            selectinload(Card.labels),
+            selectinload(Card.members),
+            selectinload(Card.assignees),
+        )
         .where(
             Card.id == card_id,
             Card.list_id == list_id,
@@ -173,9 +298,15 @@ async def update_card(
         card.end_at = body.end_at
     if "label_ids" in fields_set:
         card.labels = await _get_labels(board_id, body.label_ids or [], db)
+    if "member_ids" in fields_set:
+        card.members = await _get_users(board_id, body.member_ids or [], db)
+    if "assignee_ids" in fields_set:
+        card.assignees = await _get_users(board_id, body.assignee_ids or [], db)
     await db.commit()
-    await db.refresh(card, attribute_names=["labels"])
-    return CardRead.model_validate(card)
+    await db.refresh(card, attribute_names=["labels", "members", "assignees"])
+
+    people_by_id = await _people_by_id(_card_people_ids(card), db)
+    return _card_to_read(card, people_by_id)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
