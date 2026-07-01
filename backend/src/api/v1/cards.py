@@ -92,6 +92,9 @@ async def create_card(
         creator_id=current_user.id,
         name=body.name,
         description=body.description,
+        start_at=body.start_at,
+        due_at=body.due_at,
+        end_at=body.end_at,
     )
     db.add(card)
     await db.commit()
@@ -121,12 +124,34 @@ async def update_card(
     card = result.scalar_one_or_none()
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+
+    # A field explicitly sent as `null` clears it; an omitted field leaves it
+    # untouched — `is not None` alone can't tell those two cases apart.
+    fields_set = body.model_fields_set
+    effective_start_at = body.start_at if "start_at" in fields_set else card.start_at
+    effective_end_at = body.end_at if "end_at" in fields_set else card.end_at
+    if (
+        effective_start_at is not None
+        and effective_end_at is not None
+        and effective_start_at > effective_end_at
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Start date cannot be after end date.",
+        )
+
     if body.name is not None:
         card.name = body.name
     if body.description is not None:
         card.description = body.description
     if body.is_archived is not None:
         card.is_archived = body.is_archived
+    if "start_at" in fields_set:
+        card.start_at = body.start_at
+    if "due_at" in fields_set:
+        card.due_at = body.due_at
+    if "end_at" in fields_set:
+        card.end_at = body.end_at
     await db.commit()
     await db.refresh(card)
     return CardRead.model_validate(card)

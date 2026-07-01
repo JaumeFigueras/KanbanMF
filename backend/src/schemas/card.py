@@ -4,12 +4,15 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class CardCreate(BaseModel):
     name: str
     description: str | None = None
+    start_at: datetime | None = None
+    due_at: datetime | None = None
+    end_at: datetime | None = None
 
     @field_validator("name")
     @classmethod
@@ -19,6 +22,12 @@ class CardCreate(BaseModel):
             raise ValueError("Card name cannot be blank.")
         return v
 
+    @model_validator(mode="after")
+    def check_date_order(self) -> "CardCreate":
+        if self.start_at is not None and self.end_at is not None and self.start_at > self.end_at:
+            raise ValueError("Start date cannot be after end date.")
+        return self
+
 
 class CardRead(BaseModel):
     id: uuid.UUID
@@ -27,6 +36,9 @@ class CardRead(BaseModel):
     description: str | None
     is_archived: bool
     is_deleted: bool
+    start_at: datetime | None
+    due_at: datetime | None
+    end_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -37,6 +49,9 @@ class CardUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     is_archived: bool | None = None
+    start_at: datetime | None = None
+    due_at: datetime | None = None
+    end_at: datetime | None = None
 
     @field_validator("name")
     @classmethod

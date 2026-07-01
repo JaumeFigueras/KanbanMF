@@ -12,6 +12,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { BoardListRead, CardRead } from '../types/board'
+import type { DateFormat } from '../utils/locale'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
 import RenameListDialog from './RenameListDialog'
@@ -19,11 +20,20 @@ import RenameListDialog from './RenameListDialog'
 interface Props {
   list: BoardListRead
   accessToken: string
+  numberLocale: string
+  dateFormat: DateFormat
   onRenamed: (listId: string, newName: string) => void
   onArchived: (listId: string) => void
 }
 
-export default function BoardListColumn({ list, accessToken, onRenamed, onArchived }: Props) {
+export default function BoardListColumn({
+  list,
+  accessToken,
+  numberLocale,
+  dateFormat,
+  onRenamed,
+  onArchived,
+}: Props) {
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -49,6 +59,10 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
 
   function handleCardArchived(cardId: string) {
     setCards(prev => prev.filter(c => c.id !== cardId))
+  }
+
+  function handleCardUpdated(card: CardRead) {
+    setCards(prev => prev.map(c => c.id === card.id ? card : c))
   }
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -155,7 +169,10 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
               boardId={list.board_id}
               listId={list.id}
               accessToken={accessToken}
+              numberLocale={numberLocale}
+              dateFormat={dateFormat}
               onArchived={handleCardArchived}
+              onUpdated={handleCardUpdated}
             />
           ))}
         </Box>
@@ -180,6 +197,7 @@ export default function BoardListColumn({ list, accessToken, onRenamed, onArchiv
         listId={list.id}
         boardId={list.board_id}
         accessToken={accessToken}
+        numberLocale={numberLocale}
         onCreated={handleCardCreated}
       />
     </>

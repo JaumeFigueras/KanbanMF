@@ -29,6 +29,7 @@ import CreateListDialog from '../components/CreateListDialog'
 import ManageLabelsDialog from '../components/ManageLabelsDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import type { BoardListRead, BoardListOrderRead, BoardRead } from '../types/board'
+import type { DateFormat } from '../utils/locale'
 
 export default function Board() {
   const { t } = useTranslation()
@@ -39,6 +40,8 @@ export default function Board() {
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false)
+  const [numberLocale, setNumberLocale] = useState('en')
+  const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -119,7 +122,12 @@ export default function Board() {
 
   return (
     <>
-      <MainAppBar />
+      <MainAppBar
+        onLocaleChanged={(num, fmt) => {
+          setNumberLocale(num)
+          setDateFormat(fmt)
+        }}
+      />
 
       {/* Secondary board toolbar — sits below the main AppBar */}
       <AppBar
@@ -183,6 +191,8 @@ export default function Board() {
                 key={list.id}
                 list={list}
                 accessToken={accessToken ?? ''}
+                numberLocale={numberLocale}
+                dateFormat={dateFormat}
                 onRenamed={handleListRenamed}
                 onArchived={handleListArchived}
               />

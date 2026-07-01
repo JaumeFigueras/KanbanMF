@@ -16,48 +16,11 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '../i18n'
+import { DATE_LOCALES, type DateFormat, type DateLocaleCode, formatDateTime, intlCodeFor } from '../utils/locale'
 
 // Maps backend language_locale → i18n code  and back
 const BACKEND_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 const I18N_TO_BACKEND: Record<string, string> = { en: 'en', ca: 'ca_ES' }
-
-// Supported date/time display locales
-// code    → stored in backend number_locale
-// intlCode → used with Intl.DateTimeFormat for the live preview
-const DATE_LOCALES = [
-  { code: 'en',    intlCode: 'en-US', label: 'English (US)' },
-  { code: 'en_GB', intlCode: 'en-GB', label: 'English (UK / Europe)' },
-  { code: 'ca_ES', intlCode: 'ca-ES', label: 'Català' },
-] as const
-
-type DateLocaleCode = (typeof DATE_LOCALES)[number]['code']
-
-function intlCodeFor(numberLocale: string): string {
-  return DATE_LOCALES.find((l) => l.code === numberLocale)?.intlCode ?? 'en-US'
-}
-
-function formatLong(intlCode: string): string {
-  return new Intl.DateTimeFormat(intlCode, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date())
-}
-
-function formatNumeric(intlCode: string): string {
-  return new Intl.DateTimeFormat(intlCode, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date())
-}
-
-type DateFormat = 'numeric' | 'textual'
 
 interface Props {
   open: boolean
@@ -129,8 +92,8 @@ export default function LanguageLocalizationDialog({
   }
 
   const intlCode = intlCodeFor(numberLocale)
-  const exampleLong = formatLong(intlCode)
-  const exampleNumeric = formatNumeric(intlCode)
+  const exampleLong = formatDateTime(new Date(), intlCode, 'textual')
+  const exampleNumeric = formatDateTime(new Date(), intlCode, 'numeric')
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>

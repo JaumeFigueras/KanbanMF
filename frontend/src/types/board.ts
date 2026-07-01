@@ -54,6 +54,9 @@ export interface CardRead {
   description: string | null
   is_archived: boolean
   is_deleted: boolean
+  start_at: string | null
+  due_at: string | null
+  end_at: string | null
   created_at: string
   updated_at: string
 }

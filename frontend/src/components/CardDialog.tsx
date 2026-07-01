@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   TextField,
+  Typography,
 } from '@mui/material'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { useTranslation } from 'react-i18next'
+import dayjs, { type Dayjs } from 'dayjs'
 import type { CardRead } from '../types/board'
+import CardDateField from './CardDateField'
+import { dayjsLocaleFor } from '../utils/locale'
 
 interface Props {
   open: boolean
@@ -17,6 +25,7 @@ interface Props {
   listId: string
   boardId: string
   accessToken: string
+  numberLocale: string
   card?: CardRead | null
   onCreated?: (card: CardRead) => void
   onUpdated?: (card: CardRead) => void
@@ -28,6 +37,7 @@ export default function CardDialog({
   listId,
   boardId,
   accessToken,
+  numberLocale,
   card,
   onCreated,
   onUpdated,
@@ -36,6 +46,9 @@ export default function CardDialog({
   const isEdit = Boolean(card)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [startAt, setStartAt] = useState<Dayjs | null>(null)
+  const [dueAt, setDueAt] = useState<Dayjs | null>(null)
+  const [endAt, setEndAt] = useState<Dayjs | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +56,9 @@ export default function CardDialog({
     if (open) {
       setName(card?.name ?? '')
       setDescription(card?.description ?? '')
+      setStartAt(card?.start_at ? dayjs(card.start_at) : null)
+      setDueAt(card?.due_at ? dayjs(card.due_at) : null)
+      setEndAt(card?.end_at ? dayjs(card.end_at) : null)
       setError(null)
     }
   }, [open, card])
@@ -51,6 +67,10 @@ export default function CardDialog({
     const trimmedName = name.trim()
     if (!trimmedName) {
       setError(t('board.cardNameRequired'))
+      return
+    }
+    if (startAt && endAt && startAt.isAfter(endAt)) {
+      setError(t('board.dateOrderError'))
       return
     }
 
@@ -70,6 +90,9 @@ export default function CardDialog({
         body: JSON.stringify({
           name: trimmedName,
           description: description.trim() || null,
+          start_at: startAt ? startAt.toISOString() : null,
+          due_at: dueAt ? dueAt.toISOString() : null,
+          end_at: endAt ? endAt.toISOString() : null,
         }),
       })
       if (!r.ok) throw new Error()
@@ -84,6 +107,8 @@ export default function CardDialog({
     }
   }
 
+  const dayjsLocale = dayjsLocaleFor(numberLocale)
+
   return (
     <Dialog
       open={open}
@@ -95,6 +120,7 @@ export default function CardDialog({
       </DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
         <TextField
           label={t('board.cardName')}
           value={name}
@@ -114,6 +140,32 @@ export default function CardDialog({
           rows={4}
           sx={{ mt: 2 }}
         />
+
+        <Divider sx={{ mt: 3, mb: 2 }} />
+
+        <Typography variant="overline" color="text.secondary">
+          {t('board.dates')}
+        </Typography>
+
+        <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={dayjsLocale}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
+            <CardDateField
+              label={t('board.startDate')}
+              value={startAt}
+              onChange={setStartAt}
+            />
+            <CardDateField
+              label={t('board.dueDate')}
+              value={dueAt}
+              onChange={setDueAt}
+            />
+            <CardDateField
+              label={t('board.endDate')}
+              value={endAt}
+              onChange={setEndAt}
+            />
+          </Box>
+        </LocalizationProvider>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} color="error" disabled={saving}>
