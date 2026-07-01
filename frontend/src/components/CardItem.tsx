@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Box, Card, IconButton, Menu, MenuItem, Typography } from '@mui/material'
+import { Box, Card, Chip, IconButton, Menu, MenuItem, Typography } from '@mui/material'
 import { CalendarToday, CheckCircle, Menu as HamburgerIcon, OpenWith } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
 import { formatDateTime, intlCodeFor, type DateFormat } from '../utils/locale'
 import { dueDateStyle } from '../utils/dueDateColor'
+import { contrastColor } from '../utils/labelColor'
 import dayjs from 'dayjs'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
@@ -64,6 +65,7 @@ export default function CardItem({
 
   const isCompleted = Boolean(card.end_at)
   const hasDates = Boolean(card.due_at || card.end_at)
+  const hasLabels = card.labels.length > 0
   const intlCode = intlCodeFor(numberLocale)
   // A defined end date means the task is done — the due date no longer needs an urgency color.
   const dueStyle = card.due_at && !isCompleted ? dueDateStyle(dayjs(card.due_at)) : null
@@ -79,7 +81,7 @@ export default function CardItem({
           sx={{
             display: 'flex',
             alignItems: 'flex-start',
-            ...(hasDates && { borderBottom: 1, borderColor: 'divider', pb: 0.5 }),
+            ...((hasLabels || hasDates) && { borderBottom: 1, borderColor: 'divider', pb: 1 }),
           }}
         >
           <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
@@ -87,7 +89,11 @@ export default function CardItem({
           </Typography>
 
           {isCompleted && (
-            <CheckCircle sx={{ fontSize: 18, color: 'success.main', mt: 0.25, mr: 0.5 }} />
+            // Sized to match IconButton's own box (20px icon + 5px padding on
+            // each side) so it lines up with the buttons next to it.
+            <Box sx={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle fontSize="small" sx={{ color: 'success.main' }} />
+            </Box>
           )}
 
           <IconButton
@@ -107,8 +113,20 @@ export default function CardItem({
           </IconButton>
         </Box>
 
-        {hasDates && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
+        {(hasLabels || hasDates) && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
+            {hasLabels && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {card.labels.map((label) => (
+                  <Chip
+                    key={label.id}
+                    label={label.name}
+                    size="small"
+                    sx={{ bgcolor: label.color, color: contrastColor(label.color), fontWeight: 700 }}
+                  />
+                ))}
+              </Box>
+            )}
             {card.due_at && (
               <Box
                 sx={{

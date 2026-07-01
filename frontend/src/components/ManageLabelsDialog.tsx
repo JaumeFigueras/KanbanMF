@@ -18,6 +18,7 @@ import { Delete, Edit } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import { apiFetch } from '../api/client'
+import { contrastColor } from '../utils/labelColor'
 
 interface Props {
   open: boolean
@@ -31,13 +32,6 @@ interface LabelForm {
 }
 
 const DEFAULT_COLOR = '#6366F1'
-
-function contrastColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? '#000000' : '#ffffff'
-}
 
 function LabelChip({ label }: { label: LabelRead }) {
   return (

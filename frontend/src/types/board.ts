@@ -57,6 +57,7 @@ export interface CardRead {
   start_at: string | null
   due_at: string | null
   end_at: string | null
+  labels: LabelRead[]
   created_at: string
   updated_at: string
 }

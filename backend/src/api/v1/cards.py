@@ -6,12 +6,14 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.api.deps import get_current_user, get_db
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
+from src.model.label import Label
 from src.model.user import User
 from src.schemas.card import CardCreate, CardRead, CardUpdate
 
@@ -55,6 +57,19 @@ async def _get_list(
     return board_list
 
 
+async def _get_labels(
+    board_id: uuid.UUID, label_ids: list[uuid.UUID], db: AsyncSession
+) -> list[Label]:
+    """Resolve label ids to Label rows, scoped to the board so a client can't
+    attach labels belonging to a different board."""
+    if not label_ids:
+        return []
+    result = await db.execute(
+        select(Label).where(Label.id.in_(label_ids), Label.board_id == board_id)
+    )
+    return list(result.scalars().all())
+
+
 @router.get("", response_model=list[CardRead])
 async def list_cards(
     board_id: uuid.UUID,
@@ -67,6 +82,7 @@ async def list_cards(
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
+        .options(selectinload(Card.labels))
         .where(
             Card.list_id == list_id,
             Card.is_deleted.is_(False),
@@ -95,10 +111,11 @@ async def create_card(
         start_at=body.start_at,
         due_at=body.due_at,
         end_at=body.end_at,
+        labels=await _get_labels(board_id, body.label_ids, db),
     )
     db.add(card)
     await db.commit()
-    await db.refresh(card)
+    await db.refresh(card, attribute_names=["labels"])
     return CardRead.model_validate(card)
 
 
@@ -115,7 +132,9 @@ async def update_card(
     await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
     result = await db.execute(
-        select(Card).where(
+        select(Card)
+        .options(selectinload(Card.labels))
+        .where(
             Card.id == card_id,
             Card.list_id == list_id,
             Card.is_deleted.is_(False),
@@ -152,8 +171,10 @@ async def update_card(
         card.due_at = body.due_at
     if "end_at" in fields_set:
         card.end_at = body.end_at
+    if "label_ids" in fields_set:
+        card.labels = await _get_labels(board_id, body.label_ids or [], db)
     await db.commit()
-    await db.refresh(card)
+    await db.refresh(card, attribute_names=["labels"])
     return CardRead.model_validate(card)
 
 

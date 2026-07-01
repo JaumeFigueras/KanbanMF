@@ -126,6 +126,9 @@ const en = {
     dueLabel: 'Due',
     endLabel: 'End',
     clearDate: 'Remove date',
+    labels: 'Labels',
+    selectLabels: 'Select Labels',
+    manageCardLabels: 'Add labels',
   },
   common: {
     or: 'or',

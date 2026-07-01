@@ -3,21 +3,26 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   TextField,
   Typography,
 } from '@mui/material'
+import { Add, Label as LabelIcon } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { CardRead } from '../types/board'
+import type { CardRead, LabelRead } from '../types/board'
 import CardDateField from './CardDateField'
+import CardLabelPickerDialog from './CardLabelPickerDialog'
 import { dayjsLocaleFor } from '../utils/locale'
+import { contrastColor } from '../utils/labelColor'
 import { apiFetch } from '../api/client'
 
 interface Props {
@@ -48,6 +53,8 @@ export default function CardDialog({
   const [startAt, setStartAt] = useState<Dayjs | null>(null)
   const [dueAt, setDueAt] = useState<Dayjs | null>(null)
   const [endAt, setEndAt] = useState<Dayjs | null>(null)
+  const [selectedLabels, setSelectedLabels] = useState<LabelRead[]>([])
+  const [labelPickerOpen, setLabelPickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,6 +65,7 @@ export default function CardDialog({
       setStartAt(card?.start_at ? dayjs(card.start_at) : null)
       setDueAt(card?.due_at ? dayjs(card.due_at) : null)
       setEndAt(card?.end_at ? dayjs(card.end_at) : null)
+      setSelectedLabels(card?.labels ?? [])
       setError(null)
     }
   }, [open, card])
@@ -88,6 +96,7 @@ export default function CardDialog({
           start_at: startAt ? startAt.toISOString() : null,
           due_at: dueAt ? dueAt.toISOString() : null,
           end_at: endAt ? endAt.toISOString() : null,
+          label_ids: selectedLabels.map((l) => l.id),
         }),
       })
       if (!r.ok) throw new Error()
@@ -138,6 +147,40 @@ export default function CardDialog({
 
         <Divider sx={{ mt: 3, mb: 2 }} />
 
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+          <LabelIcon fontSize="small" color="action" />
+          <Typography variant="overline" color="text.secondary">
+            {t('board.labels')}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+          {selectedLabels.map((label) => (
+            <Chip
+              key={label.id}
+              label={label.name}
+              onClick={() => setLabelPickerOpen(true)}
+              sx={{
+                bgcolor: label.color,
+                color: contrastColor(label.color),
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                height: 32,
+                cursor: 'pointer',
+              }}
+            />
+          ))}
+          <IconButton
+            size="small"
+            onClick={() => setLabelPickerOpen(true)}
+            aria-label={t('board.manageCardLabels')}
+          >
+            <Add fontSize="small" />
+          </IconButton>
+        </Box>
+
+        <Divider sx={{ mt: 3, mb: 2 }} />
+
         <Typography variant="overline" color="text.secondary">
           {t('board.dates')}
         </Typography>
@@ -170,6 +213,14 @@ export default function CardDialog({
           {t('common.save')}
         </Button>
       </DialogActions>
+
+      <CardLabelPickerDialog
+        open={labelPickerOpen}
+        onClose={() => setLabelPickerOpen(false)}
+        boardId={boardId}
+        selectedIds={selectedLabels.map((l) => l.id)}
+        onSave={setSelectedLabels}
+      />
     </Dialog>
   )
 }

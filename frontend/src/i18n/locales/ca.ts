@@ -126,6 +126,9 @@ const ca = {
     dueLabel: 'Venç',
     endLabel: 'Final',
     clearDate: 'Elimina la data',
+    labels: 'Etiquetes',
+    selectLabels: 'Selecciona etiquetes',
+    manageCardLabels: 'Afegeix etiquetes',
   },
   common: {
     or: 'o',
