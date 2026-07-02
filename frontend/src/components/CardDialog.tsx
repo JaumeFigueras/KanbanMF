@@ -38,6 +38,60 @@ import { dayjsLocaleFor } from '../utils/locale'
 import { contrastColor } from '../utils/labelColor'
 import { apiFetch } from '../api/client'
 
+function jsonInit(method: string, body: unknown): RequestInit {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+}
+
+// Reconciles the checklists edited locally in the dialog against what was
+// loaded from the server, issuing the create/update/delete calls needed to
+// bring the card's checklists in line. Runs as part of the Save action,
+// since checklists have no draft/local-only persistence of their own.
+async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next: ChecklistData[]) {
+  const nextIds = new Set(next.map((c) => c.id))
+  for (const checklist of prev) {
+    if (!nextIds.has(checklist.id)) {
+      await apiFetch(`${checklistsUrl}/${checklist.id}`, { method: 'DELETE' })
+    }
+  }
+
+  for (const checklist of next) {
+    const before = prev.find((c) => c.id === checklist.id)
+
+    if (!before) {
+      const r = await apiFetch(checklistsUrl, jsonInit('POST', { name: checklist.name }))
+      const created = await r.json()
+      for (const item of checklist.items) {
+        await apiFetch(
+          `${checklistsUrl}/${created.id}/items`,
+          jsonInit('POST', { text: item.text, is_done: item.is_done }),
+        )
+      }
+      continue
+    }
+
+    if (before.name !== checklist.name) {
+      await apiFetch(`${checklistsUrl}/${checklist.id}`, jsonInit('PATCH', { name: checklist.name }))
+    }
+
+    const itemsUrl = `${checklistsUrl}/${checklist.id}/items`
+    const nextItemIds = new Set(checklist.items.map((i) => i.id))
+    for (const item of before.items) {
+      if (!nextItemIds.has(item.id)) {
+        await apiFetch(`${itemsUrl}/${item.id}`, { method: 'DELETE' })
+      }
+    }
+
+    for (const item of checklist.items) {
+      const beforeItem = before.items.find((i) => i.id === item.id)
+      if (!beforeItem) {
+        await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+      } else if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
+        await apiFetch(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
+      }
+    }
+  }
+}
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -74,6 +128,7 @@ export default function CardDialog({
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
   const [candidates, setCandidates] = useState<PersonSummary[]>([])
   const [checklists, setChecklists] = useState<ChecklistData[]>([])
+  const [initialChecklists, setInitialChecklists] = useState<ChecklistData[]>([])
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false)
   const [editingChecklist, setEditingChecklist] = useState<ChecklistData | null>(null)
   const [saving, setSaving] = useState(false)
@@ -91,8 +146,13 @@ export default function CardDialog({
       setSelectedLabels(card?.labels ?? [])
       setMembers(card?.members ?? [])
       setAssignees(card?.assignees ?? [])
-      // No checklist API yet — always starts empty (see ChecklistData).
-      setChecklists([])
+      const loadedChecklists: ChecklistData[] = (card?.checklists ?? []).map((cl) => ({
+        id: cl.id,
+        name: cl.name,
+        items: cl.items.map((i) => ({ id: i.id, text: i.text, is_done: i.is_done })),
+      }))
+      setChecklists(loadedChecklists)
+      setInitialChecklists(loadedChecklists)
       setError(null)
     }
   }, [open, card])
@@ -166,6 +226,12 @@ export default function CardDialog({
       })
       if (!r.ok) throw new Error()
       const result: CardRead = await r.json()
+
+      const checklistsUrl = `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/checklists`
+      await syncChecklists(checklistsUrl, initialChecklists, checklists)
+      const checklistsRes = await apiFetch(checklistsUrl)
+      result.checklists = checklistsRes.ok ? await checklistsRes.json() : result.checklists
+
       if (isEdit) onUpdated?.(result)
       else onCreated?.(result)
       onClose()

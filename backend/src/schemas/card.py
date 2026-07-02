@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
 
@@ -49,6 +50,7 @@ class CardRead(BaseModel):
     creator: PersonRead | None
     members: list[PersonRead]
     assignees: list[PersonRead]
+    checklists: list[ChecklistRead]
     created_at: datetime
     updated_at: datetime
 

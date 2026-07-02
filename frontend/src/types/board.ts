@@ -54,8 +54,30 @@ export interface PersonSummary {
   has_avatar: boolean
 }
 
-// Frontend-only for now — no checklist API exists yet, so ids are generated
-// client-side and nothing here is persisted.
+export interface ChecklistItemRead {
+  id: string
+  checklist_id: string
+  text: string
+  is_done: boolean
+  position: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ChecklistRead {
+  id: string
+  card_id: string
+  name: string
+  position: number
+  items: ChecklistItemRead[]
+  created_at: string
+  updated_at: string
+}
+
+// Local editing scratch state used by ChecklistDialog/CardDialog — a subset
+// of ChecklistRead's fields, since checklists/items being created client-side
+// don't have server ids yet. CardDialog reconciles this against the
+// server-loaded ChecklistRead data via the checklist API on save.
 export interface ChecklistItemData {
   id: string
   text: string
@@ -82,6 +104,7 @@ export interface CardRead {
   creator: PersonSummary | null
   members: PersonSummary[]
   assignees: PersonSummary[]
+  checklists: ChecklistRead[]
   created_at: string
   updated_at: string
 }

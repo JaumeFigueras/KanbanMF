@@ -1,3 +1,12 @@
+## Now
+
+- Card face
+- Checklist numbers
+- Sort
+- D&D
+- Order?
+
+
 ## Functionality
 
 - Share

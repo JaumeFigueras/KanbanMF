@@ -13,15 +13,26 @@ from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
+from src.model.checklist import Checklist
 from src.model.label import Label
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_preferences import UserPreferences
 from src.schemas.card import CardCreate, CardRead, CardUpdate
+from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
 
 router = APIRouter()
+
+
+def _card_load_options() -> tuple:
+    return (
+        selectinload(Card.labels),
+        selectinload(Card.members),
+        selectinload(Card.assignees),
+        selectinload(Card.checklists).selectinload(Checklist.items),
+    )
 
 
 async def _get_accessible_board(
@@ -156,6 +167,7 @@ def _card_to_read(card: Card, people_by_id: dict[uuid.UUID, PersonRead]) -> Card
         creator=people_by_id.get(card.creator_id) if card.creator_id else None,
         members=[people_by_id[u.id] for u in card.members if u.id in people_by_id],
         assignees=[people_by_id[u.id] for u in card.assignees if u.id in people_by_id],
+        checklists=[ChecklistRead.model_validate(cl) for cl in card.checklists],
         created_at=card.created_at,
         updated_at=card.updated_at,
     )
@@ -180,11 +192,7 @@ async def list_cards(
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
-        .options(
-            selectinload(Card.labels),
-            selectinload(Card.members),
-            selectinload(Card.assignees),
-        )
+        .options(*_card_load_options())
         .where(
             Card.list_id == list_id,
             Card.is_deleted.is_(False),
@@ -234,7 +242,11 @@ async def create_card(
     )
     db.add(card)
     await db.commit()
-    await db.refresh(card, attribute_names=["labels", "members", "assignees"])
+
+    result = await db.execute(
+        select(Card).options(*_card_load_options()).where(Card.id == card.id)
+    )
+    card = result.scalar_one()
 
     people_by_id = await _people_by_id(_card_people_ids(card), db)
     return _card_to_read(card, people_by_id)
@@ -254,11 +266,7 @@ async def update_card(
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
-        .options(
-            selectinload(Card.labels),
-            selectinload(Card.members),
-            selectinload(Card.assignees),
-        )
+        .options(*_card_load_options())
         .where(
             Card.id == card_id,
             Card.list_id == list_id,
@@ -303,7 +311,11 @@ async def update_card(
     if "assignee_ids" in fields_set:
         card.assignees = await _get_users(board_id, body.assignee_ids or [], db)
     await db.commit()
-    await db.refresh(card, attribute_names=["labels", "members", "assignees"])
+
+    result = await db.execute(
+        select(Card).options(*_card_load_options()).where(Card.id == card.id)
+    )
+    card = result.scalar_one()
 
     people_by_id = await _people_by_id(_card_people_ids(card), db)
     return _card_to_read(card, people_by_id)
