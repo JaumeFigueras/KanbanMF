@@ -24,15 +24,20 @@ def db_session(postgresql_kanbanmf):
     connection = f'postgresql+psycopg://{postgresql_kanbanmf.info.user}:@{postgresql_kanbanmf.info.host}:{postgresql_kanbanmf.info.port}/{postgresql_kanbanmf.info.dbname}'
     engine = create_engine(connection, echo=False, poolclass=NullPool)
     session = scoped_session(sessionmaker(bind=engine))
-    # Build the database tables
+    # Build the database tables. Uses the full schema (all.sql) rather than
+    # just users.sql so the same fixture is reusable by tests that touch
+    # other tables (e.g. the async API tests in test/api/conftest.py).
     sql_filenames = [
         str(test_folder) + '/database_init.sql',
-        str(test_folder.parent) + '/src/model/sql/users.sql',
+        str(test_folder.parent) + '/src/model/sql/all.sql',
     ]
     for sql_filename in sql_filenames:
         with open(sql_filename, 'r') as sql_file:
             sql = text(sql_file.read())
             session.execute(sql)
+    # Committed (rather than left open) so a separate connection — e.g. the
+    # async engine in test/api/conftest.py — can see the schema too.
+    session.commit()
 
     yield session
 
