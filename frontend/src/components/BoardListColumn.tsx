@@ -103,7 +103,7 @@ export default function BoardListColumn({
         style={style}
         elevation={2}
         sx={{
-          width: 300,
+          width: 330,
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -126,7 +126,7 @@ export default function BoardListColumn({
         >
           <Typography
             variant="subtitle2"
-            sx={{ flex: 1, fontWeight: 700, px: 0.5 }}
+            sx={{ flex: 1, fontWeight: 700, px: 0.5, fontSize: '0.9625rem' }}
             noWrap
           >
             {list.name}
@@ -139,13 +139,13 @@ export default function BoardListColumn({
             {...attributes}
             {...listeners}
           >
-            <OpenWith fontSize="small" />
+            <OpenWith sx={{ fontSize: 22 }} />
           </IconButton>
           <IconButton size="small" aria-label={t('board.addCard')} onClick={() => setCardDialogOpen(true)}>
-            <Add fontSize="small" />
+            <Add sx={{ fontSize: 22 }} />
           </IconButton>
           <IconButton size="small" onClick={openMenu} aria-label={t('board.listMenu')}>
-            <HamburgerIcon fontSize="small" />
+            <HamburgerIcon sx={{ fontSize: 22 }} />
           </IconButton>
         </Box>
 

@@ -108,15 +108,15 @@ export default function CardItem({
               }),
             }}
           >
-            <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+            <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word', fontSize: '0.9625rem' }}>
               {card.name}
             </Typography>
 
             {isCompleted && (
-              // Sized to match IconButton's own box (20px icon + 5px padding on
+              // Sized to match IconButton's own box (22px icon + 5px padding on
               // each side) so it lines up with the buttons next to it.
-              <Box sx={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckCircle fontSize="small" sx={{ color: 'success.main' }} />
+              <Box sx={{ width: 33, height: 33, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle sx={{ fontSize: 22, color: 'success.main' }} />
               </Box>
             )}
 
@@ -126,14 +126,14 @@ export default function CardItem({
               sx={{ cursor: 'grab' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <OpenWith fontSize="small" />
+              <OpenWith sx={{ fontSize: 22 }} />
             </IconButton>
             <IconButton
               size="small"
               onClick={(e) => { e.stopPropagation(); openMenu(e) }}
               aria-label={t('board.cardMenu')}
             >
-              <HamburgerIcon fontSize="small" />
+              <HamburgerIcon sx={{ fontSize: 22 }} />
             </IconButton>
           </Box>
 
@@ -146,7 +146,7 @@ export default function CardItem({
                       key={label.id}
                       label={label.name}
                       size="small"
-                      sx={{ bgcolor: label.color, color: contrastColor(label.color), fontWeight: 700 }}
+                      sx={{ bgcolor: label.color, color: contrastColor(label.color), fontWeight: 700, fontSize: '0.89375rem' }}
                     />
                   ))}
                 </Box>
@@ -164,11 +164,11 @@ export default function CardItem({
                     ...(dueStyle && { bgcolor: dueStyle.background, color: dueStyle.color }),
                   }}
                 >
-                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.825rem' }}>
                     {t('board.dueLabel')}
                   </Typography>
-                  <CalendarToday sx={{ fontSize: 14 }} />
-                  <Typography variant="caption">
+                  <CalendarToday sx={{ fontSize: 15 }} />
+                  <Typography variant="caption" sx={{ fontSize: '0.825rem' }}>
                     {formatDateTime(card.due_at, intlCode, dateFormat)}
                   </Typography>
                 </Box>
@@ -185,11 +185,11 @@ export default function CardItem({
                     width: 'fit-content',
                   }}
                 >
-                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.825rem' }}>
                     {t('board.endLabel')}
                   </Typography>
-                  <CalendarToday sx={{ fontSize: 14 }} />
-                  <Typography variant="caption">
+                  <CalendarToday sx={{ fontSize: 15 }} />
+                  <Typography variant="caption" sx={{ fontSize: '0.825rem' }}>
                     {formatDateTime(card.end_at, intlCode, dateFormat)}
                   </Typography>
                 </Box>
@@ -205,14 +205,24 @@ export default function CardItem({
                         key={checklist.id}
                         sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}
                       >
-                        <ChecklistIcon sx={{ fontSize: 14 }} color="action" />
+                        <ChecklistIcon sx={{ fontSize: 15 }} color="action" />
                         <Typography
                           variant="caption"
-                          sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          sx={{
+                            fontWeight: 700,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.825rem',
+                          }}
                         >
                           {checklist.name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ flexShrink: 0, fontSize: '0.825rem' }}
+                        >
                           {done}/{total} ({percent}%)
                         </Typography>
                       </Box>
@@ -228,7 +238,7 @@ export default function CardItem({
           <CardActions sx={{ px: 1, py: 0.5, justifyContent: 'flex-end' }}>
             <AvatarGroup max={5}>
               {card.assignees.map((person) => (
-                <PersonAvatar key={person.id} person={person} size={32} />
+                <PersonAvatar key={person.id} person={person} size={35} />
               ))}
             </AvatarGroup>
           </CardActions>
