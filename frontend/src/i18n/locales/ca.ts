@@ -102,6 +102,11 @@ const ca = {
   board: {
     addList: 'Afegeix una llista',
     boardMenu: 'Menú del tauler',
+    archivedTitle: 'Tauler arxivat',
+    archivedMessage: 'Aquest tauler ha estat arxivat i ja no és accessible.',
+    forbiddenTitle: 'Accés prohibit',
+    forbiddenMessage: 'No tens accés a aquest tauler.',
+    backToBoards: 'Torna als taulers',
     createList: 'Crea una nova llista',
     listName: 'Nom de la llista',
     listNameRequired: 'El nom de la llista és obligatori.',

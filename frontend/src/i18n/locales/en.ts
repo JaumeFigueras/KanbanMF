@@ -102,6 +102,11 @@ const en = {
   board: {
     addList: 'Add List',
     boardMenu: 'Board menu',
+    archivedTitle: 'Board Archived',
+    archivedMessage: 'This board has been archived and is no longer accessible.',
+    forbiddenTitle: 'Forbidden',
+    forbiddenMessage: 'You don\'t have access to this board.',
+    backToBoards: 'Back to Boards',
     createList: 'Create a new List',
     listName: 'List name',
     listNameRequired: 'List name is required.',

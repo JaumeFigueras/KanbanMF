@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   AppBar,
   Box,
@@ -12,7 +12,7 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
-import { Add, Check, Label, Menu as MenuIcon, Sort as SortIcon } from '@mui/icons-material'
+import { Add, Archive, Block, Check, Label, Menu as MenuIcon, Sort as SortIcon } from '@mui/icons-material'
 import {
   DndContext,
   DragOverlay,
@@ -41,6 +41,7 @@ import { apiFetch } from '../api/client'
 
 export default function Board() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { boardId } = useParams<{ boardId: string }>()
   const [board, setBoard] = useState<BoardRead | null>(null)
   const [lists, setLists] = useState<BoardListRead[]>([])
@@ -56,6 +57,9 @@ export default function Board() {
   const [cardsByList, setCardsByList] = useState<Record<string, CardRead[]>>({})
   const [orderByList, setOrderByList] = useState<Record<string, string[]>>({})
   const [activeCard, setActiveCard] = useState<CardRead | null>(null)
+  // 403 (not owner/shared) and 404 (doesn't exist) are shown identically —
+  // this also avoids leaking whether a given board id exists at all.
+  const [accessDenied, setAccessDenied] = useState(false)
 
   useEffect(() => {
     if (!boardId) return
@@ -69,7 +73,13 @@ export default function Board() {
   useEffect(() => {
     if (!boardId) return
     apiFetch(`http://localhost:8000/api/v1/boards/${boardId}`)
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r.status === 403 || r.status === 404) {
+          setAccessDenied(true)
+          return null
+        }
+        return r.ok ? r.json() : null
+      })
       .then(data => { if (data) setBoard(data) })
       .catch(() => {})
   }, [boardId])
@@ -293,6 +303,80 @@ export default function Board() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_ids: newOrder }),
     }).catch(() => {})
+  }
+
+  if (accessDenied) {
+    return (
+      <>
+        <MainAppBar
+          onLocaleChanged={(num, fmt) => {
+            setNumberLocale(num)
+            setDateFormat(fmt)
+          }}
+        />
+        <Toolbar />
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+            textAlign: 'center',
+            px: 2,
+          }}
+        >
+          <Block sx={{ fontSize: 64, color: 'text.disabled' }} />
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {t('board.forbiddenTitle')}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {t('board.forbiddenMessage')}
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/boards')}>
+            {t('board.backToBoards')}
+          </Button>
+        </Box>
+      </>
+    )
+  }
+
+  if (board?.is_archived) {
+    return (
+      <>
+        <MainAppBar
+          onLocaleChanged={(num, fmt) => {
+            setNumberLocale(num)
+            setDateFormat(fmt)
+          }}
+        />
+        <Toolbar />
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+            textAlign: 'center',
+            px: 2,
+          }}
+        >
+          <Archive sx={{ fontSize: 64, color: 'text.disabled' }} />
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {t('board.archivedTitle')}
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {t('board.archivedMessage')}
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/boards')}>
+            {t('board.backToBoards')}
+          </Button>
+        </Box>
+      </>
+    )
   }
 
   return (
