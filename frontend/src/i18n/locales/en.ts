@@ -150,6 +150,11 @@ const en = {
     noChecklistItems: 'No items yet.',
     addChecklistItem: 'Add an item',
     removeChecklistItem: 'Remove item',
+    sortCards: 'Sort cards',
+    sortDueDate: 'Due date',
+    sortAlphaAsc: 'Alphabetically (A-Z)',
+    sortAlphaDesc: 'Alphabetically (Z-A)',
+    sortCustom: 'Custom order',
   },
   common: {
     or: 'or',

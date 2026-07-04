@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Box,
   IconButton,
@@ -8,11 +8,14 @@ import {
   Typography,
 } from '@mui/material'
 import { Add, Menu as HamburgerIcon, OpenWith } from '@mui/icons-material'
-import { useSortable } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { BoardListRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
+import type { SortMode } from '../utils/cardSort'
+import { sortCards } from '../utils/cardSort'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
@@ -20,46 +23,59 @@ import RenameListDialog from './RenameListDialog'
 
 interface Props {
   list: BoardListRead
+  cards: CardRead[]
+  customOrderIds: string[]
   numberLocale: string
   dateFormat: DateFormat
+  sortMode: SortMode
   onRenamed: (listId: string, newName: string) => void
   onArchived: (listId: string) => void
+  onCardCreated: (listId: string, card: CardRead) => void
+  onCardArchived: (listId: string, cardId: string) => void
+  onCardUpdated: (listId: string, card: CardRead) => void
 }
 
 export default function BoardListColumn({
   list,
+  cards,
+  customOrderIds,
   numberLocale,
   dateFormat,
+  sortMode,
   onRenamed,
   onArchived,
+  onCardCreated,
+  onCardArchived,
+  onCardUpdated,
 }: Props) {
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [cardDialogOpen, setCardDialogOpen] = useState(false)
-  const [cards, setCards] = useState<CardRead[]>([])
 
-  useEffect(() => {
-    apiFetch(`http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/cards`)
-      .then(r => r.ok ? r.json() as Promise<CardRead[]> : [])
-      .then(setCards)
-      .catch(() => {})
-  }, [list.board_id, list.id])
+  const sortedCards = useMemo(
+    () => sortCards(cards, sortMode, customOrderIds),
+    [cards, sortMode, customOrderIds],
+  )
 
   function handleCardCreated(card: CardRead) {
-    setCards(prev => [...prev, card])
+    onCardCreated(list.id, card)
   }
 
   function handleCardArchived(cardId: string) {
-    setCards(prev => prev.filter(c => c.id !== cardId))
+    onCardArchived(list.id, cardId)
   }
 
   function handleCardUpdated(card: CardRead) {
-    setCards(prev => prev.map(c => c.id === card.id ? card : c))
+    onCardUpdated(list.id, card)
   }
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: list.id })
+    useSortable({ id: list.id, data: { type: 'list' } })
+
+  // Lets an empty list (or the space below its last card) still accept a
+  // card dropped in from another list.
+  const { setNodeRef: setDropZoneRef } = useDroppable({ id: `list-dropzone:${list.id}` })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -150,19 +166,21 @@ export default function BoardListColumn({
         </Box>
 
         {/* Card area (scrolls vertically) */}
-        <Box sx={{ overflowY: 'auto', flex: 1, p: 1, minHeight: 80 }}>
-          {cards.map(card => (
-            <CardItem
-              key={card.id}
-              card={card}
-              boardId={list.board_id}
-              listId={list.id}
-              numberLocale={numberLocale}
-              dateFormat={dateFormat}
-              onArchived={handleCardArchived}
-              onUpdated={handleCardUpdated}
-            />
-          ))}
+        <Box ref={setDropZoneRef} sx={{ overflowY: 'auto', flex: 1, p: 1, minHeight: 80 }}>
+          <SortableContext items={sortedCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            {sortedCards.map(card => (
+              <CardItem
+                key={card.id}
+                card={card}
+                boardId={list.board_id}
+                listId={list.id}
+                numberLocale={numberLocale}
+                dateFormat={dateFormat}
+                onArchived={handleCardArchived}
+                onUpdated={handleCardUpdated}
+              />
+            ))}
+          </SortableContext>
         </Box>
       </Paper>
 

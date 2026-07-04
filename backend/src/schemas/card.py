@@ -57,6 +57,15 @@ class CardRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CardOrderRead(BaseModel):
+    list_id: uuid.UUID
+    card_ids: list[uuid.UUID]
+
+
+class CardOrderUpdate(BaseModel):
+    card_ids: list[uuid.UUID]
+
+
 class CardUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -67,6 +76,7 @@ class CardUpdate(BaseModel):
     label_ids: list[uuid.UUID] | None = None
     member_ids: list[uuid.UUID] | None = None
     assignee_ids: list[uuid.UUID] | None = None
+    list_id: uuid.UUID | None = None
 
     @field_validator("name")
     @classmethod

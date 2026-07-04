@@ -150,6 +150,11 @@ const ca = {
     noChecklistItems: 'Encara no hi ha elements.',
     addChecklistItem: 'Afegeix un element',
     removeChecklistItem: 'Elimina l\'element',
+    sortCards: 'Ordena les targetes',
+    sortDueDate: 'Data de venciment',
+    sortAlphaAsc: 'Alfabèticament (A-Z)',
+    sortAlphaDesc: 'Alfabèticament (Z-A)',
+    sortCustom: 'Ordre personalitzat',
   },
   common: {
     or: 'o',

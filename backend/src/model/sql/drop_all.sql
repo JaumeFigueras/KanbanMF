@@ -6,6 +6,7 @@
 --   checklists                      →  reference cards
 --   card_labels                     →  reference cards + labels
 --   card_members, card_assignees    →  reference cards + users
+--   ui_list_card_orders             →  reference board_lists
 --   cards                           →  reference board_lists + users
 --   labels                          →  reference boards
 --   ui_board_list_orders            →  reference boards
@@ -24,6 +25,7 @@ DROP TABLE IF EXISTS checklists             CASCADE;
 DROP TABLE IF EXISTS card_labels            CASCADE;
 DROP TABLE IF EXISTS card_members           CASCADE;
 DROP TABLE IF EXISTS card_assignees         CASCADE;
+DROP TABLE IF EXISTS ui_list_card_orders    CASCADE;
 DROP TABLE IF EXISTS cards                  CASCADE;
 DROP TABLE IF EXISTS labels                 CASCADE;
 DROP TABLE IF EXISTS ui_board_list_orders   CASCADE;

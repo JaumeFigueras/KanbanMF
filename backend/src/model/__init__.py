@@ -15,6 +15,7 @@ from src.model.checklist import Checklist
 from src.model.checklist_item import ChecklistItem
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_board_order import UIBoardOrder
+from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user import User
 from src.model.user_identity import UserIdentity
 from src.model.user_avatar import UserAvatar
@@ -26,6 +27,6 @@ __all__ = [
     "Card", "CardMember", "CardAssignee", "CardLabel",
     "Checklist", "ChecklistItem",
     "Label",
-    "UIBoardListOrder", "UIBoardOrder", "BoardShare", "UserBoardStar",
+    "UIBoardListOrder", "UIBoardOrder", "UIListCardOrder", "BoardShare", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
 ]

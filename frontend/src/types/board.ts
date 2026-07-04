@@ -90,6 +90,11 @@ export interface ChecklistData {
   items: ChecklistItemData[]
 }
 
+export interface CardOrderRead {
+  list_id: string
+  card_ids: string[]
+}
+
 export interface CardRead {
   id: string
   list_id: string

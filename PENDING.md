@@ -1,11 +1,11 @@
 ## Now
 
-- Card face
-- Checklist numbers
-- Sizes
-- Sort
-- D&D
-- Order?
+✓ - Card face
+✓ - Checklist numbers
+✓ - Sizes
+✓ - Sort
+✓ - D&D
+✓ - Order
 
 
 ## Functionality
@@ -15,5 +15,5 @@
 
 ## UI
 
-- Change background of cards, lists, boards
+- Change background colors of cards, lists, boards
 - Only owners can delete

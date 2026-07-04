@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,6 +15,7 @@ from src.model.base import Base
 if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.card import Card
+    from src.model.ui_list_card_order import UIListCardOrder
 
 
 class BoardList(Base):
@@ -77,6 +78,13 @@ class BoardList(Base):
         "Card",
         back_populates="board_list",
         cascade="all, delete-orphan",
+    )
+
+    ui_card_order: Mapped[Optional["UIListCardOrder"]] = relationship(
+        "UIListCardOrder",
+        back_populates="board_list",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     def __repr__(self) -> str:

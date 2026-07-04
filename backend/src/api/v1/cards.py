@@ -4,7 +4,8 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,10 +16,11 @@ from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.checklist import Checklist
 from src.model.label import Label
+from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_preferences import UserPreferences
-from src.schemas.card import CardCreate, CardRead, CardUpdate
+from src.schemas.card import CardCreate, CardOrderRead, CardOrderUpdate, CardRead, CardUpdate
 from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
@@ -310,6 +312,11 @@ async def update_card(
         card.members = await _get_users(board_id, body.member_ids or [], db)
     if "assignee_ids" in fields_set:
         card.assignees = await _get_users(board_id, body.assignee_ids or [], db)
+    if body.list_id is not None and body.list_id != card.list_id:
+        # Moving the card to a different list — validate the destination
+        # belongs to the same board before reassigning.
+        destination_list = await _get_list(board_id, body.list_id, db)
+        card.list_id = destination_list.id
     await db.commit()
 
     result = await db.execute(
@@ -344,3 +351,67 @@ async def delete_card(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     card.is_deleted = True
     await db.commit()
+
+
+@router.get("/order", response_model=CardOrderRead)
+async def get_card_order(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CardOrderRead:
+    """Return the stored custom card order for a list."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+
+    result = await db.execute(
+        select(UIListCardOrder).where(UIListCardOrder.list_id == list_id)
+    )
+    order = result.scalar_one_or_none()
+    return CardOrderRead(
+        list_id=list_id,
+        card_ids=order.card_ids if order else [],
+    )
+
+
+@router.put("/order", response_model=CardOrderRead)
+async def update_card_order(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    body: CardOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CardOrderRead:
+    """Replace the custom card order for a list. User must be the owner or a shared member."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+
+    # Validate that every submitted ID is a live (non-deleted) card on this list
+    valid_result = await db.execute(
+        select(Card.id).where(
+            Card.list_id == list_id,
+            Card.is_deleted.is_(False),
+        )
+    )
+    valid_ids = set(valid_result.scalars().all())
+    for cid in body.card_ids:
+        if cid not in valid_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Card {cid} does not belong to this list or has been deleted",
+            )
+
+    stmt = pg_insert(UIListCardOrder).values(
+        list_id=list_id,
+        card_ids=body.card_ids,
+    ).on_conflict_do_update(
+        index_elements=["list_id"],
+        set_={
+            "card_ids": body.card_ids,
+            "updated_at": func.now(),
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+    return CardOrderRead(list_id=list_id, card_ids=body.card_ids)
