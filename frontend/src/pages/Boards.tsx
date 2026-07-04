@@ -27,6 +27,7 @@ import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
 import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
 import DeleteBoardDialog from '../components/DeleteBoardDialog'
+import ShareBoardDialog from '../components/ShareBoardDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
@@ -79,6 +80,7 @@ export default function Boards() {
   const [changeBoardNameOpen, setChangeBoardNameOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
   const [notImplementedOpen, setNotImplementedOpen] = useState(false)
+  const [shareBoardOpen, setShareBoardOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
@@ -182,8 +184,9 @@ export default function Boards() {
     setNotImplementedOpen(true)
   }
 
-  function handleShareBoard(_board: BoardRead) {
-    setNotImplementedOpen(true)
+  function handleShareBoard(board: BoardRead) {
+    setSelectedBoard(board)
+    setShareBoardOpen(true)
   }
 
   function handleArchiveBoard(board: BoardRead) {
@@ -261,6 +264,13 @@ export default function Boards() {
     [boards.shared, order.shared_ids],
   )
 
+  // The "Starred" section mixes owned and shared boards, so ownership has to
+  // be looked up per board rather than assumed from which section it's in.
+  const ownedBoardIds = useMemo(
+    () => new Set(boards.owned.map(b => b.id)),
+    [boards.owned],
+  )
+
   function handleSectionDragEnd(event: DragEndEvent, section: Section) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -313,6 +323,12 @@ export default function Boards() {
         onSaved={handleBoardNameSaved}
       />
 
+      <ShareBoardDialog
+        open={shareBoardOpen}
+        onClose={() => setShareBoardOpen(false)}
+        board={selectedBoard}
+      />
+
       <ArchiveBoardDialog
         open={archiveBoardOpen}
         onClose={() => setArchiveBoardOpen(false)}
@@ -362,7 +378,7 @@ export default function Boards() {
                   <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {starredBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
                       ))}
                     </Box>
                   </SortableContext>
@@ -385,7 +401,7 @@ export default function Boards() {
                   <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {myBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
                       ))}
                     </Box>
                   </SortableContext>
@@ -408,7 +424,7 @@ export default function Boards() {
                   <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {sharedBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} {...sharedCardProps} />
+                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
                       ))}
                     </Box>
                   </SortableContext>

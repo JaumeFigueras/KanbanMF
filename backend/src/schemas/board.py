@@ -65,3 +65,7 @@ class BoardOrderUpdate(BaseModel):
     starred_ids: list[uuid.UUID] | None = None
     owned_ids: list[uuid.UUID] | None = None
     shared_ids: list[uuid.UUID] | None = None
+
+
+class BoardShareCreate(BaseModel):
+    user_id: uuid.UUID

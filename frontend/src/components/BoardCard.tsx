@@ -34,6 +34,9 @@ interface Props {
   board: BoardRead
   numberLocale: string
   dateFormat: 'numeric' | 'textual'
+  // False for boards shared with the current user rather than owned by them —
+  // those can only have their color changed, not renamed/shared/archived.
+  isOwned: boolean
   onStarToggle: (boardId: string, starred: boolean) => void
   onChangeName: (board: BoardRead) => void
   onChangeColor: (board: BoardRead) => void
@@ -46,6 +49,7 @@ export default function BoardCard({
   board,
   numberLocale,
   dateFormat,
+  isOwned,
   onStarToggle,
   onChangeName,
   onChangeColor,
@@ -169,22 +173,28 @@ export default function BoardCard({
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={() => { setMenuAnchor(null); onChangeName(board) }}>
-          <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
-          <ListItemText>{t('boards.changeBoardName')}</ListItemText>
-        </MenuItem>
+        {isOwned && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onChangeName(board) }}>
+            <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.changeBoardName')}</ListItemText>
+          </MenuItem>
+        )}
         <MenuItem onClick={() => { setMenuAnchor(null); onChangeColor(board) }}>
           <ListItemIcon><Palette fontSize="small" /></ListItemIcon>
           <ListItemText>{t('boards.changeBoardColor')}</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => { setMenuAnchor(null); onShare(board) }}>
-          <ListItemIcon><PersonAdd fontSize="small" /></ListItemIcon>
-          <ListItemText>{t('boards.shareBoard')}</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={() => { setMenuAnchor(null); onArchive(board) }}>
-          <ListItemIcon><Archive fontSize="small" /></ListItemIcon>
-          <ListItemText>{t('boards.archiveBoard')}</ListItemText>
-        </MenuItem>
+        {isOwned && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onShare(board) }}>
+            <ListItemIcon><PersonAdd fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.shareBoard')}</ListItemText>
+          </MenuItem>
+        )}
+        {isOwned && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onArchive(board) }}>
+            <ListItemIcon><Archive fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.archiveBoard')}</ListItemText>
+          </MenuItem>
+        )}
       </Menu>
     </Card>
   )

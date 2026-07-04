@@ -21,6 +21,7 @@ from src.schemas.board import (
     BoardOrderRead,
     BoardOrderUpdate,
     BoardRead,
+    BoardShareCreate,
     BoardUpdate,
     BoardsResponse,
 )
@@ -441,6 +442,86 @@ async def list_board_members(
     ]
     people.sort(key=lambda p: p.display_name.lower())
     return people
+
+
+@router.post("/{board_id}/shares", response_model=PersonRead, status_code=status.HTTP_201_CREATED)
+async def create_board_share(
+    board_id: uuid.UUID,
+    body: BoardShareCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PersonRead:
+    """Share the board with another user. Only the board owner may do this."""
+    board = await _check_board_access(board_id, current_user, db)
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can share this board")
+
+    if body.user_id == board.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The owner already has access to this board",
+        )
+
+    target_result = await db.execute(select(User).where(User.id == body.user_id))
+    target_user = target_result.scalar_one_or_none()
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    existing_result = await db.execute(
+        select(BoardShare).where(
+            BoardShare.board_id == board_id,
+            BoardShare.user_id == body.user_id,
+        )
+    )
+    if existing_result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Board is already shared with this user")
+
+    db.add(BoardShare(board_id=board_id, user_id=body.user_id))
+    await db.commit()
+
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == target_user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == target_user.id)
+    )
+    has_avatar = avatar_result.scalar_one_or_none() is not None
+
+    return PersonRead(
+        id=target_user.id,
+        display_name=target_user.display_name,
+        initials=(
+            prefs.initials if prefs and prefs.initials else _compute_initials(target_user.display_name)
+        ),
+        has_avatar=has_avatar,
+    )
+
+
+@router.delete("/{board_id}/shares/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_board_share(
+    board_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Revoke a user's shared access to the board. Only the board owner may do this."""
+    board = await _check_board_access(board_id, current_user, db)
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can modify sharing")
+
+    result = await db.execute(
+        select(BoardShare).where(
+            BoardShare.board_id == board_id,
+            BoardShare.user_id == user_id,
+        )
+    )
+    share = result.scalar_one_or_none()
+    if share is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board is not shared with this user")
+
+    await db.delete(share)
+    await db.commit()
 
 
 @router.patch("/{board_id}", response_model=BoardRead)

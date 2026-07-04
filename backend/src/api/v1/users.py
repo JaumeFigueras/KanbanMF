@@ -3,9 +3,9 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
@@ -14,7 +14,10 @@ from src.model.user import User
 from src.model.user_avatar import MAX_AVATAR_SIZE_BYTES, UserAvatar
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
+from src.schemas.person import PersonRead
 from src.schemas.user import ChangePasswordRequest, UserRead, UserUpdate, UserPreferencesUpdate
+
+_SEARCH_RESULT_LIMIT = 10
 
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -210,6 +213,59 @@ async def delete_my_avatar(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
     await db.delete(avatar)
     await db.commit()
+
+
+@router.get("/search", response_model=list[PersonRead])
+async def search_users(
+    q: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PersonRead]:
+    """Search active users by display name or email, for pickers like the
+    board-share lookahead. Returns at most 10 matches, excluding the caller."""
+    term = q.strip()
+    if not term:
+        return []
+    pattern = f"%{term}%"
+
+    result = await db.execute(
+        select(User)
+        .where(
+            User.id != current_user.id,
+            User.is_active.is_(True),
+            or_(User.display_name.ilike(pattern), User.email.ilike(pattern)),
+        )
+        .order_by(User.display_name.asc())
+        .limit(_SEARCH_RESULT_LIMIT)
+    )
+    users = list(result.scalars().all())
+    if not users:
+        return []
+
+    user_ids = [u.id for u in users]
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id.in_(user_ids))
+    )
+    prefs_by_id = {p.user_id: p for p in prefs_result.scalars()}
+
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id.in_(user_ids))
+    )
+    avatar_ids = set(avatar_result.scalars().all())
+
+    return [
+        PersonRead(
+            id=user.id,
+            display_name=user.display_name,
+            initials=(
+                prefs_by_id[user.id].initials
+                if user.id in prefs_by_id and prefs_by_id[user.id].initials
+                else _compute_initials(user.display_name)
+            ),
+            has_avatar=user.id in avatar_ids,
+        )
+        for user in users
+    ]
 
 
 @router.get("/{user_id}/avatar")
