@@ -11,7 +11,7 @@ CREATE TABLE board_lists (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 CREATE INDEX ix_board_lists_id ON board_lists (id);
+CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_lists to kanbanmf_remoteuser;

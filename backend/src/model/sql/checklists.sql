@@ -10,7 +10,7 @@ CREATE TABLE checklists (
 	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 CREATE INDEX ix_checklists_id ON checklists (id);
+CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 ALTER TABLE public.checklists OWNER TO kanbanmf_user;
 GRANT SELECT on public.checklists to kanbanmf_remoteuser;

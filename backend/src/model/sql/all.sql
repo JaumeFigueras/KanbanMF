@@ -122,8 +122,8 @@ CREATE TABLE board_lists (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 CREATE INDEX ix_board_lists_id ON board_lists (id);
+CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
 
@@ -197,9 +197,9 @@ CREATE TABLE cards (
 	FOREIGN KEY(creator_id) REFERENCES users (id) ON DELETE SET NULL
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_cards_creator_id ON cards (creator_id);
 CREATE INDEX ix_cards_list_id ON cards (list_id);
 CREATE INDEX ix_cards_id ON cards (id);
+CREATE INDEX ix_cards_creator_id ON cards (creator_id);
 ALTER TABLE public.cards OWNER TO kanbanmf_user;
 GRANT SELECT on public.cards to kanbanmf_remoteuser;
 
@@ -260,8 +260,8 @@ CREATE TABLE checklists (
 	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 CREATE INDEX ix_checklists_id ON checklists (id);
+CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 ALTER TABLE public.checklists OWNER TO kanbanmf_user;
 GRANT SELECT on public.checklists to kanbanmf_remoteuser;
 
