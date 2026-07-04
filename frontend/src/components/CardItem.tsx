@@ -11,7 +11,13 @@ import {
   MenuItem,
   Typography,
 } from '@mui/material'
-import { CalendarToday, CheckCircle, Menu as HamburgerIcon, OpenWith } from '@mui/icons-material'
+import {
+  CalendarToday,
+  CheckCircle,
+  Checklist as ChecklistIcon,
+  Menu as HamburgerIcon,
+  OpenWith,
+} from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
 import { formatDateTime, intlCodeFor, type DateFormat } from '../utils/locale'
@@ -78,6 +84,7 @@ export default function CardItem({
   const isCompleted = Boolean(card.end_at)
   const hasDates = Boolean(card.due_at || card.end_at)
   const hasLabels = card.labels.length > 0
+  const hasChecklists = card.checklists.length > 0
   const intlCode = intlCodeFor(numberLocale)
   // A defined end date means the task is done — the due date no longer needs an urgency color.
   const dueStyle = card.due_at && !isCompleted ? dueDateStyle(dayjs(card.due_at)) : null
@@ -94,7 +101,11 @@ export default function CardItem({
             sx={{
               display: 'flex',
               alignItems: 'flex-start',
-              ...((hasLabels || hasDates) && { borderBottom: 1, borderColor: 'divider', pb: 1 }),
+              ...((hasLabels || hasDates || hasChecklists) && {
+                borderBottom: 1,
+                borderColor: 'divider',
+                pb: 1,
+              }),
             }}
           >
             <Typography variant="body2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
@@ -126,7 +137,7 @@ export default function CardItem({
             </IconButton>
           </Box>
 
-          {(hasLabels || hasDates) && (
+          {(hasLabels || hasDates || hasChecklists) && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
               {hasLabels && (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -181,6 +192,32 @@ export default function CardItem({
                   <Typography variant="caption">
                     {formatDateTime(card.end_at, intlCode, dateFormat)}
                   </Typography>
+                </Box>
+              )}
+              {hasChecklists && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  {card.checklists.map((checklist) => {
+                    const total = checklist.items.length
+                    const done = checklist.items.filter((item) => item.is_done).length
+                    const percent = total > 0 ? Math.round((done / total) * 100) : 0
+                    return (
+                      <Box
+                        key={checklist.id}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}
+                      >
+                        <ChecklistIcon sx={{ fontSize: 14 }} color="action" />
+                        <Typography
+                          variant="caption"
+                          sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {checklist.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                          {done}/{total} ({percent}%)
+                        </Typography>
+                      </Box>
+                    )
+                  })}
                 </Box>
               )}
             </Box>

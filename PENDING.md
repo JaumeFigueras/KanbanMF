@@ -2,6 +2,7 @@
 
 - Card face
 - Checklist numbers
+- Sizes
 - Sort
 - D&D
 - Order?
