@@ -14,6 +14,7 @@ router.include_router(boards.router, prefix="/boards", tags=["boards"])
 router.include_router(lists.router, prefix="/boards/{board_id}/lists", tags=["lists"])
 router.include_router(labels.router, prefix="/boards/{board_id}/labels", tags=["labels"])
 router.include_router(cards.router, prefix="/boards/{board_id}/lists/{list_id}/cards", tags=["cards"])
+router.include_router(cards.archived_router, prefix="/boards/{board_id}/cards", tags=["cards"])
 router.include_router(
     checklists.router,
     prefix="/boards/{board_id}/lists/{list_id}/cards/{card_id}/checklists",

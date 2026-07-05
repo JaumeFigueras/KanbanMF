@@ -4,7 +4,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -28,6 +28,10 @@ from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
 
 router = APIRouter()
+
+# Mounted separately (see router.py) at /boards/{board_id}/cards, since it's
+# board-scoped rather than list-scoped like `router` above.
+archived_router = APIRouter()
 
 
 def _card_load_options() -> tuple:
@@ -182,6 +186,37 @@ def _card_people_ids(card: Card) -> set[uuid.UUID]:
     if card.creator_id:
         ids.add(card.creator_id)
     return ids
+
+
+@archived_router.get("/archived", response_model=list[CardRead])
+async def list_archived_cards(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[CardRead]:
+    """Return every archived (non-deleted) card on the board, whether it was
+    archived directly or its whole list was. User must be owner or shared member."""
+    await _get_accessible_board(board_id, current_user, db)
+
+    result = await db.execute(
+        select(Card)
+        .options(*_card_load_options())
+        .join(BoardList, BoardList.id == Card.list_id)
+        .where(
+            BoardList.board_id == board_id,
+            Card.is_deleted.is_(False),
+            or_(Card.is_archived.is_(True), BoardList.is_archived.is_(True)),
+        )
+        .order_by(Card.updated_at.desc())
+    )
+    cards = list(result.scalars().all())
+
+    user_ids: set[uuid.UUID] = set()
+    for c in cards:
+        user_ids |= _card_people_ids(c)
+    people_by_id = await _people_by_id(user_ids, db)
+
+    return [_card_to_read(c, people_by_id) for c in cards]
 
 
 @router.get("", response_model=list[CardRead])
@@ -341,8 +376,10 @@ async def update_card(
         events.append("card_updated")
     if moved_to is not None:
         events.append("card_moved")
-    if body.is_archived:
+    if body.is_archived is True:
         events.append("card_archived")
+    elif body.is_archived is False:
+        events.append("card_unarchived")
 
     await db.commit()
 
@@ -369,9 +406,12 @@ async def delete_card(
     card_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
-    """Soft-delete a card by setting is_deleted=True."""
-    await _get_accessible_board(board_id, current_user, db)
+    """Soft-delete a card by setting is_deleted=True. Only the board owner may do this."""
+    board = await _get_accessible_board(board_id, current_user, db)
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this card")
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card).where(
@@ -385,6 +425,11 @@ async def delete_card(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     card.is_deleted = True
     await db.commit()
+
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(
+        recipients, board_notification("card_deleted", board_id, client_id, list_id=list_id)
+    )
 
 
 @router.get("/order", response_model=CardOrderRead)

@@ -6,11 +6,12 @@
 ✓ - Sort
 ✓ - D&D
 ✓ - Order
-
+- Archived lists
+- Archived cards
 
 ## Functionality
 
-- Share + Web socket per fer un update
+✓ - Share + Web socket per fer un update
 - e-mail feines pendents
 
 ## UI

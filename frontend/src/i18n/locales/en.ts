@@ -168,6 +168,14 @@ const en = {
     sortAlphaAsc: 'Alphabetically (A-Z)',
     sortAlphaDesc: 'Alphabetically (Z-A)',
     sortCustom: 'Custom order',
+    archive: 'Archive',
+    archivedListsAndCards: 'Archived Lists & Cards',
+    returnToBoard: 'Return to Board',
+    noArchivedLists: 'No archived lists.',
+    noCardsInList: 'No cards in this list.',
+    restore: 'Restore',
+    deleteConfirmTitle: 'Delete permanently?',
+    deleteConfirmMessage: 'Are you sure you want to permanently delete "{{name}}"? This cannot be undone.',
   },
   common: {
     or: 'or',
@@ -177,6 +185,7 @@ const en = {
     save: 'Save',
     saveError: 'Something went wrong. Please try again.',
     add: 'Add',
+    delete: 'Delete',
   },
 } as const
 

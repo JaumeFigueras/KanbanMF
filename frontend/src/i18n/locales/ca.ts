@@ -168,6 +168,14 @@ const ca = {
     sortAlphaAsc: 'Alfabèticament (A-Z)',
     sortAlphaDesc: 'Alfabèticament (Z-A)',
     sortCustom: 'Ordre personalitzat',
+    archive: 'Arxiu',
+    archivedListsAndCards: 'Llistes i targetes arxivades',
+    returnToBoard: 'Torna al tauler',
+    noArchivedLists: 'No hi ha llistes arxivades.',
+    noCardsInList: 'Aquesta llista no té targetes.',
+    restore: 'Restaura',
+    deleteConfirmTitle: 'Voleu eliminar-ho permanentment?',
+    deleteConfirmMessage: 'Segur que voleu eliminar permanentment "{{name}}"? Aquesta acció no es pot desfer.',
   },
   common: {
     or: 'o',
@@ -177,6 +185,7 @@ const ca = {
     save: 'Desa',
     saveError: 'Alguna cosa ha anat malament. Torna-ho a intentar.',
     add: 'Afegeix',
+    delete: 'Elimina',
   },
 } as const
 

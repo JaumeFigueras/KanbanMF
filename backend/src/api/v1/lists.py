@@ -14,6 +14,7 @@ from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
+from src.model.card import Card
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.user import User
 from src.schemas.board_list import (
@@ -68,6 +69,31 @@ async def list_board_lists(
             BoardList.is_archived.is_(False),
         )
         .order_by(BoardList.created_at.asc())
+    )
+    lists = result.scalars().all()
+    return [BoardListRead.model_validate(lst) for lst in lists]
+
+
+# NOTE: /archived must be defined before /{list_id} so FastAPI matches the
+# literal "archived" segment before trying to parse it as a UUID.
+
+@router.get("/archived", response_model=list[BoardListRead])
+async def list_archived_lists(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[BoardListRead]:
+    """Return archived (but not deleted) lists for a board. User must be the owner or a shared member."""
+    await _get_accessible_board(board_id, current_user, db)
+
+    result = await db.execute(
+        select(BoardList)
+        .where(
+            BoardList.board_id == board_id,
+            BoardList.is_archived.is_(True),
+            BoardList.is_deleted.is_(False),
+        )
+        .order_by(BoardList.created_at.desc())
     )
     lists = result.scalars().all()
     return [BoardListRead.model_validate(lst) for lst in lists]
@@ -138,8 +164,9 @@ async def update_board_list(
         board_list.name = body.name
         events.append("list_renamed")
     if body.is_archived is not None:
+        was_archived = board_list.is_archived
         board_list.is_archived = body.is_archived
-        if body.is_archived:
+        if body.is_archived and not was_archived:
             events.append("list_archived")
             # Remove from order array so the board layout stays clean
             await db.execute(
@@ -148,6 +175,26 @@ async def update_board_list(
                 .values(
                     list_ids=func.array_remove(UIBoardListOrder.list_ids, list_id),
                     updated_at=func.now(),
+                )
+            )
+            # A card's own is_archived is never touched by its list's state —
+            # "is this card archived" is decided at query time as
+            # card.is_archived OR its list's is_archived (see
+            # list_archived_cards in cards.py). That way restoring the list
+            # can't clobber a card that had already been archived on its own.
+        elif not body.is_archived and was_archived:
+            events.append("list_unarchived")
+            # Restoring: append back to the board's list order.
+            await db.execute(
+                pg_insert(UIBoardListOrder).values(
+                    board_id=board_id,
+                    list_ids=[list_id],
+                ).on_conflict_do_update(
+                    index_elements=["board_id"],
+                    set_={
+                        "list_ids": func.array_append(UIBoardListOrder.list_ids, list_id),
+                        "updated_at": func.now(),
+                    },
                 )
             )
 
@@ -160,6 +207,48 @@ async def update_board_list(
             await manager.notify_many(recipients, board_notification(event, board_id, client_id))
 
     return BoardListRead.model_validate(board_list)
+
+
+@router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_board_list(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
+) -> None:
+    """Permanently (soft-)delete a list and its cards. Only the board owner may do this."""
+    board = await _get_accessible_board(board_id, current_user, db)
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can delete this list")
+
+    result = await db.execute(
+        select(BoardList).where(
+            BoardList.id == list_id,
+            BoardList.board_id == board_id,
+            BoardList.is_deleted.is_(False),
+        )
+    )
+    board_list = result.scalar_one_or_none()
+    if board_list is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+
+    board_list.is_deleted = True
+    await db.execute(
+        update(Card).where(Card.list_id == list_id, Card.is_deleted.is_(False)).values(is_deleted=True)
+    )
+    await db.execute(
+        update(UIBoardListOrder)
+        .where(UIBoardListOrder.board_id == board_id)
+        .values(
+            list_ids=func.array_remove(UIBoardListOrder.list_ids, list_id),
+            updated_at=func.now(),
+        )
+    )
+    await db.commit()
+
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(recipients, board_notification("list_deleted", board_id, client_id))
 
 
 @router.get("/order", response_model=BoardListOrderRead)

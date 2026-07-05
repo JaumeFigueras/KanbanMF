@@ -33,6 +33,7 @@ import CreateListDialog from '../components/CreateListDialog'
 import ManageLabelsDialog from '../components/ManageLabelsDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import CardItem from '../components/CardItem'
+import ArchivedListsView from '../components/ArchivedListsView'
 import type { BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
@@ -71,6 +72,7 @@ export default function Board() {
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false)
+  const [showArchive, setShowArchive] = useState(false)
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
@@ -83,6 +85,7 @@ export default function Board() {
   // 403 (not owner/shared) and 404 (doesn't exist) are shown identically —
   // this also avoids leaking whether a given board id exists at all.
   const [accessDenied, setAccessDenied] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!boardId) return
@@ -106,6 +109,17 @@ export default function Board() {
       .then(data => { if (data) setBoard(data) })
       .catch(() => {})
   }, [boardId])
+
+  // Needed to tell whether *this* viewer is the board owner — permanently
+  // deleting a list or card in the archive view is an owner-only action.
+  useEffect(() => {
+    apiFetch('http://localhost:8000/api/v1/users/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setCurrentUserId(data.id) })
+      .catch(() => {})
+  }, [])
+
+  const isOwner = board?.owner_id === currentUserId
 
   const fetchLists = useCallback(() => {
     if (!boardId) return
@@ -427,6 +441,37 @@ export default function Board() {
     )
   }
 
+  if (showArchive) {
+    return (
+      <>
+        <MainAppBar
+          onLocaleChanged={(num, fmt) => {
+            setNumberLocale(num)
+            setDateFormat(fmt)
+          }}
+        />
+        <ArchivedListsView
+          boardId={boardId ?? ''}
+          boardName={board?.name ?? ''}
+          activeLists={lists}
+          numberLocale={numberLocale}
+          dateFormat={dateFormat}
+          isOwner={isOwner}
+          onReturn={() => {
+            // Restoring/deleting in the archive view can change what the
+            // board looks like (a restored list needs to reappear, a
+            // deleted card's stale cache needs to go) — force a full
+            // refetch instead of showing whatever was cached before.
+            setShowArchive(false)
+            fetchLists()
+            setCardsByList({})
+            setOrderByList({})
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       <MainAppBar
@@ -476,6 +521,16 @@ export default function Board() {
             aria-label={t('board.sortCards')}
           >
             {t('board.sortCards')}
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<Archive />}
+            size="small"
+            sx={{ ml: 1 }}
+            onClick={() => setShowArchive(true)}
+          >
+            {t('board.archive')}
           </Button>
           <Box sx={{ flexGrow: 1 }} />
           <IconButton color="inherit" aria-label={t('board.boardMenu')}>
