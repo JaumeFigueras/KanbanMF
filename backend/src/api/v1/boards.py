@@ -8,7 +8,9 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db
+from src.core.ws_manager import manager
+from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.ui_board_order import UIBoardOrder
@@ -270,6 +272,7 @@ async def update_board_order(
     body: BoardOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> BoardOrderRead:
     """Replace one or more section orderings. Omit a field to leave it unchanged."""
     order = await _get_order(current_user.id, db)
@@ -298,6 +301,10 @@ async def update_board_order(
         )
     )
     await db.commit()
+
+    # Board order is per-user (not shared), so only the owner's other
+    # sessions need to know — never the users a board is shared with.
+    await manager.notify(current_user.id, board_notification("board_reordered", None, client_id))
 
     return BoardOrderRead(
         starred_ids=new_starred,
@@ -360,6 +367,7 @@ async def delete_board(
     board_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
     """Soft-delete a board and remove it from the owner's order."""
     result = await db.execute(
@@ -374,6 +382,11 @@ async def delete_board(
     board.is_deleted = True
     await _remove_from_order(current_user.id, board_id, db)
     await db.commit()
+
+    # Deletion only concerns the owner: a single account can have several
+    # open sessions (e.g. laptop + a meeting room computer), and all of them
+    # need to drop the board even though only one of them triggered this.
+    await manager.notify(current_user.id, board_notification("board_deleted", board_id, client_id))
 
 
 async def _check_board_access(
@@ -450,6 +463,7 @@ async def create_board_share(
     body: BoardShareCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> PersonRead:
     """Share the board with another user. Only the board owner may do this."""
     board = await _check_board_access(board_id, current_user, db)
@@ -479,6 +493,11 @@ async def create_board_share(
     db.add(BoardShare(board_id=board_id, user_id=body.user_id))
     await db.commit()
 
+    await manager.notify_many(
+        {current_user.id, target_user.id},
+        board_notification("board_shared", board_id, client_id),
+    )
+
     prefs_result = await db.execute(
         select(UserPreferences).where(UserPreferences.user_id == target_user.id)
     )
@@ -504,6 +523,7 @@ async def delete_board_share(
     user_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
     """Revoke a user's shared access to the board. Only the board owner may do this."""
     board = await _check_board_access(board_id, current_user, db)
@@ -523,6 +543,11 @@ async def delete_board_share(
     await db.delete(share)
     await db.commit()
 
+    await manager.notify_many(
+        {current_user.id, user_id},
+        board_notification("board_unshared", board_id, client_id),
+    )
+
 
 @router.patch("/{board_id}", response_model=BoardRead)
 async def update_board(
@@ -530,6 +555,7 @@ async def update_board(
     body: BoardUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> BoardRead:
     """Update a board's name or archived status. Only the owner can update a board."""
     result = await db.execute(
@@ -544,14 +570,17 @@ async def update_board(
     if body.name is not None:
         board.name = body.name
 
+    archive_event: str | None = None
     if body.is_archived is not None:
         was_archived = board.is_archived
         board.is_archived = body.is_archived
 
         if body.is_archived and not was_archived:
+            archive_event = "board_archived"
             # Archiving: remove from all order arrays
             await _remove_from_order(current_user.id, board_id, db)
         elif not body.is_archived and was_archived:
+            archive_event = "board_unarchived"
             # Restoring: append back to owned_ids
             await db.execute(
                 pg_insert(UIBoardOrder).values(
@@ -570,6 +599,12 @@ async def update_board(
 
     await db.commit()
     await db.refresh(board)
+
+    if archive_event is not None:
+        # Archiving/restoring also hides/reveals the board in shared members'
+        # lists (list_boards filters on is_archived), so they need to know too.
+        recipients = await board_recipients(board_id, current_user.id, db)
+        await manager.notify_many(recipients, board_notification(archive_event, board_id, client_id))
 
     pref_result = await db.execute(
         select(UserPreferences).where(UserPreferences.user_id == current_user.id)

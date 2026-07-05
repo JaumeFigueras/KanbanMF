@@ -22,6 +22,7 @@ import {
 import { Add, ExpandMore } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../api/client'
+import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
@@ -129,6 +130,18 @@ export default function Boards() {
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
+
+  // Board list changes made elsewhere (another tab, another session, or by
+  // whoever a board is shared with) arrive here as bare notifications; a
+  // notification we triggered ourselves is skipped since our own local state
+  // is already up to date.
+  useEffect(() => {
+    return subscribeToNotifications((notification) => {
+      if (isOwnNotification(notification)) return
+      fetchBoards()
+      if (showArchived) fetchArchivedBoards()
+    })
+  }, [fetchBoards, fetchArchivedBoards, showArchived])
 
   // ── Board handlers ────────────────────────────────────────────────────────
 

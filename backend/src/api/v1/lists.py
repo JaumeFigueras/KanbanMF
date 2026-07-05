@@ -8,7 +8,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db
+from src.core.ws_manager import manager
+from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
@@ -55,7 +57,7 @@ async def list_board_lists(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[BoardListRead]:
-    """Return all non-deleted lists for a board. User must be the owner or a shared member."""
+    """Return all non-archived, non-deleted lists for a board. User must be the owner or a shared member."""
     await _get_accessible_board(board_id, current_user, db)
 
     result = await db.execute(
@@ -63,6 +65,7 @@ async def list_board_lists(
         .where(
             BoardList.board_id == board_id,
             BoardList.is_deleted.is_(False),
+            BoardList.is_archived.is_(False),
         )
         .order_by(BoardList.created_at.asc())
     )
@@ -76,9 +79,10 @@ async def create_board_list(
     body: BoardListCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> BoardListRead:
     """Create a new list on a board and append it to the order. User must be owner or shared member."""
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
 
     board_list = BoardList(board_id=board_id, name=body.name)
     db.add(board_list)
@@ -99,6 +103,10 @@ async def create_board_list(
 
     await db.commit()
     await db.refresh(board_list)
+
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(recipients, board_notification("list_created", board_id, client_id))
+
     return BoardListRead.model_validate(board_list)
 
 
@@ -109,9 +117,10 @@ async def update_board_list(
     body: BoardListUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> BoardListRead:
     """Update a list's name or archived status. User must be the owner or a shared member."""
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
 
     result = await db.execute(
         select(BoardList).where(
@@ -124,11 +133,14 @@ async def update_board_list(
     if board_list is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
 
+    events: list[str] = []
     if body.name is not None:
         board_list.name = body.name
+        events.append("list_renamed")
     if body.is_archived is not None:
         board_list.is_archived = body.is_archived
         if body.is_archived:
+            events.append("list_archived")
             # Remove from order array so the board layout stays clean
             await db.execute(
                 update(UIBoardListOrder)
@@ -141,6 +153,12 @@ async def update_board_list(
 
     await db.commit()
     await db.refresh(board_list)
+
+    if events:
+        recipients = await board_recipients(board_id, board.owner_id, db)
+        for event in events:
+            await manager.notify_many(recipients, board_notification(event, board_id, client_id))
+
     return BoardListRead.model_validate(board_list)
 
 
@@ -169,14 +187,10 @@ async def update_list_order(
     body: BoardListOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> BoardListOrderRead:
-    """Replace the column order. Only the board owner can reorder lists."""
+    """Replace the column order. User must be the owner or a shared member."""
     board = await _get_accessible_board(board_id, current_user, db)
-    if board.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the owner can reorder lists",
-        )
 
     # Validate that every submitted ID is a live (non-deleted) list on this board
     valid_result = await db.execute(
@@ -205,5 +219,8 @@ async def update_list_order(
     )
     await db.execute(stmt)
     await db.commit()
+
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(recipients, board_notification("list_reordered", board_id, client_id))
 
     return BoardListOrderRead(board_id=board_id, list_ids=body.list_ids)

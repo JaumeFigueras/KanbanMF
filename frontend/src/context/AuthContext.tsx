@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import i18n from '../i18n'
 import { apiFetch, onAccessTokenChange, setAccessToken } from '../api/client'
+import { setWebSocketToken } from '../api/ws'
 
 const API = 'http://localhost:8000'
 
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessTokenState(token)
       if (token) localStorage.setItem('access_token', token)
       else localStorage.removeItem('access_token')
+      setWebSocketToken(token)
     })
   }, [])
 

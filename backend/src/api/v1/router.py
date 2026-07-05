@@ -3,11 +3,12 @@
 
 from fastapi import APIRouter
 
-from src.api.v1 import boards, cards, checklists, labels, lists, users
+from src.api.v1 import boards, cards, checklists, labels, lists, users, ws
 from src.api.v1.auth import google, local
 
 router = APIRouter(prefix="/api/v1")
 
+router.include_router(ws.router, tags=["ws"])
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(boards.router, prefix="/boards", tags=["boards"])
 router.include_router(lists.router, prefix="/boards/{board_id}/lists", tags=["lists"])

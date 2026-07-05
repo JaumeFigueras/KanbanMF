@@ -4,7 +4,7 @@
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,3 +46,12 @@ async def get_refresh_token_from_cookie(
     if refresh_token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing")
     return refresh_token
+
+
+async def get_client_id(x_client_id: str | None = Header(default=None)) -> str | None:
+    """Identify which frontend tab/session issued the request.
+
+    Echoed back in WebSocket notifications as origin_client_id so the
+    originating tab can tell its own change apart from one made elsewhere.
+    """
+    return x_client_id

@@ -1,10 +1,28 @@
 const API_BASE = 'http://localhost:8000'
+const CLIENT_ID_KEY = 'kanbanmf.client_id'
 
 type TokenListener = (token: string | null) => void
 
 let currentAccessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 const listeners = new Set<TokenListener>()
+
+// Identifies this browser tab so WebSocket notifications can be told apart
+// from a mutation the same tab just made itself. sessionStorage (not
+// localStorage) is deliberate: each tab/window gets its own id, so two tabs
+// open on the same computer still count as distinct origins.
+let cachedClientId: string | null = null
+
+export function getClientId(): string {
+  if (cachedClientId) return cachedClientId
+  let id = sessionStorage.getItem(CLIENT_ID_KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem(CLIENT_ID_KEY, id)
+  }
+  cachedClientId = id
+  return id
+}
 
 export function getAccessToken(): string | null {
   return currentAccessToken
@@ -51,6 +69,7 @@ export function refreshAccessToken(): Promise<string | null> {
 function withAuth(init: RequestInit, token: string | null): RequestInit {
   const headers = new Headers(init.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  headers.set('X-Client-Id', getClientId())
   return { ...init, credentials: 'include', headers }
 }
 

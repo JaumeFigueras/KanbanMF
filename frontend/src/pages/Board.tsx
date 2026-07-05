@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AppBar,
@@ -21,7 +21,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import {
   SortableContext,
   arrayMove,
@@ -38,6 +38,22 @@ import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
 import { SORT_OPTIONS, sortCards } from '../utils/cardSort'
 import { apiFetch } from '../api/client'
+import { isOwnNotification, subscribeToNotifications } from '../api/ws'
+
+const LIST_EVENT_TYPES = new Set(['list_created', 'list_reordered', 'list_renamed', 'list_archived'])
+
+// Lists and cards share one DndContext (a card needs to move between list
+// columns), so plain closestCenter compares a dragged list against every
+// card's rect too — near a column edge a card can read as "closer" than the
+// list column itself, so the reorder misfires or silently no-ops. When
+// dragging a list, only ever compare it against other lists.
+const listAwareCollisionDetection: CollisionDetection = (args) => {
+  if (args.active.data.current?.type !== 'list') return closestCenter(args)
+  const listContainers = args.droppableContainers.filter(
+    (container) => container.data.current?.type === 'list',
+  )
+  return closestCenter({ ...args, droppableContainers: listContainers })
+}
 
 export default function Board() {
   const { t } = useTranslation()
@@ -84,7 +100,7 @@ export default function Board() {
       .catch(() => {})
   }, [boardId])
 
-  useEffect(() => {
+  const fetchLists = useCallback(() => {
     if (!boardId) return
     Promise.all([
       apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists`)
@@ -98,6 +114,23 @@ export default function Board() {
       })
       .catch(() => {})
   }, [boardId])
+
+  useEffect(() => {
+    fetchLists()
+  }, [fetchLists])
+
+  // List changes made elsewhere (owner's other session, or a shared member)
+  // arrive as bare notifications scoped to this board; a notification we
+  // triggered ourselves is skipped since our own local state already reflects it.
+  useEffect(() => {
+    if (!boardId) return
+    return subscribeToNotifications((notification) => {
+      if (notification.board_id !== boardId) return
+      if (!LIST_EVENT_TYPES.has(notification.type)) return
+      if (isOwnNotification(notification)) return
+      fetchLists()
+    })
+  }, [boardId, fetchLists])
 
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's. Fetch only for lists we haven't loaded yet.
@@ -302,7 +335,9 @@ export default function Board() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_ids: newOrder }),
-    }).catch(() => {})
+    })
+      .then(r => { if (!r.ok) fetchLists() }) // rejected (e.g. stale ownership) — resync from the server
+      .catch(() => fetchLists())
   }
 
   if (accessDenied) {
@@ -458,7 +493,7 @@ export default function Board() {
       {/* Scrollable lists container */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={listAwareCollisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >

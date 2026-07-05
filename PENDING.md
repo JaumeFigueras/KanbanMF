@@ -10,8 +10,8 @@
 
 ## Functionality
 
-- Share
-
+- Share + Web socket per fer un update
+- e-mail feines pendents
 
 ## UI
 
