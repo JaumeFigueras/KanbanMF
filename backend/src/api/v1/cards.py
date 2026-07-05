@@ -9,7 +9,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db
+from src.core.ws_manager import manager
+from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
@@ -189,7 +191,7 @@ async def list_cards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[CardRead]:
-    """Return all non-deleted cards for a list."""
+    """Return all non-archived, non-deleted cards for a list."""
     await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
     result = await db.execute(
@@ -198,6 +200,7 @@ async def list_cards(
         .where(
             Card.list_id == list_id,
             Card.is_deleted.is_(False),
+            Card.is_archived.is_(False),
         )
         .order_by(Card.created_at.asc())
     )
@@ -218,9 +221,10 @@ async def create_card(
     body: CardCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> CardRead:
     """Create a card inside a list."""
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
 
     # The creator is always a member by default, regardless of what the
@@ -250,6 +254,11 @@ async def create_card(
     )
     card = result.scalar_one()
 
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(
+        recipients, board_notification("card_created", board_id, client_id, list_id=list_id)
+    )
+
     people_by_id = await _people_by_id(_card_people_ids(card), db)
     return _card_to_read(card, people_by_id)
 
@@ -262,9 +271,10 @@ async def update_card(
     body: CardUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> CardRead:
     """Update a card's name, description, or archived status."""
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
     result = await db.execute(
         select(Card)
@@ -312,12 +322,36 @@ async def update_card(
         card.members = await _get_users(board_id, body.member_ids or [], db)
     if "assignee_ids" in fields_set:
         card.assignees = await _get_users(board_id, body.assignee_ids or [], db)
+
+    source_list_id = list_id  # the list this card belonged to before this request
+    moved_to: uuid.UUID | None = None
     if body.list_id is not None and body.list_id != card.list_id:
         # Moving the card to a different list — validate the destination
         # belongs to the same board before reassigning.
         destination_list = await _get_list(board_id, body.list_id, db)
         card.list_id = destination_list.id
+        moved_to = destination_list.id
+
+    # Field groups notify separately: a plain field edit only touches the
+    # card's own list, a move touches both the source and destination list,
+    # and archiving is its own event (mirrors the notify types list events use).
+    events: list[str] = []
+    update_fields = {"name", "description", "start_at", "due_at", "end_at", "label_ids", "member_ids", "assignee_ids"}
+    if update_fields & fields_set:
+        events.append("card_updated")
+    if moved_to is not None:
+        events.append("card_moved")
+    if body.is_archived:
+        events.append("card_archived")
+
     await db.commit()
+
+    if events:
+        recipients = await board_recipients(board_id, board.owner_id, db)
+        notify_list_ids = {card.list_id, source_list_id} if moved_to is not None else {card.list_id}
+        for event in events:
+            for lid in notify_list_ids:
+                await manager.notify_many(recipients, board_notification(event, board_id, client_id, list_id=lid))
 
     result = await db.execute(
         select(Card).options(*_card_load_options()).where(Card.id == card.id)
@@ -381,9 +415,10 @@ async def update_card_order(
     body: CardOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> CardOrderRead:
     """Replace the custom card order for a list. User must be the owner or a shared member."""
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
 
     # Validate that every submitted ID is a live (non-deleted) card on this list
@@ -413,5 +448,10 @@ async def update_card_order(
     )
     await db.execute(stmt)
     await db.commit()
+
+    recipients = await board_recipients(board_id, board.owner_id, db)
+    await manager.notify_many(
+        recipients, board_notification("card_order_changed", board_id, client_id, list_id=list_id)
+    )
 
     return CardOrderRead(list_id=list_id, card_ids=body.card_ids)

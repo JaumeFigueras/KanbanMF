@@ -14,13 +14,22 @@ export type BoardNotificationType =
   | 'list_reordered'
   | 'list_renamed'
   | 'list_archived'
+  | 'card_created'
+  | 'card_updated'
+  | 'card_moved'
+  | 'card_order_changed'
+  | 'card_archived'
 
 export interface BoardNotification {
   type: BoardNotificationType
   // null only for board_reordered: order is a whole-list property, not tied
-  // to one board. Every other event (including all list_* events) carries
-  // the board_id it's about.
+  // to one board. Every other event (including all list_* and card_*
+  // events) carries the board_id it's about.
   board_id: string | null
+  // set only for card_* events — which list's cards to refetch. A
+  // card_moved notification is sent once per affected list (source and
+  // destination), so this is always a single id, never both at once.
+  list_id: string | null
   origin_client_id: string | null
 }
 

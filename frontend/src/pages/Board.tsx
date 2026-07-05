@@ -41,6 +41,13 @@ import { apiFetch } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
 const LIST_EVENT_TYPES = new Set(['list_created', 'list_reordered', 'list_renamed', 'list_archived'])
+const CARD_EVENT_TYPES = new Set([
+  'card_created',
+  'card_updated',
+  'card_moved',
+  'card_order_changed',
+  'card_archived',
+])
 
 // Lists and cards share one DndContext (a card needs to move between list
 // columns), so plain closestCenter compares a dragged list against every
@@ -133,36 +140,42 @@ export default function Board() {
   }, [boardId, fetchLists])
 
   // Cards live here (not in BoardListColumn) so a card can be dragged from
-  // one list's array into another's. Fetch only for lists we haven't loaded yet.
-  useEffect(() => {
+  // one list's array into another's.
+  const fetchCardsForList = useCallback((listId: string) => {
     if (!boardId) return
-    const toFetch = lists.filter(l => !(l.id in cardsByList))
-    if (toFetch.length === 0) return
-
-    Promise.all(
-      toFetch.map(list =>
-        Promise.all([
-          apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${list.id}/cards`)
-            .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
-          apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${list.id}/cards/order`)
-            .then(r => r.ok ? r.json() as Promise<CardOrderRead> : { list_id: list.id, card_ids: [] }),
-        ]).then(([cards, order]) => ({ listId: list.id, cards, cardIds: order.card_ids })),
-      ),
-    )
-      .then(results => {
-        setCardsByList(prev => {
-          const next = { ...prev }
-          for (const r of results) next[r.listId] = r.cards
-          return next
-        })
-        setOrderByList(prev => {
-          const next = { ...prev }
-          for (const r of results) next[r.listId] = r.cardIds
-          return next
-        })
+    Promise.all([
+      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards`)
+        .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
+      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/order`)
+        .then(r => r.ok ? r.json() as Promise<CardOrderRead> : { list_id: listId, card_ids: [] }),
+    ])
+      .then(([cards, order]) => {
+        setCardsByList(prev => ({ ...prev, [listId]: cards }))
+        setOrderByList(prev => ({ ...prev, [listId]: order.card_ids }))
       })
       .catch(() => {})
-  }, [boardId, lists, cardsByList])
+  }, [boardId])
+
+  // Fetch only for lists we haven't loaded yet.
+  useEffect(() => {
+    if (!boardId) return
+    lists.filter(l => !(l.id in cardsByList)).forEach(l => fetchCardsForList(l.id))
+  }, [boardId, lists, cardsByList, fetchCardsForList])
+
+  // Card changes made elsewhere (owner's other session, or a shared member)
+  // arrive as bare notifications naming which list's cards to refetch; a
+  // notification we triggered ourselves is skipped since our own local state
+  // already reflects it. card_moved is sent once per affected list (source
+  // and destination), so a single fetchCardsForList call per message suffices.
+  useEffect(() => {
+    if (!boardId) return
+    return subscribeToNotifications((notification) => {
+      if (notification.board_id !== boardId) return
+      if (!CARD_EVENT_TYPES.has(notification.type)) return
+      if (isOwnNotification(notification)) return
+      if (notification.list_id) fetchCardsForList(notification.list_id)
+    })
+  }, [boardId, fetchCardsForList])
 
   // Merge lists with the stored order: ordered first, then any unordered remainders
   const sortedLists = useMemo(() => {
