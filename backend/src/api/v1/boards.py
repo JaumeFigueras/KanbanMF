@@ -13,6 +13,7 @@ from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_share import BoardShare
+from src.model.ui_board_color import UIBoardColor
 from src.model.ui_board_order import UIBoardOrder
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
@@ -28,6 +29,7 @@ from src.schemas.board import (
     BoardsResponse,
 )
 from src.schemas.person import PersonRead
+from src.schemas.ui_color import ColorRead, ColorUpdate
 
 router = APIRouter()
 
@@ -687,4 +689,63 @@ async def unstar_board(
         )
     )
 
+    await db.commit()
+
+
+@router.get("/{board_id}/color", response_model=ColorRead)
+async def get_board_color(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Return the current user's personal color choice for this board, if any."""
+    await _check_board_access(board_id, current_user, db)
+    result = await db.execute(
+        select(UIBoardColor.color).where(
+            UIBoardColor.user_id == current_user.id,
+            UIBoardColor.board_id == board_id,
+        )
+    )
+    return ColorRead(color=result.scalar_one_or_none())
+
+
+@router.put("/{board_id}/color", response_model=ColorRead)
+async def set_board_color(
+    board_id: uuid.UUID,
+    body: ColorUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Set the current user's personal color for this board.
+
+    Purely a per-user display preference — the owner and every shared user
+    each have their own, so this never affects what anyone else sees.
+    """
+    await _check_board_access(board_id, current_user, db)
+    await db.execute(
+        pg_insert(UIBoardColor)
+        .values(user_id=current_user.id, board_id=board_id, color=body.color)
+        .on_conflict_do_update(
+            index_elements=["user_id", "board_id"],
+            set_={"color": body.color, "updated_at": func.now()},
+        )
+    )
+    await db.commit()
+    return ColorRead(color=body.color)
+
+
+@router.delete("/{board_id}/color", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_board_color(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Reset the current user's color for this board back to the default. Idempotent."""
+    await _check_board_access(board_id, current_user, db)
+    await db.execute(
+        delete(UIBoardColor).where(
+            UIBoardColor.user_id == current_user.id,
+            UIBoardColor.board_id == board_id,
+        )
+    )
     await db.commit()

@@ -4,7 +4,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +18,7 @@ from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.checklist import Checklist
 from src.model.label import Label
+from src.model.ui_card_color import UICardColor
 from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
@@ -26,6 +27,7 @@ from src.schemas.card import CardCreate, CardOrderRead, CardOrderUpdate, CardRea
 from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
+from src.schemas.ui_color import ColorRead, ColorUpdate
 
 router = APIRouter()
 
@@ -500,3 +502,67 @@ async def update_card_order(
     )
 
     return CardOrderRead(list_id=list_id, card_ids=body.card_ids)
+
+
+@router.get("/{card_id}/color", response_model=ColorRead)
+async def get_card_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Return the current user's personal color choice for this card, if any."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    result = await db.execute(
+        select(UICardColor.color).where(
+            UICardColor.user_id == current_user.id,
+            UICardColor.card_id == card_id,
+        )
+    )
+    return ColorRead(color=result.scalar_one_or_none())
+
+
+@router.put("/{card_id}/color", response_model=ColorRead)
+async def set_card_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    body: ColorUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Set the current user's personal color for this card. Per-user only."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    await db.execute(
+        pg_insert(UICardColor)
+        .values(user_id=current_user.id, card_id=card_id, color=body.color)
+        .on_conflict_do_update(
+            index_elements=["user_id", "card_id"],
+            set_={"color": body.color, "updated_at": func.now()},
+        )
+    )
+    await db.commit()
+    return ColorRead(color=body.color)
+
+
+@router.delete("/{card_id}/color", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_card_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Reset the current user's color for this card back to the default. Idempotent."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    await db.execute(
+        delete(UICardColor).where(
+            UICardColor.user_id == current_user.id,
+            UICardColor.card_id == card_id,
+        )
+    )
+    await db.commit()

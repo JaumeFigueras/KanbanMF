@@ -4,7 +4,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.ui_board_list_order import UIBoardListOrder
+from src.model.ui_list_color import UIListColor
 from src.model.user import User
 from src.schemas.board_list import (
     BoardListCreate,
@@ -24,6 +25,7 @@ from src.schemas.board_list import (
     BoardListRead,
     BoardListUpdate,
 )
+from src.schemas.ui_color import ColorRead, ColorUpdate
 
 router = APIRouter()
 
@@ -50,6 +52,20 @@ async def _get_accessible_board(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     return board
+
+
+async def _get_list(board_id: uuid.UUID, list_id: uuid.UUID, db: AsyncSession) -> BoardList:
+    result = await db.execute(
+        select(BoardList).where(
+            BoardList.id == list_id,
+            BoardList.board_id == board_id,
+            BoardList.is_deleted.is_(False),
+        )
+    )
+    board_list = result.scalar_one_or_none()
+    if board_list is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+    return board_list
 
 
 @router.get("", response_model=list[BoardListRead])
@@ -313,3 +329,64 @@ async def update_list_order(
     await manager.notify_many(recipients, board_notification("list_reordered", board_id, client_id))
 
     return BoardListOrderRead(board_id=board_id, list_ids=body.list_ids)
+
+
+@router.get("/{list_id}/color", response_model=ColorRead)
+async def get_list_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Return the current user's personal color choice for this list, if any."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    result = await db.execute(
+        select(UIListColor.color).where(
+            UIListColor.user_id == current_user.id,
+            UIListColor.list_id == list_id,
+        )
+    )
+    return ColorRead(color=result.scalar_one_or_none())
+
+
+@router.put("/{list_id}/color", response_model=ColorRead)
+async def set_list_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    body: ColorUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ColorRead:
+    """Set the current user's personal color for this list. Per-user only."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    await db.execute(
+        pg_insert(UIListColor)
+        .values(user_id=current_user.id, list_id=list_id, color=body.color)
+        .on_conflict_do_update(
+            index_elements=["user_id", "list_id"],
+            set_={"color": body.color, "updated_at": func.now()},
+        )
+    )
+    await db.commit()
+    return ColorRead(color=body.color)
+
+
+@router.delete("/{list_id}/color", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_list_color(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Reset the current user's color for this list back to the default. Idempotent."""
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    await db.execute(
+        delete(UIListColor).where(
+            UIListColor.user_id == current_user.id,
+            UIListColor.list_id == list_id,
+        )
+    )
+    await db.commit()
