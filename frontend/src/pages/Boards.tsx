@@ -29,6 +29,7 @@ import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
 import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
 import DeleteBoardDialog from '../components/DeleteBoardDialog'
 import ShareBoardDialog from '../components/ShareBoardDialog'
+import EmailNotificationDialog from '../components/EmailNotificationDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
@@ -82,6 +83,7 @@ export default function Boards() {
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
   const [notImplementedOpen, setNotImplementedOpen] = useState(false)
   const [shareBoardOpen, setShareBoardOpen] = useState(false)
+  const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
@@ -202,6 +204,11 @@ export default function Boards() {
     setShareBoardOpen(true)
   }
 
+  function handleEmailNotification(board: BoardRead) {
+    setSelectedBoard(board)
+    setEmailNotificationOpen(true)
+  }
+
   function handleArchiveBoard(board: BoardRead) {
     setSelectedBoard(board)
     setArchiveBoardOpen(true)
@@ -315,6 +322,7 @@ export default function Boards() {
     onChangeColor: handleChangeBoardColor,
     onShare: handleShareBoard,
     onArchive: handleArchiveBoard,
+    onEmailNotification: handleEmailNotification,
   }
 
   return (
@@ -339,6 +347,12 @@ export default function Boards() {
       <ShareBoardDialog
         open={shareBoardOpen}
         onClose={() => setShareBoardOpen(false)}
+        board={selectedBoard}
+      />
+
+      <EmailNotificationDialog
+        open={emailNotificationOpen}
+        onClose={() => setEmailNotificationOpen(false)}
         board={selectedBoard}
       />
 

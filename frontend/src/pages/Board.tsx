@@ -12,7 +12,7 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material'
-import { Add, Archive, Block, Check, Label, Menu as MenuIcon, Sort as SortIcon } from '@mui/icons-material'
+import { Add, Archive, Block, Check, Email, Label, Menu as MenuIcon, Sort as SortIcon } from '@mui/icons-material'
 import {
   DndContext,
   DragOverlay,
@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next'
 import MainAppBar from '../components/MainAppBar'
 import CreateListDialog from '../components/CreateListDialog'
 import ManageLabelsDialog from '../components/ManageLabelsDialog'
+import EmailNotificationDialog from '../components/EmailNotificationDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import CardItem from '../components/CardItem'
 import ArchivedListsView from '../components/ArchivedListsView'
@@ -76,6 +77,8 @@ export default function Board() {
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
+  const [boardMenuAnchor, setBoardMenuAnchor] = useState<HTMLElement | null>(null)
+  const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
   const [sortMode, setSortMode] = useState<SortMode>(
     () => (localStorage.getItem(`kanbanmf:sort:${boardId}`) as SortMode | null) ?? 'custom',
   )
@@ -215,6 +218,14 @@ export default function Board() {
   function handleSortSelect(mode: SortMode) {
     setSortMode(mode)
     closeSortMenu()
+  }
+
+  function openBoardMenu(e: React.MouseEvent<HTMLElement>) {
+    setBoardMenuAnchor(e.currentTarget)
+  }
+
+  function closeBoardMenu() {
+    setBoardMenuAnchor(null)
   }
 
   function handleListRenamed(listId: string, newName: string) {
@@ -533,7 +544,7 @@ export default function Board() {
             {t('board.archive')}
           </Button>
           <Box sx={{ flexGrow: 1 }} />
-          <IconButton color="inherit" aria-label={t('board.boardMenu')}>
+          <IconButton color="inherit" aria-label={t('board.boardMenu')} onClick={openBoardMenu}>
             <MenuIcon />
           </IconButton>
         </Toolbar>
@@ -553,6 +564,21 @@ export default function Board() {
           </MenuItem>
         ))}
       </Menu>
+
+      {isOwner && (
+        <Menu anchorEl={boardMenuAnchor} open={Boolean(boardMenuAnchor)} onClose={closeBoardMenu}>
+          <MenuItem onClick={() => { closeBoardMenu(); setEmailNotificationOpen(true) }}>
+            <ListItemIcon><Email fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.emailNotification')}</ListItemText>
+          </MenuItem>
+        </Menu>
+      )}
+
+      <EmailNotificationDialog
+        open={emailNotificationOpen}
+        onClose={() => setEmailNotificationOpen(false)}
+        board={board}
+      />
 
       {/* Two spacers: one per fixed bar */}
       <Toolbar />

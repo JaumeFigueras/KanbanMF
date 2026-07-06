@@ -38,6 +38,14 @@ export interface BoardOrderRead {
   shared_ids: string[]
 }
 
+export interface BoardNotificationSettingsRead {
+  board_id: string
+  is_enabled: boolean
+  notify_hour: number
+  offset_days: number[]
+  overdue_repeat_after_days: number | null
+}
+
 export interface LabelRead {
   id: string
   board_id: string

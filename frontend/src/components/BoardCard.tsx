@@ -17,6 +17,7 @@ import {
 import {
   Archive,
   DriveFileRenameOutline,
+  Email,
   Menu as MenuIcon,
   OpenWith,
   Palette,
@@ -42,6 +43,7 @@ interface Props {
   onChangeColor: (board: BoardRead) => void
   onShare: (board: BoardRead) => void
   onArchive: (board: BoardRead) => void
+  onEmailNotification: (board: BoardRead) => void
 }
 
 export default function BoardCard({
@@ -55,6 +57,7 @@ export default function BoardCard({
   onChangeColor,
   onShare,
   onArchive,
+  onEmailNotification,
 }: Props) {
   const navigate = useNavigate()
   const { t } = useTranslation()
@@ -187,6 +190,12 @@ export default function BoardCard({
           <MenuItem onClick={() => { setMenuAnchor(null); onShare(board) }}>
             <ListItemIcon><PersonAdd fontSize="small" /></ListItemIcon>
             <ListItemText>{t('boards.shareBoard')}</ListItemText>
+          </MenuItem>
+        )}
+        {isOwned && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onEmailNotification(board) }}>
+            <ListItemIcon><Email fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.emailNotification')}</ListItemText>
           </MenuItem>
         )}
         {isOwned && (
