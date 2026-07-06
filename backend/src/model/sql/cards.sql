@@ -18,7 +18,7 @@ CREATE TABLE cards (
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_cards_list_id ON cards (list_id);
-CREATE INDEX ix_cards_id ON cards (id);
 CREATE INDEX ix_cards_creator_id ON cards (creator_id);
+CREATE INDEX ix_cards_id ON cards (id);
 ALTER TABLE public.cards OWNER TO kanbanmf_user;
 GRANT SELECT on public.cards to kanbanmf_remoteuser;

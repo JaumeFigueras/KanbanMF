@@ -35,6 +35,7 @@ CREATE TABLE user_preferences (
 	number_locale VARCHAR(10) NOT NULL, 
 	initials VARCHAR(3), 
 	date_format dateformat DEFAULT 'numeric' NOT NULL, 
+	timezone VARCHAR(50) DEFAULT 'UTC' NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (user_id), 
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -127,6 +128,31 @@ CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
 ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
 
+CREATE TABLE board_notification_settings (
+	board_id UUID NOT NULL, 
+	is_enabled BOOLEAN DEFAULT 'false' NOT NULL, 
+	notify_hour SMALLINT DEFAULT '9' NOT NULL, 
+	overdue_repeat_after_days SMALLINT, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (board_id), 
+	CONSTRAINT ck_board_notification_settings_notify_hour_range CHECK (notify_hour >= 0 AND notify_hour <= 23), 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.board_notification_settings OWNER TO kanbanmf_user;
+GRANT SELECT on public.board_notification_settings to kanbanmf_remoteuser;
+
+CREATE TABLE board_notification_offsets (
+	board_id UUID NOT NULL, 
+	offset_days SMALLINT NOT NULL, 
+	PRIMARY KEY (board_id, offset_days), 
+	FOREIGN KEY(board_id) REFERENCES board_notification_settings (board_id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.board_notification_offsets OWNER TO kanbanmf_user;
+GRANT SELECT on public.board_notification_offsets to kanbanmf_remoteuser;
+
 CREATE TABLE user_board_stars (
 	user_id UUID NOT NULL, 
 	board_id UUID NOT NULL, 
@@ -174,8 +200,8 @@ CREATE TABLE labels (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_labels_id ON labels (id);
 CREATE INDEX ix_labels_board_id ON labels (board_id);
+CREATE INDEX ix_labels_id ON labels (id);
 ALTER TABLE public.labels OWNER TO kanbanmf_user;
 GRANT SELECT on public.labels to kanbanmf_remoteuser;
 
@@ -198,8 +224,8 @@ CREATE TABLE cards (
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_cards_list_id ON cards (list_id);
-CREATE INDEX ix_cards_id ON cards (id);
 CREATE INDEX ix_cards_creator_id ON cards (creator_id);
+CREATE INDEX ix_cards_id ON cards (id);
 ALTER TABLE public.cards OWNER TO kanbanmf_user;
 GRANT SELECT on public.cards to kanbanmf_remoteuser;
 
@@ -238,6 +264,19 @@ WITH (OIDS = FALSE);
 ALTER TABLE public.card_labels OWNER TO kanbanmf_user;
 GRANT SELECT on public.card_labels to kanbanmf_remoteuser;
 
+CREATE TABLE card_due_notifications (
+	card_id UUID NOT NULL, 
+	user_id UUID NOT NULL, 
+	notification_date DATE NOT NULL, 
+	sent_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (card_id, user_id, notification_date), 
+	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE, 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.card_due_notifications OWNER TO kanbanmf_user;
+GRANT SELECT on public.card_due_notifications to kanbanmf_remoteuser;
+
 CREATE TABLE ui_list_card_orders (
 	list_id UUID NOT NULL, 
 	card_ids UUID[] DEFAULT '{}' NOT NULL, 
@@ -260,8 +299,8 @@ CREATE TABLE checklists (
 	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_checklists_id ON checklists (id);
 CREATE INDEX ix_checklists_card_id ON checklists (card_id);
+CREATE INDEX ix_checklists_id ON checklists (id);
 ALTER TABLE public.checklists OWNER TO kanbanmf_user;
 GRANT SELECT on public.checklists to kanbanmf_remoteuser;
 

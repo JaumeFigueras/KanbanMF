@@ -10,7 +10,7 @@ CREATE TABLE labels (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_labels_id ON labels (id);
 CREATE INDEX ix_labels_board_id ON labels (board_id);
+CREATE INDEX ix_labels_id ON labels (id);
 ALTER TABLE public.labels OWNER TO kanbanmf_user;
 GRANT SELECT on public.labels to kanbanmf_remoteuser;

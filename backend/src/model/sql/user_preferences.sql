@@ -6,6 +6,7 @@ CREATE TABLE user_preferences (
 	number_locale VARCHAR(10) NOT NULL, 
 	initials VARCHAR(3), 
 	date_format dateformat DEFAULT 'numeric' NOT NULL, 
+	timezone VARCHAR(50) DEFAULT 'UTC' NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (user_id), 
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
