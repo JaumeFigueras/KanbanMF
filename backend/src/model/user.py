@@ -20,7 +20,10 @@ if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.card import Card
     from src.model.card_due_notification import CardDueNotification
+    from src.model.ui_board_color import UIBoardColor
     from src.model.ui_board_order import UIBoardOrder
+    from src.model.ui_card_color import UICardColor
+    from src.model.ui_list_color import UIListColor
 
 
 class User(Base):
@@ -160,6 +163,24 @@ class User(Base):
 
     due_notifications: Mapped[List["CardDueNotification"]] = relationship(
         "CardDueNotification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    board_colors: Mapped[List["UIBoardColor"]] = relationship(
+        "UIBoardColor",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    list_colors: Mapped[List["UIListColor"]] = relationship(
+        "UIListColor",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    card_colors: Mapped[List["UICardColor"]] = relationship(
+        "UICardColor",
         back_populates="user",
         cascade="all, delete-orphan",
     )

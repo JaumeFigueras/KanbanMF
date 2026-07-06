@@ -5,13 +5,16 @@
 --   checklist_items                 →  reference checklists
 --   checklists                      →  reference cards
 --   card_due_notifications          →  reference cards + users
+--   ui_card_colors                  →  reference cards + users
 --   card_labels                     →  reference cards + labels
 --   card_members, card_assignees    →  reference cards + users
 --   ui_list_card_orders             →  reference board_lists
+--   ui_list_colors                  →  reference board_lists + users
 --   cards                           →  reference board_lists + users
 --   labels                          →  reference boards
 --   ui_board_list_orders            →  reference boards
 --   ui_board_orders                 →  reference users
+--   ui_board_colors                 →  reference boards + users
 --   board_notification_offsets      →  reference board_notification_settings
 --   board_notification_settings     →  reference boards
 --   board_lists                     →  reference boards
@@ -26,14 +29,17 @@
 DROP TABLE IF EXISTS checklist_items        CASCADE;
 DROP TABLE IF EXISTS checklists             CASCADE;
 DROP TABLE IF EXISTS card_due_notifications CASCADE;
+DROP TABLE IF EXISTS ui_card_colors         CASCADE;
 DROP TABLE IF EXISTS card_labels            CASCADE;
 DROP TABLE IF EXISTS card_members           CASCADE;
 DROP TABLE IF EXISTS card_assignees         CASCADE;
 DROP TABLE IF EXISTS ui_list_card_orders    CASCADE;
+DROP TABLE IF EXISTS ui_list_colors         CASCADE;
 DROP TABLE IF EXISTS cards                  CASCADE;
 DROP TABLE IF EXISTS labels                 CASCADE;
 DROP TABLE IF EXISTS ui_board_list_orders   CASCADE;
 DROP TABLE IF EXISTS ui_board_orders        CASCADE;
+DROP TABLE IF EXISTS ui_board_colors        CASCADE;
 DROP TABLE IF EXISTS board_notification_offsets  CASCADE;
 DROP TABLE IF EXISTS board_notification_settings CASCADE;
 DROP TABLE IF EXISTS board_lists            CASCADE;

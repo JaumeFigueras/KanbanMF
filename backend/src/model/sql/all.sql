@@ -10,8 +10,8 @@ CREATE TABLE users (
 	PRIMARY KEY (id)
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_users_id ON users (id);
 CREATE UNIQUE INDEX ix_users_email ON users (email);
+CREATE INDEX ix_users_id ON users (id);
 ALTER TABLE public.users OWNER TO kanbanmf_user;
 GRANT SELECT on public.users to kanbanmf_remoteuser;
 
@@ -94,8 +94,8 @@ CREATE TABLE boards (
 	FOREIGN KEY(owner_id) REFERENCES users (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_boards_id ON boards (id);
 CREATE INDEX ix_boards_owner_id ON boards (owner_id);
+CREATE INDEX ix_boards_id ON boards (id);
 ALTER TABLE public.boards OWNER TO kanbanmf_user;
 GRANT SELECT on public.boards to kanbanmf_remoteuser;
 
@@ -123,8 +123,8 @@ CREATE TABLE board_lists (
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_board_lists_id ON board_lists (id);
 CREATE INDEX ix_board_lists_board_id ON board_lists (board_id);
+CREATE INDEX ix_board_lists_id ON board_lists (id);
 ALTER TABLE public.board_lists OWNER TO kanbanmf_user;
 GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
 
@@ -189,6 +189,19 @@ WITH (OIDS = FALSE);
 ALTER TABLE public.ui_board_list_orders OWNER TO kanbanmf_user;
 GRANT SELECT on public.ui_board_list_orders to kanbanmf_remoteuser;
 
+CREATE TABLE ui_board_colors (
+	user_id UUID NOT NULL, 
+	board_id UUID NOT NULL, 
+	color VARCHAR(50) NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (user_id, board_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.ui_board_colors OWNER TO kanbanmf_user;
+GRANT SELECT on public.ui_board_colors to kanbanmf_remoteuser;
+
 CREATE TABLE labels (
 	id UUID NOT NULL, 
 	board_id UUID NOT NULL, 
@@ -223,9 +236,9 @@ CREATE TABLE cards (
 	FOREIGN KEY(creator_id) REFERENCES users (id) ON DELETE SET NULL
 )
 WITH (OIDS = FALSE);
+CREATE INDEX ix_cards_id ON cards (id);
 CREATE INDEX ix_cards_list_id ON cards (list_id);
 CREATE INDEX ix_cards_creator_id ON cards (creator_id);
-CREATE INDEX ix_cards_id ON cards (id);
 ALTER TABLE public.cards OWNER TO kanbanmf_user;
 GRANT SELECT on public.cards to kanbanmf_remoteuser;
 
@@ -277,6 +290,19 @@ WITH (OIDS = FALSE);
 ALTER TABLE public.card_due_notifications OWNER TO kanbanmf_user;
 GRANT SELECT on public.card_due_notifications to kanbanmf_remoteuser;
 
+CREATE TABLE ui_card_colors (
+	user_id UUID NOT NULL, 
+	card_id UUID NOT NULL, 
+	color VARCHAR(50) NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (user_id, card_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.ui_card_colors OWNER TO kanbanmf_user;
+GRANT SELECT on public.ui_card_colors to kanbanmf_remoteuser;
+
 CREATE TABLE ui_list_card_orders (
 	list_id UUID NOT NULL, 
 	card_ids UUID[] DEFAULT '{}' NOT NULL, 
@@ -287,6 +313,19 @@ CREATE TABLE ui_list_card_orders (
 WITH (OIDS = FALSE);
 ALTER TABLE public.ui_list_card_orders OWNER TO kanbanmf_user;
 GRANT SELECT on public.ui_list_card_orders to kanbanmf_remoteuser;
+
+CREATE TABLE ui_list_colors (
+	user_id UUID NOT NULL, 
+	list_id UUID NOT NULL, 
+	color VARCHAR(50) NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (user_id, list_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(list_id) REFERENCES board_lists (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.ui_list_colors OWNER TO kanbanmf_user;
+GRANT SELECT on public.ui_list_colors to kanbanmf_remoteuser;
 
 CREATE TABLE checklists (
 	id UUID NOT NULL, 
@@ -299,8 +338,8 @@ CREATE TABLE checklists (
 	FOREIGN KEY(card_id) REFERENCES cards (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 CREATE INDEX ix_checklists_id ON checklists (id);
+CREATE INDEX ix_checklists_card_id ON checklists (card_id);
 ALTER TABLE public.checklists OWNER TO kanbanmf_user;
 GRANT SELECT on public.checklists to kanbanmf_remoteuser;
 

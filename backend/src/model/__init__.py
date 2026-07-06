@@ -16,9 +16,12 @@ from src.model.card_due_notification import CardDueNotification
 from src.model.label import Label
 from src.model.checklist import Checklist
 from src.model.checklist_item import ChecklistItem
+from src.model.ui_board_color import UIBoardColor
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_board_order import UIBoardOrder
+from src.model.ui_card_color import UICardColor
 from src.model.ui_list_card_order import UIListCardOrder
+from src.model.ui_list_color import UIListColor
 from src.model.user import User
 from src.model.user_identity import UserIdentity
 from src.model.user_avatar import UserAvatar
@@ -31,6 +34,7 @@ __all__ = [
     "Card", "CardMember", "CardAssignee", "CardLabel", "CardDueNotification",
     "Checklist", "ChecklistItem",
     "Label",
-    "UIBoardListOrder", "UIBoardOrder", "UIListCardOrder", "BoardShare", "UserBoardStar",
+    "UIBoardColor", "UIBoardListOrder", "UIBoardOrder", "UICardColor", "UIListCardOrder", "UIListColor",
+    "BoardShare", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
 ]

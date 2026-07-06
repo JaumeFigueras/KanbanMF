@@ -70,7 +70,10 @@ from src.model.checklist_item import ChecklistItem
 from src.model.user_board_star import UserBoardStar
 from src.model.ui_board_order import UIBoardOrder
 from src.model.ui_board_list_order import UIBoardListOrder
+from src.model.ui_board_color import UIBoardColor
 from src.model.ui_list_card_order import UIListCardOrder
+from src.model.ui_list_color import UIListColor
+from src.model.ui_card_color import UICardColor
 
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
@@ -110,13 +113,16 @@ def main(e: Engine):  # pragma: no cover
         UserBoardStar,
         UIBoardOrder,
         UIBoardListOrder,
+        UIBoardColor,
         Label,
         Card,
         CardMember,
         CardAssignee,
         CardLabel,
         CardDueNotification,
+        UICardColor,
         UIListCardOrder,
+        UIListColor,
         Checklist,
         ChecklistItem,
     ]

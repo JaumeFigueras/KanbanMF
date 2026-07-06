@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from src.model.card_due_notification import CardDueNotification
     from src.model.checklist import Checklist
     from src.model.label import Label
+    from src.model.ui_card_color import UICardColor
     from src.model.user import User
 
 
@@ -144,6 +145,12 @@ class Card(Base):
 
     due_notifications: Mapped[List["CardDueNotification"]] = relationship(
         "CardDueNotification",
+        back_populates="card",
+        cascade="all, delete-orphan",
+    )
+
+    user_colors: Mapped[List["UICardColor"]] = relationship(
+        "UICardColor",
         back_populates="card",
         cascade="all, delete-orphan",
     )

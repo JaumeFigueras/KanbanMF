@@ -10,7 +10,7 @@ CREATE TABLE users (
 	PRIMARY KEY (id)
 )
 WITH (OIDS = FALSE);
-CREATE INDEX ix_users_id ON users (id);
 CREATE UNIQUE INDEX ix_users_email ON users (email);
+CREATE INDEX ix_users_id ON users (id);
 ALTER TABLE public.users OWNER TO kanbanmf_user;
 GRANT SELECT on public.users to kanbanmf_remoteuser;

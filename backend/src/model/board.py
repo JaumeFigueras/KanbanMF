@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from src.model.board_list import BoardList
     from src.model.board_notification_settings import BoardNotificationSettings
     from src.model.label import Label
+    from src.model.ui_board_color import UIBoardColor
     from src.model.ui_board_list_order import UIBoardListOrder
 
 
@@ -135,6 +136,12 @@ class Board(Base):
         back_populates="board",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+
+    user_colors: Mapped[List["UIBoardColor"]] = relationship(
+        "UIBoardColor",
+        back_populates="board",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

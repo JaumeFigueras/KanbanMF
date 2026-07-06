@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.card import Card
     from src.model.ui_list_card_order import UIListCardOrder
+    from src.model.ui_list_color import UIListColor
 
 
 class BoardList(Base):
@@ -85,6 +86,12 @@ class BoardList(Base):
         back_populates="board_list",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+
+    user_colors: Mapped[List["UIListColor"]] = relationship(
+        "UIListColor",
+        back_populates="board_list",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
