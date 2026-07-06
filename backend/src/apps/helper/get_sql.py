@@ -57,10 +57,13 @@ from src.model.user_session import UserSession
 from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.board_list import BoardList
+from src.model.board_notification_settings import BoardNotificationSettings
+from src.model.board_notification_offset import BoardNotificationOffset
 from src.model.card_member import CardMember
 from src.model.card_assignee import CardAssignee
 from src.model.card_label import CardLabel
 from src.model.card import Card
+from src.model.card_due_notification import CardDueNotification
 from src.model.label import Label
 from src.model.checklist import Checklist
 from src.model.checklist_item import ChecklistItem
@@ -102,6 +105,8 @@ def main(e: Engine):  # pragma: no cover
         Board,
         BoardShare,
         BoardList,
+        BoardNotificationSettings,
+        BoardNotificationOffset,
         UserBoardStar,
         UIBoardOrder,
         UIBoardListOrder,
@@ -110,6 +115,7 @@ def main(e: Engine):  # pragma: no cover
         CardMember,
         CardAssignee,
         CardLabel,
+        CardDueNotification,
         UIListCardOrder,
         Checklist,
         ChecklistItem,

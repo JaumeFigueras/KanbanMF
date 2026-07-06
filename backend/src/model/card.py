@@ -17,6 +17,7 @@ from src.model.card_label import CardLabel
 
 if TYPE_CHECKING:
     from src.model.board_list import BoardList
+    from src.model.card_due_notification import CardDueNotification
     from src.model.checklist import Checklist
     from src.model.label import Label
     from src.model.user import User
@@ -139,6 +140,12 @@ class Card(Base):
         back_populates="card",
         cascade="all, delete-orphan",
         order_by="Checklist.position",
+    )
+
+    due_notifications: Mapped[List["CardDueNotification"]] = relationship(
+        "CardDueNotification",
+        back_populates="card",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

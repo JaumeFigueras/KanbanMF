@@ -19,6 +19,7 @@ from src.model.card_assignee import CardAssignee
 if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.card import Card
+    from src.model.card_due_notification import CardDueNotification
     from src.model.ui_board_order import UIBoardOrder
 
 
@@ -155,6 +156,12 @@ class User(Base):
         "Card",
         secondary=CardAssignee.__table__,
         back_populates="assignees",
+    )
+
+    due_notifications: Mapped[List["CardDueNotification"]] = relationship(
+        "CardDueNotification",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

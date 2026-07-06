@@ -53,6 +53,13 @@ class UserPreferences(Base):
         comment="How dates are displayed on cards: 'numeric' (27/06/2026) or 'textual' (27 June 2026)."
     )
 
+    timezone: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        server_default="UTC",
+        comment="IANA timezone name (e.g. 'Europe/Madrid'). Used to localize due-date notification hours for this user."
+    )
+
     # Timestamp
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

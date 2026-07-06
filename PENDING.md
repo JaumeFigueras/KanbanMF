@@ -6,8 +6,8 @@
 ✓ - Sort
 ✓ - D&D
 ✓ - Order
-- Archived lists
-- Archived cards
+✓ - Archived lists
+✓ - Archived cards
 
 ## Functionality
 
@@ -17,4 +17,4 @@
 ## UI
 
 - Change background colors of cards, lists, boards
-- Only owners can delete
+✓ - Only owners can delete

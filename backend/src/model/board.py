@@ -16,6 +16,7 @@ from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
     from src.model.board_list import BoardList
+    from src.model.board_notification_settings import BoardNotificationSettings
     from src.model.label import Label
     from src.model.ui_board_list_order import UIBoardListOrder
 
@@ -127,6 +128,13 @@ class Board(Base):
         "Label",
         back_populates="board",
         cascade="all, delete-orphan",
+    )
+
+    notification_settings: Mapped[Optional["BoardNotificationSettings"]] = relationship(
+        "BoardNotificationSettings",
+        back_populates="board",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     def __repr__(self) -> str:
