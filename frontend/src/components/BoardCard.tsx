@@ -29,6 +29,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { BoardRead } from '../types/board'
+import ChangeBoardColorDialog from './ChangeBoardColorDialog'
 
 interface Props {
   id: string
@@ -38,12 +39,17 @@ interface Props {
   // False for boards shared with the current user rather than owned by them —
   // those can only have their color changed, not renamed/shared/archived.
   isOwned: boolean
+  // This user's personal color choice for this board, lifted up to the page
+  // level: a starred board renders a second BoardCard instance (once in
+  // "Starred", once in "My Boards"/"Shared with me"), and both instances
+  // must reflect the same color and update together when either one changes it.
+  color: string | null
   onStarToggle: (boardId: string, starred: boolean) => void
   onChangeName: (board: BoardRead) => void
-  onChangeColor: (board: BoardRead) => void
   onShare: (board: BoardRead) => void
   onArchive: (board: BoardRead) => void
   onEmailNotification: (board: BoardRead) => void
+  onColorChanged: (boardId: string, color: string | null) => void
 }
 
 export default function BoardCard({
@@ -52,16 +58,18 @@ export default function BoardCard({
   numberLocale,
   dateFormat,
   isOwned,
+  color,
   onStarToggle,
   onChangeName,
-  onChangeColor,
   onShare,
   onArchive,
   onEmailNotification,
+  onColorChanged,
 }: Props) {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const [colorDialogOpen, setColorDialogOpen] = useState(false)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id })
@@ -86,10 +94,12 @@ export default function BoardCard({
         display: 'flex',
         flexDirection: 'column',
         opacity: isDragging ? 0.5 : 1,
-        bgcolor: (theme) =>
-          theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.14)' : 'background.paper',
-        border: (theme) =>
-          `1px solid ${theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.35)' : theme.palette.divider}`,
+        bgcolor: color
+          ? `${color}26` // ~15% alpha wash of the user's chosen color
+          : (theme) => theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.14)' : 'background.paper',
+        border: color
+          ? `1px solid ${color}`
+          : (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.35)' : theme.palette.divider}`,
         boxShadow: 'none',
       }}
     >
@@ -182,7 +192,7 @@ export default function BoardCard({
             <ListItemText>{t('boards.changeBoardName')}</ListItemText>
           </MenuItem>
         )}
-        <MenuItem onClick={() => { setMenuAnchor(null); onChangeColor(board) }}>
+        <MenuItem onClick={() => { setMenuAnchor(null); setColorDialogOpen(true) }}>
           <ListItemIcon><Palette fontSize="small" /></ListItemIcon>
           <ListItemText>{t('boards.changeBoardColor')}</ListItemText>
         </MenuItem>
@@ -203,6 +213,14 @@ export default function BoardCard({
           </MenuItem>
         )}
       </Menu>
+
+      <ChangeBoardColorDialog
+        open={colorDialogOpen}
+        onClose={() => setColorDialogOpen(false)}
+        board={board}
+        currentColor={color}
+        onSaved={(newColor) => onColorChanged(board.id, newColor)}
+      />
     </Card>
   )
 }

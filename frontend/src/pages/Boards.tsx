@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   PointerSensor,
@@ -12,10 +12,8 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Alert,
   Box,
   Button,
-  Snackbar,
   Toolbar,
   Typography,
 } from '@mui/material'
@@ -77,11 +75,17 @@ export default function Boards() {
   const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [] })
   const [order, setOrder] = useState<BoardOrderRead>(EMPTY_ORDER)
 
+  // This user's personal color per board, keyed by board id. Lifted up here
+  // (rather than fetched inside BoardCard) because a starred board renders
+  // twice — once in "Starred", once in "My Boards"/"Shared with me" — and
+  // both instances must share and update the same color.
+  const [boardColors, setBoardColors] = useState<Record<string, string | null>>({})
+  const fetchedColorIdsRef = useRef(new Set<string>())
+
   // Board UI state
   const [createBoardOpen, setCreateBoardOpen] = useState(false)
   const [changeBoardNameOpen, setChangeBoardNameOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
-  const [notImplementedOpen, setNotImplementedOpen] = useState(false)
   const [shareBoardOpen, setShareBoardOpen] = useState(false)
   const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
@@ -132,6 +136,35 @@ export default function Boards() {
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
+
+  // Fetch this user's color for each board the first time it's seen; boards
+  // already fetched are skipped so re-renders (e.g. a star toggle) don't
+  // refetch colors that are already known.
+  useEffect(() => {
+    const allIds = [...boards.owned, ...boards.shared].map(b => b.id)
+    const idsToFetch = allIds.filter(id => !fetchedColorIdsRef.current.has(id))
+    if (idsToFetch.length === 0) return
+    idsToFetch.forEach(id => fetchedColorIdsRef.current.add(id))
+
+    Promise.all(
+      idsToFetch.map(id =>
+        apiFetch(`http://localhost:8000/api/v1/boards/${id}/color`)
+          .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
+          .then(data => [id, data?.color ?? null] as const)
+          .catch(() => [id, null] as const)
+      )
+    ).then(entries => {
+      setBoardColors(prev => {
+        const next = { ...prev }
+        for (const [id, color] of entries) next[id] = color
+        return next
+      })
+    })
+  }, [boards])
+
+  function handleColorChanged(boardId: string, color: string | null) {
+    setBoardColors(prev => ({ ...prev, [boardId]: color }))
+  }
 
   // Board list changes made elsewhere (another tab, another session, or by
   // whoever a board is shared with) arrive here as bare notifications; a
@@ -193,10 +226,6 @@ export default function Boards() {
     const update = (list: BoardRead[]) =>
       list.map(b => b.id === boardId ? { ...b, name: newName } : b)
     setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared) }))
-  }
-
-  function handleChangeBoardColor(_board: BoardRead) {
-    setNotImplementedOpen(true)
   }
 
   function handleShareBoard(board: BoardRead) {
@@ -319,10 +348,10 @@ export default function Boards() {
     dateFormat,
     onStarToggle: handleStarToggle,
     onChangeName: handleChangeBoardName,
-    onChangeColor: handleChangeBoardColor,
     onShare: handleShareBoard,
     onArchive: handleArchiveBoard,
     onEmailNotification: handleEmailNotification,
+    onColorChanged: handleColorChanged,
   }
 
   return (
@@ -370,17 +399,6 @@ export default function Boards() {
         onDeleted={handleBoardDeleted}
       />
 
-      <Snackbar
-        open={notImplementedOpen}
-        autoHideDuration={3000}
-        onClose={() => setNotImplementedOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity="info" onClose={() => setNotImplementedOpen(false)}>
-          {t('boards.notImplementedYet')}
-        </Alert>
-      </Snackbar>
-
       {/* ── Main content ─────────────────────────────────────────────────── */}
 
       <Toolbar />{/* spacer for the fixed AppBar */}
@@ -405,7 +423,14 @@ export default function Boards() {
                   <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {starredBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
+                        <BoardCard
+                          key={board.id}
+                          id={board.id}
+                          board={board}
+                          isOwned={ownedBoardIds.has(board.id)}
+                          color={boardColors[board.id] ?? null}
+                          {...sharedCardProps}
+                        />
                       ))}
                     </Box>
                   </SortableContext>
@@ -428,7 +453,14 @@ export default function Boards() {
                   <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {myBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
+                        <BoardCard
+                          key={board.id}
+                          id={board.id}
+                          board={board}
+                          isOwned={ownedBoardIds.has(board.id)}
+                          color={boardColors[board.id] ?? null}
+                          {...sharedCardProps}
+                        />
                       ))}
                     </Box>
                   </SortableContext>
@@ -451,7 +483,14 @@ export default function Boards() {
                   <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {sharedBoards.map(board => (
-                        <BoardCard key={board.id} id={board.id} board={board} isOwned={ownedBoardIds.has(board.id)} {...sharedCardProps} />
+                        <BoardCard
+                          key={board.id}
+                          id={board.id}
+                          board={board}
+                          isOwned={ownedBoardIds.has(board.id)}
+                          color={boardColors[board.id] ?? null}
+                          {...sharedCardProps}
+                        />
                       ))}
                     </Box>
                   </SortableContext>
