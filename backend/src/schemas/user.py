@@ -3,6 +3,7 @@
 
 import uuid
 from datetime import datetime
+from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -22,6 +23,7 @@ class UserRead(BaseModel):
     language_locale: str = "en"
     number_locale: str = "en"
     date_format: DateFormat = DateFormat.NUMERIC
+    timezone: str = "UTC"
     initials: str | None = None
     auth_providers: list[str] = []
 
@@ -54,6 +56,14 @@ class UserPreferencesUpdate(BaseModel):
     language_locale: str | None = None
     number_locale: str | None = None
     date_format: DateFormat | None = None
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def timezone_valid(cls, v: str | None) -> str | None:
+        if v is not None and v not in available_timezones():
+            raise ValueError("timezone must be a valid IANA timezone name")
+        return v
 
     @field_validator("initials")
     @classmethod
