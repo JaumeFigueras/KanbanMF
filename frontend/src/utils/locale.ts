@@ -22,6 +22,15 @@ export function dayjsLocaleFor(numberLocale: string): string {
   return DATE_LOCALES.find((l) => l.code === numberLocale)?.dayjsLocale ?? 'en'
 }
 
+// Full IANA timezone database as known to the browser's Intl implementation.
+// Falls back to an empty list on older browsers that lack supportedValuesOf.
+export const TIMEZONES: string[] =
+  typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+
+export function getBrowserTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
 export function formatDateTime(date: Date | string, intlCode: string, dateFormat: DateFormat): string {
   const options: Intl.DateTimeFormatOptions = dateFormat === 'textual'
     ? { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }

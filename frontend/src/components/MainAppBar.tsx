@@ -28,6 +28,7 @@ import i18n from '../i18n'
 import { useAuth } from '../context/AuthContext'
 import { useThemeToggle } from '../context/ThemeToggleContext'
 import { apiFetch } from '../api/client'
+import { getBrowserTimezone } from '../utils/locale'
 import ChangeDisplayNameDialog from './ChangeDisplayNameDialog'
 import ChangePasswordDialog from './ChangePasswordDialog'
 import UploadAvatarDialog from './UploadAvatarDialog'
@@ -51,6 +52,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
   const [languageLocale, setLanguageLocale] = useState('en')
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<'numeric' | 'textual'>('numeric')
+  const [timezone, setTimezone] = useState(getBrowserTimezone())
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
 
@@ -98,6 +100,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
         setLanguageLocale(lang)
         setNumberLocale(num)
         setDateFormat(fmt)
+        setTimezone(data.timezone ?? getBrowserTimezone())
         i18n.changeLanguage(LOCALE_TO_I18N[lang] ?? 'en')
         onLocaleChangedRef.current?.(num, fmt)
       })
@@ -223,10 +226,12 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
         currentLanguageLocale={languageLocale}
         currentNumberLocale={numberLocale}
         currentDateFormat={dateFormat}
-        onSaved={(newLang, newNum, newFmt) => {
+        currentTimezone={timezone}
+        onSaved={(newLang, newNum, newFmt, newTz) => {
           setLanguageLocale(newLang)
           setNumberLocale(newNum)
           setDateFormat(newFmt)
+          setTimezone(newTz)
           i18n.changeLanguage(LOCALE_TO_I18N[newLang] ?? 'en')
           onLocaleChanged?.(newNum, newFmt)
         }}

@@ -54,6 +54,7 @@ const ca = {
     displayLanguage: "Idioma de la interfície",
     dateTimeLocale: 'Format de dates i hores',
     dateTimeExample: 'Exemple:',
+    timezone: 'Fus horari',
     dateDisplayFormat: 'Visualització de dates a les targes',
     dateFormatNumeric: 'Numèric (p.ex. 27/06/2026)',
     dateFormatTextual: 'Textual (p.ex. 27 de juny de 2026)',

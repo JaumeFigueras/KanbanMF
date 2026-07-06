@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Dialog,
@@ -12,11 +13,20 @@ import {
   MenuItem,
   Select,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '../i18n'
-import { DATE_LOCALES, type DateFormat, type DateLocaleCode, formatDateTime, intlCodeFor } from '../utils/locale'
+import {
+  DATE_LOCALES,
+  type DateFormat,
+  type DateLocaleCode,
+  TIMEZONES,
+  formatDateTime,
+  getBrowserTimezone,
+  intlCodeFor,
+} from '../utils/locale'
 import { apiFetch } from '../api/client'
 
 // Maps backend language_locale → i18n code  and back
@@ -29,7 +39,8 @@ interface Props {
   currentLanguageLocale: string  // backend code: "en" | "ca_ES"
   currentNumberLocale: string    // backend code: "en" | "en_GB" | "ca_ES"
   currentDateFormat: DateFormat
-  onSaved: (languageLocale: string, numberLocale: string, dateFormat: DateFormat) => void
+  currentTimezone: string
+  onSaved: (languageLocale: string, numberLocale: string, dateFormat: DateFormat, timezone: string) => void
 }
 
 export default function LanguageLocalizationDialog({
@@ -38,6 +49,7 @@ export default function LanguageLocalizationDialog({
   currentLanguageLocale,
   currentNumberLocale,
   currentDateFormat,
+  currentTimezone,
   onSaved,
 }: Props) {
   const { t } = useTranslation()
@@ -48,6 +60,7 @@ export default function LanguageLocalizationDialog({
     (DATE_LOCALES.find((l) => l.code === currentNumberLocale)?.code ?? 'en') as DateLocaleCode
   )
   const [dateFormat, setDateFormat] = useState<DateFormat>(currentDateFormat)
+  const [timezone, setTimezone] = useState(currentTimezone || getBrowserTimezone())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,9 +71,10 @@ export default function LanguageLocalizationDialog({
         (DATE_LOCALES.find((l) => l.code === currentNumberLocale)?.code ?? 'en') as DateLocaleCode
       )
       setDateFormat(currentDateFormat)
+      setTimezone(currentTimezone || getBrowserTimezone())
       setError(null)
     }
-  }, [open, currentLanguageLocale, currentNumberLocale, currentDateFormat])
+  }, [open, currentLanguageLocale, currentNumberLocale, currentDateFormat, currentTimezone])
 
   async function handleSave() {
     setSaving(true)
@@ -74,10 +88,11 @@ export default function LanguageLocalizationDialog({
           language_locale: backendLanguageLocale,
           number_locale: numberLocale,
           date_format: dateFormat,
+          timezone,
         }),
       })
       if (!r.ok) throw new Error()
-      onSaved(backendLanguageLocale, numberLocale, dateFormat)
+      onSaved(backendLanguageLocale, numberLocale, dateFormat, timezone)
       onClose()
     } catch {
       setError(t('common.saveError'))
@@ -134,6 +149,17 @@ export default function LanguageLocalizationDialog({
               <MenuItem value="textual">{t('boards.dateFormatTextual')}</MenuItem>
             </Select>
           </FormControl>
+
+          <Autocomplete
+            options={TIMEZONES}
+            value={timezone}
+            onChange={(_, value) => setTimezone(value ?? getBrowserTimezone())}
+            disableClearable
+            size="small"
+            renderInput={(params) => (
+              <TextField {...params} label={t('boards.timezone')} />
+            )}
+          />
 
           <Box sx={{ bgcolor: 'action.hover', borderRadius: 1, px: 2, py: 1.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>

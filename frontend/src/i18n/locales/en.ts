@@ -54,6 +54,7 @@ const en = {
     displayLanguage: 'Display language',
     dateTimeLocale: 'Dates & times format',
     dateTimeExample: 'Example:',
+    timezone: 'Timezone',
     dateDisplayFormat: 'Date display on cards',
     dateFormatNumeric: 'Numeric (e.g. 27/06/2026)',
     dateFormatTextual: 'Textual (e.g. 27 June 2026)',
