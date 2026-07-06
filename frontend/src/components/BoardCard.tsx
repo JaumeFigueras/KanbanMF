@@ -192,12 +192,10 @@ export default function BoardCard({
             <ListItemText>{t('boards.shareBoard')}</ListItemText>
           </MenuItem>
         )}
-        {isOwned && (
-          <MenuItem onClick={() => { setMenuAnchor(null); onEmailNotification(board) }}>
-            <ListItemIcon><Email fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('boards.emailNotification')}</ListItemText>
-          </MenuItem>
-        )}
+        <MenuItem onClick={() => { setMenuAnchor(null); onEmailNotification(board) }}>
+          <ListItemIcon><Email fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('boards.emailNotification')}</ListItemText>
+        </MenuItem>
         {isOwned && (
           <MenuItem onClick={() => { setMenuAnchor(null); onArchive(board) }}>
             <ListItemIcon><Archive fontSize="small" /></ListItemIcon>

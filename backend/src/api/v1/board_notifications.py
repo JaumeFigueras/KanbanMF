@@ -38,16 +38,6 @@ async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSessio
     return board
 
 
-async def _require_owner(board_id: uuid.UUID, user: User, db: AsyncSession) -> Board:
-    board = await _get_accessible_board(board_id, user, db)
-    if board.owner_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the board owner can manage e-mail notifications",
-        )
-    return board
-
-
 async def _read_settings(board_id: uuid.UUID, db: AsyncSession) -> BoardNotificationSettingsRead:
     """Return the board's settings, or sensible defaults if none have been saved yet."""
     result = await db.execute(
@@ -84,8 +74,12 @@ async def get_board_notification_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardNotificationSettingsRead:
-    """Return the board's due-date e-mail notification settings. Owner only."""
-    await _require_owner(board_id, current_user, db)
+    """Return the board's due-date e-mail notification settings.
+
+    Accessible to the owner and any shared member — a shared user can be an
+    assignee too, so they may reasonably want to see or tune these settings.
+    """
+    await _get_accessible_board(board_id, current_user, db)
     return await _read_settings(board_id, db)
 
 
@@ -96,13 +90,14 @@ async def update_board_notification_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardNotificationSettingsRead:
-    """Replace the board's due-date e-mail notification settings. Owner only.
+    """Replace the board's due-date e-mail notification settings.
 
-    The client always sends the full settings object (see EmailNotificationDialog),
-    so this is a full replace rather than a partial patch: the offset-days list is
-    dropped and re-inserted rather than diffed.
+    Accessible to the owner and any shared member, for the same reason as the
+    GET above. The client always sends the full settings object (see
+    EmailNotificationDialog), so this is a full replace rather than a partial
+    patch: the offset-days list is dropped and re-inserted rather than diffed.
     """
-    await _require_owner(board_id, current_user, db)
+    await _get_accessible_board(board_id, current_user, db)
 
     await db.execute(
         pg_insert(BoardNotificationSettings)

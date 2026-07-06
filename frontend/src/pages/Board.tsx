@@ -565,14 +565,12 @@ export default function Board() {
         ))}
       </Menu>
 
-      {isOwner && (
-        <Menu anchorEl={boardMenuAnchor} open={Boolean(boardMenuAnchor)} onClose={closeBoardMenu}>
-          <MenuItem onClick={() => { closeBoardMenu(); setEmailNotificationOpen(true) }}>
-            <ListItemIcon><Email fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('boards.emailNotification')}</ListItemText>
-          </MenuItem>
-        </Menu>
-      )}
+      <Menu anchorEl={boardMenuAnchor} open={Boolean(boardMenuAnchor)} onClose={closeBoardMenu}>
+        <MenuItem onClick={() => { closeBoardMenu(); setEmailNotificationOpen(true) }}>
+          <ListItemIcon><Email fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('boards.emailNotification')}</ListItemText>
+        </MenuItem>
+      </Menu>
 
       <EmailNotificationDialog
         open={emailNotificationOpen}

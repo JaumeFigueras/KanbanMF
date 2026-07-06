@@ -26,3 +26,4 @@ fastapi-mail>=1.6.5
 python-dotenv>=1.2.2
 uvicorn[standard]>=0.34.0
 python-multipart>=0.0.20
+apscheduler>=3.11.0
