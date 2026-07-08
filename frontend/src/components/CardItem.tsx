@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Card,
   IconButton,
@@ -14,6 +14,9 @@ import type { DateFormat } from '../utils/locale'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardFace from './CardFace'
+import ChangeCardColorDialog from './ChangeCardColorDialog'
+import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
+import { STRONG_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 
 interface Props {
   card: CardRead
@@ -42,6 +45,15 @@ export default function CardItem({
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [colorDialogOpen, setColorDialogOpen] = useState(false)
+  const [cardColor, setCardColor] = useState<string | null>(null)
+
+  useEffect(() => {
+    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}/color`)
+      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
+      .then(data => setCardColor(data?.color ?? null))
+      .catch(() => {})
+  }, [boardId, listId, card.id])
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dragOverlay ? `overlay-${card.id}` : card.id,
@@ -63,6 +75,11 @@ export default function CardItem({
   function handleEdit() {
     closeMenu()
     setEditOpen(true)
+  }
+
+  function handleChangeColor() {
+    closeMenu()
+    setColorDialogOpen(true)
   }
 
   async function handleArchive() {
@@ -89,7 +106,14 @@ export default function CardItem({
         style={dragStyle}
         variant="outlined"
         onClick={dragOverlay ? undefined : () => setEditOpen(true)}
-        sx={{ mb: 1, cursor: dragOverlay ? 'grabbing' : 'pointer', opacity: isDragging ? 0.5 : 1 }}
+        sx={{
+          mb: 1,
+          cursor: dragOverlay ? 'grabbing' : 'pointer',
+          opacity: isDragging ? 0.5 : 1,
+          // Opaque (not alpha) so this doesn't blend with the list's own
+          // tinted background sitting behind it — see utils/colorTint.
+          bgcolor: (theme) => tintColor(cardColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+        }}
       >
         <CardFace
           card={card}
@@ -121,6 +145,7 @@ export default function CardItem({
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         <MenuItem onClick={handleEdit}>{t('board.editCard')}</MenuItem>
+        <MenuItem onClick={handleChangeColor}>{t('board.changeCardColor')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveCard')}</MenuItem>
       </Menu>
 
@@ -132,6 +157,16 @@ export default function CardItem({
         numberLocale={numberLocale}
         card={card}
         onUpdated={onUpdated}
+      />
+
+      <ChangeCardColorDialog
+        open={colorDialogOpen}
+        onClose={() => setColorDialogOpen(false)}
+        boardId={boardId}
+        listId={listId}
+        cardId={card.id}
+        currentColor={cardColor}
+        onSaved={setCardColor}
       />
     </>
   )

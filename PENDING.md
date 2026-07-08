@@ -13,6 +13,8 @@
 
 ✓ - Share + Web socket per fer un update
 ✓ - e-mail feines pendents
+- Google sign in / sign up
+- Captcha
 
 ## UI
 

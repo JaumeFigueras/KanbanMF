@@ -23,7 +23,7 @@ interface Props {
 
 // Fallback swatch value when the user hasn't picked a color yet — matches
 // the app's default purple accent used elsewhere for owned boards.
-const DEFAULT_COLOR = '#9C27B0'
+export const DEFAULT_COLOR = '#9C27B0'
 
 export default function ChangeBoardColorDialog({ open, onClose, board, currentColor, onSaved }: Props) {
   const { t } = useTranslation()

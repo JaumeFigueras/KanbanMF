@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Box,
   IconButton,
@@ -20,6 +20,9 @@ import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
 import RenameListDialog from './RenameListDialog'
+import ChangeListColorDialog from './ChangeListColorDialog'
+import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
+import { STRONG_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 
 interface Props {
   list: BoardListRead
@@ -52,6 +55,15 @@ export default function BoardListColumn({
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [cardDialogOpen, setCardDialogOpen] = useState(false)
+  const [colorDialogOpen, setColorDialogOpen] = useState(false)
+  const [listColor, setListColor] = useState<string | null>(null)
+
+  useEffect(() => {
+    apiFetch(`http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/color`)
+      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
+      .then(data => setListColor(data?.color ?? null))
+      .catch(() => {})
+  }, [list.board_id, list.id])
 
   const sortedCards = useMemo(
     () => sortCards(cards, sortMode, customOrderIds),
@@ -95,6 +107,11 @@ export default function BoardListColumn({
     setRenameOpen(true)
   }
 
+  function handleChangeColor() {
+    closeMenu()
+    setColorDialogOpen(true)
+  }
+
   async function handleArchive() {
     closeMenu()
     try {
@@ -129,15 +146,18 @@ export default function BoardListColumn({
           opacity: isDragging ? 0.5 : 1,
         }}
       >
-        {/* Header */}
+        {/* Header — tinted with the viewer's chosen list color, falling
+            back to the app default when they haven't picked one. Opaque
+            (not alpha) so it doesn't blend with the board page's own
+            tinted background sitting behind the Paper — see utils/colorTint. */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
             px: 1,
             py: 0.5,
-            borderBottom: 1,
-            borderColor: 'divider',
+            bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+            borderBottom: `1px solid ${listColor ?? DEFAULT_COLOR}`,
           }}
         >
           <Typography
@@ -165,8 +185,19 @@ export default function BoardListColumn({
           </IconButton>
         </Box>
 
-        {/* Card area (scrolls vertically) */}
-        <Box ref={setDropZoneRef} sx={{ overflowY: 'auto', flex: 1, p: 1, minHeight: 80 }}>
+        {/* Card area (scrolls vertically) — same flat tint as the header,
+            applied directly here rather than on the Paper, so the two
+            don't stack into a darker double coat. */}
+        <Box
+          ref={setDropZoneRef}
+          sx={{
+            overflowY: 'auto',
+            flex: 1,
+            p: 1,
+            minHeight: 80,
+            bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+          }}
+        >
           <SortableContext items={sortedCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
             {sortedCards.map(card => (
               <CardItem
@@ -186,6 +217,7 @@ export default function BoardListColumn({
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         <MenuItem onClick={handleRename}>{t('board.renameList')}</MenuItem>
+        <MenuItem onClick={handleChangeColor}>{t('board.changeListColor')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveList')}</MenuItem>
       </Menu>
 
@@ -194,6 +226,14 @@ export default function BoardListColumn({
         onClose={() => setRenameOpen(false)}
         list={list}
         onSaved={onRenamed}
+      />
+
+      <ChangeListColorDialog
+        open={colorDialogOpen}
+        onClose={() => setColorDialogOpen(false)}
+        list={list}
+        currentColor={listColor}
+        onSaved={setListColor}
       />
 
       <CardDialog

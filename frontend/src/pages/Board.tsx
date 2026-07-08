@@ -35,6 +35,8 @@ import EmailNotificationDialog from '../components/EmailNotificationDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import CardItem from '../components/CardItem'
 import ArchivedListsView from '../components/ArchivedListsView'
+import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
+import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 import type { BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
@@ -69,6 +71,7 @@ export default function Board() {
   const navigate = useNavigate()
   const { boardId } = useParams<{ boardId: string }>()
   const [board, setBoard] = useState<BoardRead | null>(null)
+  const [boardColor, setBoardColor] = useState<string | null>(null)
   const [lists, setLists] = useState<BoardListRead[]>([])
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
@@ -110,6 +113,14 @@ export default function Board() {
         return r.ok ? r.json() : null
       })
       .then(data => { if (data) setBoard(data) })
+      .catch(() => {})
+  }, [boardId])
+
+  useEffect(() => {
+    if (!boardId) return
+    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/color`)
+      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
+      .then(data => setBoardColor(data?.color ?? null))
       .catch(() => {})
   }, [boardId])
 
@@ -492,12 +503,18 @@ export default function Board() {
         }}
       />
 
-      {/* Secondary board toolbar — sits below the main AppBar */}
+      {/* Secondary board toolbar — sits below the main AppBar. Tinted with
+          the viewer's chosen board color, falling back to the app default
+          when they haven't picked one. */}
       <AppBar
         position="fixed"
         color="default"
         elevation={1}
-        sx={{ top: { xs: '56px', sm: '64px' } }}
+        sx={{
+          top: { xs: '56px', sm: '64px' },
+          bgcolor: `${boardColor ?? DEFAULT_COLOR}26`,
+          borderBottom: `1px solid ${boardColor ?? DEFAULT_COLOR}`,
+        }}
       >
         <Toolbar>
           <Typography variant="h6" sx={{ fontWeight: 700, mr: 2 }} noWrap>
@@ -601,6 +618,10 @@ export default function Board() {
               px: 2,
               py: 2,
               alignItems: 'flex-start',
+              // Opaque so lists sitting on top of it (each with their own
+              // opaque tint) never blend with the page's own color — see
+              // utils/colorTint.
+              bgcolor: (theme) => tintColor(boardColor ?? DEFAULT_COLOR, theme.palette.background.default, LIGHT_TINT_WEIGHT),
             }}
           >
             {sortedLists.map(list => (
