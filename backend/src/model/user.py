@@ -18,6 +18,7 @@ from src.model.card_assignee import CardAssignee
 
 if TYPE_CHECKING:
     from src.model.board import Board
+    from src.model.board_notification_settings import BoardNotificationSettings
     from src.model.card import Card
     from src.model.card_due_notification import CardDueNotification
     from src.model.ui_board_color import UIBoardColor
@@ -181,6 +182,12 @@ class User(Base):
 
     card_colors: Mapped[List["UICardColor"]] = relationship(
         "UICardColor",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    board_notification_settings: Mapped[List["BoardNotificationSettings"]] = relationship(
+        "BoardNotificationSettings",
         back_populates="user",
         cascade="all, delete-orphan",
     )

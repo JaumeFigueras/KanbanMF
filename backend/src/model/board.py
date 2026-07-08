@@ -131,11 +131,11 @@ class Board(Base):
         cascade="all, delete-orphan",
     )
 
-    notification_settings: Mapped[Optional["BoardNotificationSettings"]] = relationship(
+    # One row per user with access to this board — see BoardNotificationSettings.
+    notification_settings: Mapped[List["BoardNotificationSettings"]] = relationship(
         "BoardNotificationSettings",
         back_populates="board",
         cascade="all, delete-orphan",
-        uselist=False,
     )
 
     user_colors: Mapped[List["UIBoardColor"]] = relationship(

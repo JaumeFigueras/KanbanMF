@@ -15,15 +15,19 @@ from src.model.base import Base
 if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.board_notification_offset import BoardNotificationOffset
+    from src.model.user import User
 
 
 class BoardNotificationSettings(Base):
-    """Per-board configuration for due-date email notifications.
+    """Per-user, per-board configuration for due-date email notifications.
 
-    One row per board. notify_hour is interpreted in each recipient's own
-    timezone (UserPreferences.timezone), not the board's, so a single board
-    setting fans out to per-user local send times. Which days trigger a
-    notification is stored separately in BoardNotificationOffset.
+    One row per (board, user): every person with access to a board — owner
+    or shared member — controls their own due-date reminders independently.
+    A user enabling notifications on a board only ever affects themselves;
+    it can never cause another user (e.g. an assignee who hasn't opted in)
+    to be emailed. notify_hour is interpreted in this user's own timezone
+    (UserPreferences.timezone). Which days trigger a notification is stored
+    separately in BoardNotificationOffset.
     """
 
     __tablename__ = "board_notification_settings"
@@ -36,7 +40,14 @@ class BoardNotificationSettings(Base):
         UUID(as_uuid=True),
         ForeignKey("boards.id", ondelete="CASCADE"),
         primary_key=True,
-        comment="One-to-one with Board. Deleting the board also deletes its notification settings.",
+        comment="Deleting the board also deletes every user's notification settings for it.",
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        comment="Deleting the user also deletes their notification settings.",
     )
 
     is_enabled: Mapped[bool] = mapped_column(
@@ -51,7 +62,7 @@ class BoardNotificationSettings(Base):
         nullable=False,
         default=9,
         server_default="9",
-        comment="Hour of day (0-23) at which notifications are sent, in each recipient's own timezone.",
+        comment="Hour of day (0-23) at which notifications are sent, in this user's own timezone.",
     )
 
     overdue_repeat_after_days: Mapped[Optional[int]] = mapped_column(
@@ -79,6 +90,11 @@ class BoardNotificationSettings(Base):
         back_populates="notification_settings",
     )
 
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="board_notification_settings",
+    )
+
     offsets: Mapped[List["BoardNotificationOffset"]] = relationship(
         "BoardNotificationOffset",
         back_populates="settings",
@@ -86,4 +102,4 @@ class BoardNotificationSettings(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<BoardNotificationSettings board_id={self.board_id} is_enabled={self.is_enabled}>"
+        return f"<BoardNotificationSettings board_id={self.board_id} user_id={self.user_id} is_enabled={self.is_enabled}>"

@@ -38,10 +38,13 @@ async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSessio
     return board
 
 
-async def _read_settings(board_id: uuid.UUID, db: AsyncSession) -> BoardNotificationSettingsRead:
-    """Return the board's settings, or sensible defaults if none have been saved yet."""
+async def _read_settings(board_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> BoardNotificationSettingsRead:
+    """Return the calling user's own settings for this board, or sensible defaults if they haven't saved any yet."""
     result = await db.execute(
-        select(BoardNotificationSettings).where(BoardNotificationSettings.board_id == board_id)
+        select(BoardNotificationSettings).where(
+            BoardNotificationSettings.board_id == board_id,
+            BoardNotificationSettings.user_id == user_id,
+        )
     )
     settings = result.scalar_one_or_none()
     if settings is None:
@@ -55,7 +58,10 @@ async def _read_settings(board_id: uuid.UUID, db: AsyncSession) -> BoardNotifica
 
     offsets_result = await db.execute(
         select(BoardNotificationOffset.offset_days)
-        .where(BoardNotificationOffset.board_id == board_id)
+        .where(
+            BoardNotificationOffset.board_id == board_id,
+            BoardNotificationOffset.user_id == user_id,
+        )
         .order_by(BoardNotificationOffset.offset_days)
     )
 
@@ -74,13 +80,13 @@ async def get_board_notification_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardNotificationSettingsRead:
-    """Return the board's due-date e-mail notification settings.
+    """Return the calling user's own due-date e-mail notification settings for this board.
 
-    Accessible to the owner and any shared member — a shared user can be an
-    assignee too, so they may reasonably want to see or tune these settings.
+    Accessible to the owner and any shared member — each reads/writes only
+    their own row, never another user's.
     """
     await _get_accessible_board(board_id, current_user, db)
-    return await _read_settings(board_id, db)
+    return await _read_settings(board_id, current_user.id, db)
 
 
 @router.put("", response_model=BoardNotificationSettingsRead)
@@ -90,10 +96,13 @@ async def update_board_notification_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardNotificationSettingsRead:
-    """Replace the board's due-date e-mail notification settings.
+    """Replace the calling user's own due-date e-mail notification settings for this board.
 
     Accessible to the owner and any shared member, for the same reason as the
-    GET above. The client always sends the full settings object (see
+    GET above — but this only ever writes the caller's own (board_id, user_id)
+    row, so enabling notifications can never opt another user (e.g. an
+    assignee who hasn't enabled them for themselves) into receiving e-mails.
+    The client always sends the full settings object (see
     EmailNotificationDialog), so this is a full replace rather than a partial
     patch: the offset-days list is dropped and re-inserted rather than diffed.
     """
@@ -103,12 +112,13 @@ async def update_board_notification_settings(
         pg_insert(BoardNotificationSettings)
         .values(
             board_id=board_id,
+            user_id=current_user.id,
             is_enabled=body.is_enabled,
             notify_hour=body.notify_hour,
             overdue_repeat_after_days=body.overdue_repeat_after_days,
         )
         .on_conflict_do_update(
-            index_elements=["board_id"],
+            index_elements=["board_id", "user_id"],
             set_={
                 "is_enabled": body.is_enabled,
                 "notify_hour": body.notify_hour,
@@ -118,12 +128,20 @@ async def update_board_notification_settings(
         )
     )
 
-    await db.execute(delete(BoardNotificationOffset).where(BoardNotificationOffset.board_id == board_id))
+    await db.execute(
+        delete(BoardNotificationOffset).where(
+            BoardNotificationOffset.board_id == board_id,
+            BoardNotificationOffset.user_id == current_user.id,
+        )
+    )
     if body.offset_days:
         db.add_all(
-            [BoardNotificationOffset(board_id=board_id, offset_days=d) for d in body.offset_days]
+            [
+                BoardNotificationOffset(board_id=board_id, user_id=current_user.id, offset_days=d)
+                for d in body.offset_days
+            ]
         )
 
     await db.commit()
 
-    return await _read_settings(board_id, db)
+    return await _read_settings(board_id, current_user.id, db)

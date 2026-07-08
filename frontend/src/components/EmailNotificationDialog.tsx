@@ -142,6 +142,10 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {t('boards.emailNotificationHint')}
+        </Typography>
+
         <FormControlLabel
           control={
             <Checkbox
