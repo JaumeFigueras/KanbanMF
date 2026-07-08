@@ -13,10 +13,10 @@
 
 ✓ - Share + Web socket per fer un update
 ✓ - e-mail feines pendents
-- Google sign in / sign up
+✓ - Google sign in / sign up
 - Captcha
 
 ## UI
 
-- Change background colors of cards, lists, boards
+✓ - Change background colors of cards, lists, boards
 ✓ - Only owners can delete

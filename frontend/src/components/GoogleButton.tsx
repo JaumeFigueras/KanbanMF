@@ -28,8 +28,12 @@ export default function GoogleButton() {
   const { t } = useTranslation()
 
   const handleClick = () => {
-    // TODO: trigger Google OAuth flow
-    console.log('Google OAuth')
+    // Full page navigation, not a fetch — the backend redirects the browser
+    // through Google's consent screen and back to its own callback, which
+    // sets the refresh cookie and redirects here. AuthProvider's own
+    // startup check then silently refreshes into a session, same as it
+    // would after any page reload.
+    window.location.href = 'http://localhost:8000/api/v1/auth/google/'
   }
 
   return (

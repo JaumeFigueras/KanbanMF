@@ -5,18 +5,19 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
 from src.core.config import settings
-from src.core.security import create_access_token, generate_refresh_token, hash_password
+from src.core.security import generate_refresh_token, hash_password
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
+from src.model.user_preferences import UserPreferences
 from src.model.user_session import REFRESH_TOKEN_EXPIRE_DAYS, UserSession
-from src.schemas.auth import TokenResponse
 
 router = APIRouter()
 
@@ -38,21 +39,23 @@ async def google_login() -> RedirectResponse:
     return RedirectResponse(url=f"{settings.google_auth_url}?{urlencode(params)}")
 
 
-@router.get("/callback", response_model=TokenResponse)
+@router.get("/callback")
 async def google_callback(
     code: str,
-    response: Response,
     db: AsyncSession = Depends(get_db),
-) -> TokenResponse:
+) -> RedirectResponse:
     """Handle Google's OAuth callback.
 
     Steps:
     1. Exchange the authorization code for tokens.
     2. Fetch the user's Google profile (email, name, sub).
     3. Look up or create the User row (matched on email).
-    4. Look up or create a UserIdentity(google) with the provider tokens.
+    4. Look up or create a UserIdentity(google) with the provider tokens,
+       and ensure a UserPreferences row exists (backfilled if missing).
     5. Create a UserSession (refresh token rotation).
-    6. Return JWT access token + set refresh cookie, then redirect to frontend.
+    6. Set the refresh cookie and redirect to the frontend — the SPA's own
+       startup check (apiFetch a protected endpoint, refresh via the cookie
+       on 401) picks up the new session from there, same as a page reload.
     """
     # --- 1. Exchange code for tokens ---
     async with httpx.AsyncClient() as client:
@@ -120,6 +123,17 @@ async def google_callback(
         if google_refresh_token:
             identity.refresh_token = google_refresh_token
 
+    # --- 4b. Ensure UserPreferences exists — local registration always
+    # creates one, but a Google signup previously didn't, which left the
+    # user unable to save preferences (404 "Preferences not found").
+    # on_conflict_do_nothing also backfills the row for any account created
+    # before this fix, the next time they log in via Google.
+    await db.execute(
+        pg_insert(UserPreferences)
+        .values(user_id=user.id, language_locale="en", number_locale="en")
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+
     # --- 5. Create session ---
     plain_refresh = generate_refresh_token()
     session = UserSession(
@@ -130,8 +144,11 @@ async def google_callback(
     db.add(session)
     await db.commit()
 
-    # --- 6. Return tokens ---
-    response.set_cookie(
+    # --- 6. Set cookie on the redirect itself — a returned Response
+    # instance is passed through as-is, so cookies set on the injected
+    # `response` dependency wouldn't make it into the final reply.
+    redirect = RedirectResponse(url=settings.frontend_url)
+    redirect.set_cookie(
         key=_REFRESH_COOKIE,
         value=plain_refresh,
         httponly=True,
@@ -139,4 +156,4 @@ async def google_callback(
         samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
     )
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+    return redirect

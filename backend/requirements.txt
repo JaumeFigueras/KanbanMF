@@ -10,7 +10,11 @@ pytest-postgresql>=8.1.0
 requests-mock>=1.12.1
 
 # Project dependencies
-psycopg2-binary>=2.9.12
+# DATABASE_URL uses the postgresql+psycopg:// dialect (psycopg 3, supports
+# both the app's async engine and Alembic's sync one) — previously only
+# pulled in transitively via pytest-postgresql, so a production install
+# without dev/test deps would have been missing it entirely.
+psycopg[binary]>=3.2
 websockets>=16.0
 sqlalchemy>=2.0.51
 fastapi>=0.138.1
