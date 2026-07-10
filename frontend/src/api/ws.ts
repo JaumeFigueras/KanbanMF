@@ -1,7 +1,15 @@
 import { getClientId } from './client'
 
-const WS_BASE = 'ws://localhost:8000'
 const RECONNECT_DELAY_MS = 3000
+
+// Same-origin, like API_BASE in client.ts — derived from window.location
+// rather than a relative WebSocket URL string, since resolving a scheme-less
+// URL against an http(s) page yields an http(s) URL, which the WebSocket
+// constructor rejects (it requires ws/wss).
+function wsUrl(path: string): string {
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${window.location.host}${path}`
+}
 
 export type BoardNotificationType =
   | 'board_shared'
@@ -48,7 +56,7 @@ function clearReconnectTimer() {
 }
 
 function openSocket(token: string) {
-  socket = new WebSocket(`${WS_BASE}/api/v1/ws?token=${encodeURIComponent(token)}`)
+  socket = new WebSocket(wsUrl(`/api/v1/ws?token=${encodeURIComponent(token)}`))
 
   socket.onmessage = (event) => {
     try {

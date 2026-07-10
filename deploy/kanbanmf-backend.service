@@ -1,0 +1,40 @@
+# KanbanMF backend — systemd unit (replaces a cron @reboot job: it gets
+# restart-on-crash and journald logging for free, which cron doesn't).
+#
+# Binds to 127.0.0.1 only — never 0.0.0.0 — so the API is reachable solely
+# through the Apache reverse proxy on :443, never directly from the
+# internet. Deliberately a single process, no --workers N: the due-date
+# notification scheduler (src/core/scheduler.py) and the WebSocket
+# connection registry (src/core/ws_manager.py) both assume there's exactly
+# one process, since scheduler jobs would otherwise run once per worker and
+# a client's socket could land on a worker that never sees a given user's
+# notification.
+#
+# Install:
+#   cp deploy/kanbanmf-backend.service /etc/systemd/system/
+#   # edit User/Group/WorkingDirectory/paths below to match your layout
+#   systemctl daemon-reload
+#   systemctl enable --now kanbanmf-backend
+
+[Unit]
+Description=KanbanMF backend (FastAPI/uvicorn)
+After=network.target postgresql@15-kanbanmf.service
+Wants=postgresql@15-kanbanmf.service
+
+[Service]
+Type=simple
+User=kanbanmf
+Group=kanbanmf
+WorkingDirectory=/home/kanbanmf/KanbanMF/backend
+ExecStart=/home/kanbanmf/KanbanMF/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+# Hardening — drop what the service doesn't need.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
