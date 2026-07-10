@@ -62,6 +62,7 @@ the domain you're putting in the Apache vhost, update these in `backend/.env`:
 | `SECRET_KEY`             | A real secret: `openssl rand -hex 32` (never reuse the dev one)     |
 | `GOOGLE_REDIRECT_URI`    | `https://kanban.example.com/api/v1/auth/google/callback` — must also be added to the authorized redirect URIs for this OAuth client in Google Cloud Console |
 | `DATABASE_URL`           | Same PostgreSQL cluster/DB created above, but with production credentials |
+| `EMAIL_SENDER`           | Worth setting explicitly, e.g. `Kanban Reminder system <kanban@example.com>` — if the SMTP account you authenticate as (`SMTP_USERNAME`) isn't the address you want recipients to see, leaving `EMAIL_SENDER` blank and falling back to `SMTP_FROM_EMAIL` risks SPF/DKIM misalignment and spam classification |
 
 The frontend itself needs no `.env` of its own: it talks to the API through relative URLs
 (`/api/v1/...`), so it always calls back to whatever origin served the page — see

@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_from_name: str = ""
+    # Overrides both smtp_from_name/smtp_from_email as the outgoing "From"
+    # header, e.g. "Kanban Reminder system <kanban@example.com>" — useful
+    # when the SMTP account you authenticate as isn't the address you want
+    # recipients to see (a mismatch there is a common cause of messages
+    # getting flagged as spam). Leave blank to keep using
+    # smtp_from_name/smtp_from_email as-is — see src/core/email.py.
+    email_sender: str = ""
 
 
 settings = Settings()

@@ -2,18 +2,40 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+from email.utils import parseaddr
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 
 from src.core.config import settings
 
+
+def _resolve_sender() -> tuple[str, str]:
+    """Returns (from_name, from_email) for the outgoing "From" header.
+
+    EMAIL_SENDER, formatted as "Display Name <address@example.com>",
+    overrides smtp_from_name/smtp_from_email entirely when set — falls back
+    to those (unchanged prior behavior) when it's blank or doesn't contain a
+    parseable address.
+    """
+    if settings.email_sender.strip():
+        name, addr = parseaddr(settings.email_sender)
+        # "@" check because parseaddr("not an email") happily returns
+        # ("", "not") — truthy but not a real address, which would otherwise
+        # crash ConnectionConfig's EmailStr validation at startup.
+        if addr and "@" in addr:
+            return name, addr
+    return settings.smtp_from_name, settings.smtp_from_email
+
+
+_FROM_NAME, _FROM_EMAIL = _resolve_sender()
+
 _conf = ConnectionConfig(
     MAIL_USERNAME=settings.smtp_username,
     MAIL_PASSWORD=settings.smtp_password,
-    MAIL_FROM=settings.smtp_from_email,
+    MAIL_FROM=_FROM_EMAIL,
     MAIL_PORT=settings.smtp_port,
     MAIL_SERVER=settings.smtp_host,
-    MAIL_FROM_NAME=settings.smtp_from_name,
+    MAIL_FROM_NAME=_FROM_NAME,
     MAIL_STARTTLS=False,
     MAIL_SSL_TLS=True,
     USE_CREDENTIALS=True,
