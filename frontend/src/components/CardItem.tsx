@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  Box,
   Card,
   IconButton,
   Menu,
@@ -108,39 +109,56 @@ export default function CardItem({
         onClick={dragOverlay ? undefined : () => setEditOpen(true)}
         sx={{
           mb: 1,
+          position: 'relative',
           cursor: dragOverlay ? 'grabbing' : 'pointer',
-          opacity: isDragging ? 0.5 : 1,
           // Opaque (not alpha) so this doesn't blend with the list's own
           // tinted background sitting behind it — see utils/colorTint.
           bgcolor: (theme) => tintColor(cardColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
         }}
       >
-        <CardFace
-          card={card}
-          numberLocale={numberLocale}
-          dateFormat={dateFormat}
-          headerActions={
-            <>
-              <IconButton
-                size="small"
-                aria-label={t('board.moveCard')}
-                sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
-                onClick={(e) => e.stopPropagation()}
-                {...attributes}
-                {...listeners}
-              >
-                <OpenWith sx={{ fontSize: 22 }} />
-              </IconButton>
-              <IconButton
-                size="small"
-                onClick={(e) => { e.stopPropagation(); openMenu(e) }}
-                aria-label={t('board.cardMenu')}
-              >
-                <HamburgerIcon sx={{ fontSize: 22 }} />
-              </IconButton>
-            </>
-          }
-        />
+        {/* Content stays laid out (visibility, not display) so the card keeps
+            its own footprint — that footprint is exactly the drop slot the
+            dashed overlay below highlights. */}
+        <Box sx={{ visibility: isDragging ? 'hidden' : 'visible' }}>
+          <CardFace
+            card={card}
+            numberLocale={numberLocale}
+            dateFormat={dateFormat}
+            headerActions={
+              <>
+                <IconButton
+                  size="small"
+                  aria-label={t('board.moveCard')}
+                  sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+                  onClick={(e) => e.stopPropagation()}
+                  {...attributes}
+                  {...listeners}
+                >
+                  <OpenWith sx={{ fontSize: 22 }} />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); openMenu(e) }}
+                  aria-label={t('board.cardMenu')}
+                >
+                  <HamburgerIcon sx={{ fontSize: 22 }} />
+                </IconButton>
+              </>
+            }
+          />
+        </Box>
+        {isDragging && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              border: '2px dashed',
+              borderColor: 'primary.main',
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+            }}
+          />
+        )}
       </Card>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>

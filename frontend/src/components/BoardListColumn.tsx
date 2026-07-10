@@ -36,6 +36,10 @@ interface Props {
   onCardCreated: (listId: string, card: CardRead) => void
   onCardArchived: (listId: string, cardId: string) => void
   onCardUpdated: (listId: string, card: CardRead) => void
+  // True only for the floating clone rendered inside <DragOverlay> — it must
+  // not register its own drag (that would collide with the real column's) or
+  // respond to clicks. Mirrors CardItem's own dragOverlay prop.
+  dragOverlay?: boolean
 }
 
 export default function BoardListColumn({
@@ -50,6 +54,7 @@ export default function BoardListColumn({
   onCardCreated,
   onCardArchived,
   onCardUpdated,
+  dragOverlay = false,
 }: Props) {
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
@@ -82,17 +87,22 @@ export default function BoardListColumn({
     onCardUpdated(list.id, card)
   }
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: list.id, data: { type: 'list' } })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dragOverlay ? `overlay-${list.id}` : list.id,
+    data: { type: 'list' },
+    disabled: dragOverlay,
+  })
 
   // Lets an empty list (or the space below its last card) still accept a
-  // card dropped in from another list.
-  const { setNodeRef: setDropZoneRef } = useDroppable({ id: `list-dropzone:${list.id}` })
+  // card dropped in from another list. Given a distinct id in overlay mode
+  // so it doesn't collide with the real column's own dropzone registration.
+  const { setNodeRef: setDropZoneRef } = useDroppable({
+    id: dragOverlay ? `overlay-list-dropzone:${list.id}` : `list-dropzone:${list.id}`,
+  })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
+  const style = dragOverlay
+    ? undefined
+    : { transform: CSS.Transform.toString(transform), transition }
 
   function openMenu(e: React.MouseEvent<HTMLElement>) {
     setMenuAnchor(e.currentTarget)
@@ -132,7 +142,7 @@ export default function BoardListColumn({
   return (
     <>
       <Paper
-        ref={setNodeRef}
+        ref={dragOverlay ? undefined : setNodeRef}
         style={style}
         elevation={2}
         sx={{
@@ -143,76 +153,105 @@ export default function BoardListColumn({
           maxHeight: '100%',
           borderRadius: 2,
           overflow: 'hidden',
-          opacity: isDragging ? 0.5 : 1,
+          position: 'relative',
+          cursor: dragOverlay ? 'grabbing' : undefined,
         }}
       >
-        {/* Header — tinted with the viewer's chosen list color, falling
-            back to the app default when they haven't picked one. Opaque
-            (not alpha) so it doesn't blend with the board page's own
-            tinted background sitting behind the Paper — see utils/colorTint. */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            px: 1,
-            py: 0.5,
-            bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
-            borderBottom: `1px solid ${listColor ?? DEFAULT_COLOR}`,
-          }}
-        >
-          <Typography
-            variant="subtitle2"
-            sx={{ flex: 1, fontWeight: 700, px: 0.5, fontSize: '0.9625rem' }}
-            noWrap
+        {/* Header + card area stay mounted and laid out while dragging, so
+            the column keeps its own footprint — that footprint is exactly
+            the drop slot the opaque dashed overlay below covers. (Can't hide
+            this via a `visibility: hidden` wrapper: each CardItem inside
+            explicitly sets its own `visibility: visible`, which — unlike
+            `display` — overrides an inherited `hidden` from an ancestor.) */}
+        <>
+          {/* Header — tinted with the viewer's chosen list color, falling
+              back to the app default when they haven't picked one. Opaque
+              (not alpha) so it doesn't blend with the board page's own
+              tinted background sitting behind the Paper — see utils/colorTint. */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              px: 1,
+              py: 0.5,
+              bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+              borderBottom: `1px solid ${listColor ?? DEFAULT_COLOR}`,
+            }}
           >
-            {list.name}
-          </Typography>
+            <Typography
+              variant="subtitle2"
+              sx={{ flex: 1, fontWeight: 700, px: 0.5, fontSize: '0.9625rem' }}
+              noWrap
+            >
+              {list.name}
+            </Typography>
 
-          <IconButton
-            size="small"
-            aria-label={t('board.moveList')}
-            sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
-            {...attributes}
-            {...listeners}
+            <IconButton
+              size="small"
+              aria-label={t('board.moveList')}
+              sx={{ cursor: dragOverlay || isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+              {...attributes}
+              {...listeners}
+            >
+              <OpenWith sx={{ fontSize: 22 }} />
+            </IconButton>
+            <IconButton
+              size="small"
+              aria-label={t('board.addCard')}
+              onClick={dragOverlay ? undefined : () => setCardDialogOpen(true)}
+            >
+              <Add sx={{ fontSize: 22 }} />
+            </IconButton>
+            <IconButton size="small" onClick={dragOverlay ? undefined : openMenu} aria-label={t('board.listMenu')}>
+              <HamburgerIcon sx={{ fontSize: 22 }} />
+            </IconButton>
+          </Box>
+
+          {/* Card area (scrolls vertically) — same flat tint as the header,
+              applied directly here rather than on the Paper, so the two
+              don't stack into a darker double coat. */}
+          <Box
+            ref={setDropZoneRef}
+            sx={{
+              overflowY: 'auto',
+              flex: 1,
+              p: 1,
+              minHeight: 80,
+              bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+            }}
           >
-            <OpenWith sx={{ fontSize: 22 }} />
-          </IconButton>
-          <IconButton size="small" aria-label={t('board.addCard')} onClick={() => setCardDialogOpen(true)}>
-            <Add sx={{ fontSize: 22 }} />
-          </IconButton>
-          <IconButton size="small" onClick={openMenu} aria-label={t('board.listMenu')}>
-            <HamburgerIcon sx={{ fontSize: 22 }} />
-          </IconButton>
-        </Box>
-
-        {/* Card area (scrolls vertically) — same flat tint as the header,
-            applied directly here rather than on the Paper, so the two
-            don't stack into a darker double coat. */}
-        <Box
-          ref={setDropZoneRef}
-          sx={{
-            overflowY: 'auto',
-            flex: 1,
-            p: 1,
-            minHeight: 80,
-            bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
-          }}
-        >
-          <SortableContext items={sortedCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
-            {sortedCards.map(card => (
-              <CardItem
-                key={card.id}
-                card={card}
-                boardId={list.board_id}
-                listId={list.id}
-                numberLocale={numberLocale}
-                dateFormat={dateFormat}
-                onArchived={handleCardArchived}
-                onUpdated={handleCardUpdated}
-              />
-            ))}
-          </SortableContext>
-        </Box>
+            <SortableContext items={sortedCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              {sortedCards.map(card => (
+                <CardItem
+                  key={card.id}
+                  card={card}
+                  boardId={list.board_id}
+                  listId={list.id}
+                  numberLocale={numberLocale}
+                  dateFormat={dateFormat}
+                  onArchived={handleCardArchived}
+                  onUpdated={handleCardUpdated}
+                  dragOverlay={dragOverlay}
+                />
+              ))}
+            </SortableContext>
+          </Box>
+        </>
+        {isDragging && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              border: '2px dashed',
+              borderColor: 'primary.main',
+              borderRadius: 2,
+              // Opaque — this has to fully hide the real header/cards
+              // underneath (they're still mounted, just covered), not just
+              // tint them.
+              bgcolor: 'background.paper',
+            }}
+          />
+        )}
       </Paper>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>

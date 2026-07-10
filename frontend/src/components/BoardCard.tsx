@@ -50,6 +50,10 @@ interface Props {
   onArchive: (board: BoardRead) => void
   onEmailNotification: (board: BoardRead) => void
   onColorChanged: (boardId: string, color: string | null) => void
+  // True only for the floating clone rendered inside <DragOverlay> — it must
+  // not register its own drag (that would collide with the real card's) or
+  // respond to clicks. Mirrors CardItem/BoardListColumn's own dragOverlay prop.
+  dragOverlay?: boolean
 }
 
 export default function BoardCard({
@@ -65,14 +69,17 @@ export default function BoardCard({
   onArchive,
   onEmailNotification,
   onColorChanged,
+  dragOverlay = false,
 }: Props) {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dragOverlay ? `overlay-${id}` : id,
+    disabled: dragOverlay,
+  })
 
   const locale = numberLocale.replace('_', '-')
   const formattedDate = new Intl.DateTimeFormat(locale, {
@@ -88,12 +95,13 @@ export default function BoardCard({
 
   return (
     <Card
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      ref={dragOverlay ? undefined : setNodeRef}
+      style={dragOverlay ? undefined : { transform: CSS.Transform.toString(transform), transition }}
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        opacity: isDragging ? 0.5 : 1,
+        position: 'relative',
+        cursor: dragOverlay ? 'grabbing' : undefined,
         bgcolor: color
           ? `${color}26` // ~15% alpha wash of the user's chosen color
           : (theme) => theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.14)' : 'background.paper',
@@ -103,81 +111,99 @@ export default function BoardCard({
         boxShadow: 'none',
       }}
     >
-      {/* Top row: owner avatar (left) + action icons (right) */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          px: 1,
-          pt: 1,
-        }}
-        onClick={(e) => { e.stopPropagation(); e.preventDefault() }}
-      >
-        <Tooltip title={board.owner_display_name}>
-          <Avatar
-            src={ownerAvatarSrc}
-            sx={{
-              width: 28,
-              height: 28,
-              fontSize: '0.65rem',
-              fontWeight: 700,
-              bgcolor: 'primary.main',
-            }}
-          >
-            {ownerLabel}
-          </Avatar>
-        </Tooltip>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-          <Tooltip title={t('boards.reorderHint')}>
-            <IconButton
-              size="small"
-              sx={{ color: 'text.disabled', cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
-              {...attributes}
-              {...listeners}
+      {/* Content stays laid out (visibility, not display) while dragging, so
+          the card keeps its own footprint — that footprint is exactly the
+          drop slot the dashed overlay below highlights. */}
+      <Box sx={{ visibility: isDragging ? 'hidden' : 'visible', display: 'contents' }}>
+        {/* Top row: owner avatar (left) + action icons (right) */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            px: 1,
+            pt: 1,
+          }}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault() }}
+        >
+          <Tooltip title={board.owner_display_name}>
+            <Avatar
+              src={ownerAvatarSrc}
+              sx={{
+                width: 28,
+                height: 28,
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                bgcolor: 'primary.main',
+              }}
             >
-              <OpenWith sx={{ fontSize: 16 }} />
-            </IconButton>
+              {ownerLabel}
+            </Avatar>
           </Tooltip>
 
-          <Tooltip title={board.is_starred ? t('boards.unstar') : t('boards.star')}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <Tooltip title={t('boards.reorderHint')}>
+              <IconButton
+                size="small"
+                sx={{ color: 'text.disabled', cursor: dragOverlay || isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+                {...attributes}
+                {...listeners}
+              >
+                <OpenWith sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title={board.is_starred ? t('boards.unstar') : t('boards.star')}>
+              <IconButton
+                size="small"
+                onClick={dragOverlay ? undefined : () => onStarToggle(board.id, !board.is_starred)}
+                sx={{ color: board.is_starred ? 'primary.main' : 'text.disabled' }}
+              >
+                {board.is_starred
+                  ? <Star sx={{ fontSize: 18 }} />
+                  : <StarBorder sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Tooltip>
+
             <IconButton
               size="small"
-              onClick={() => onStarToggle(board.id, !board.is_starred)}
-              sx={{ color: board.is_starred ? 'primary.main' : 'text.disabled' }}
+              onClick={dragOverlay ? undefined : (e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget) }}
             >
-              {board.is_starred
-                ? <Star sx={{ fontSize: 18 }} />
-                : <StarBorder sx={{ fontSize: 18 }} />}
+              <MenuIcon sx={{ fontSize: 18 }} />
             </IconButton>
-          </Tooltip>
-
-          <IconButton
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget) }}
-          >
-            <MenuIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          </Box>
         </Box>
+
+        {/* Card body — clickable */}
+        <CardActionArea sx={{ flexGrow: 1 }} onClick={dragOverlay ? undefined : () => navigate(`/boards/${board.id}`)}>
+          <CardContent sx={{ pt: 1, pb: '12px !important', px: 1.5 }}>
+            <Typography
+              variant="subtitle1"
+              noWrap
+              title={board.name}
+              sx={{ fontWeight: 700, fontSize: '1rem' }}
+            >
+              {board.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {formattedDate}
+            </Typography>
+          </CardContent>
+        </CardActionArea>
       </Box>
 
-      {/* Card body — clickable */}
-      <CardActionArea sx={{ flexGrow: 1 }} onClick={() => navigate(`/boards/${board.id}`)}>
-        <CardContent sx={{ pt: 1, pb: '12px !important', px: 1.5 }}>
-          <Typography
-            variant="subtitle1"
-            noWrap
-            title={board.name}
-            sx={{ fontWeight: 700, fontSize: '1rem' }}
-          >
-            {board.name}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {formattedDate}
-          </Typography>
-        </CardContent>
-      </CardActionArea>
+      {isDragging && (
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            border: '2px dashed',
+            borderColor: 'primary.main',
+            borderRadius: 1,
+            bgcolor: 'action.hover',
+          }}
+        />
+      )}
 
       <Menu
         anchorEl={menuAnchor}

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import type { DragEndEvent } from '@dnd-kit/core'
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable'
 import {
   Accordion,
@@ -81,6 +82,11 @@ export default function Boards() {
   // both instances must share and update the same color.
   const [boardColors, setBoardColors] = useState<Record<string, string | null>>({})
   const fetchedColorIdsRef = useRef(new Set<string>())
+
+  // Shared across all three DnD sections (Starred / My Boards / Shared)
+  // since a drag is only ever active in one at a time — drives the floating
+  // <DragOverlay> clone each section renders.
+  const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null)
 
   // Board UI state
   const [createBoardOpen, setCreateBoardOpen] = useState(false)
@@ -320,7 +326,12 @@ export default function Boards() {
     [boards.owned],
   )
 
+  function handleBoardDragStart(event: DragStartEvent) {
+    setDraggingBoardId(event.active.id as string)
+  }
+
   function handleSectionDragEnd(event: DragEndEvent, section: Section) {
+    setDraggingBoardId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -353,6 +364,10 @@ export default function Boards() {
     onEmailNotification: handleEmailNotification,
     onColorChanged: handleColorChanged,
   }
+
+  const draggingBoard = draggingBoardId
+    ? [...boards.owned, ...boards.shared].find(b => b.id === draggingBoardId) ?? null
+    : null
 
   return (
     <>
@@ -419,7 +434,12 @@ export default function Boards() {
           <AccordionDetails>
             {starredBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'starred')}>
+              : <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleBoardDragStart}
+                  onDragEnd={e => handleSectionDragEnd(e, 'starred')}
+                >
                   <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {starredBoards.map(board => (
@@ -434,6 +454,18 @@ export default function Boards() {
                       ))}
                     </Box>
                   </SortableContext>
+                  <DragOverlay>
+                    {draggingBoard ? (
+                      <BoardCard
+                        id={draggingBoard.id}
+                        board={draggingBoard}
+                        isOwned={ownedBoardIds.has(draggingBoard.id)}
+                        color={boardColors[draggingBoard.id] ?? null}
+                        {...sharedCardProps}
+                        dragOverlay
+                      />
+                    ) : null}
+                  </DragOverlay>
                 </DndContext>
             }
           </AccordionDetails>
@@ -449,7 +481,12 @@ export default function Boards() {
           <AccordionDetails>
             {myBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'owned')}>
+              : <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleBoardDragStart}
+                  onDragEnd={e => handleSectionDragEnd(e, 'owned')}
+                >
                   <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {myBoards.map(board => (
@@ -464,6 +501,18 @@ export default function Boards() {
                       ))}
                     </Box>
                   </SortableContext>
+                  <DragOverlay>
+                    {draggingBoard ? (
+                      <BoardCard
+                        id={draggingBoard.id}
+                        board={draggingBoard}
+                        isOwned={ownedBoardIds.has(draggingBoard.id)}
+                        color={boardColors[draggingBoard.id] ?? null}
+                        {...sharedCardProps}
+                        dragOverlay
+                      />
+                    ) : null}
+                  </DragOverlay>
                 </DndContext>
             }
           </AccordionDetails>
@@ -479,7 +528,12 @@ export default function Boards() {
           <AccordionDetails>
             {sharedBoards.length === 0
               ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleSectionDragEnd(e, 'shared')}>
+              : <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleBoardDragStart}
+                  onDragEnd={e => handleSectionDragEnd(e, 'shared')}
+                >
                   <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {sharedBoards.map(board => (
@@ -494,6 +548,18 @@ export default function Boards() {
                       ))}
                     </Box>
                   </SortableContext>
+                  <DragOverlay>
+                    {draggingBoard ? (
+                      <BoardCard
+                        id={draggingBoard.id}
+                        board={draggingBoard}
+                        isOwned={ownedBoardIds.has(draggingBoard.id)}
+                        color={boardColors[draggingBoard.id] ?? null}
+                        {...sharedCardProps}
+                        dragOverlay
+                      />
+                    ) : null}
+                  </DragOverlay>
                 </DndContext>
             }
           </AccordionDetails>

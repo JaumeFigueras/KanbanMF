@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AppBar,
@@ -21,7 +21,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import type { CollisionDetection, DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
 import {
   SortableContext,
   arrayMove,
@@ -88,6 +88,11 @@ export default function Board() {
   const [cardsByList, setCardsByList] = useState<Record<string, CardRead[]>>({})
   const [orderByList, setOrderByList] = useState<Record<string, string[]>>({})
   const [activeCard, setActiveCard] = useState<CardRead | null>(null)
+  const [activeList, setActiveList] = useState<BoardListRead | null>(null)
+  // The list a card drag started from — cardsByList gets live-reparented as
+  // the card is dragged over other lists (see handleDragOver), so by drop
+  // time cardsByList alone can no longer tell us where it came from.
+  const dragSourceListIdRef = useRef<string | null>(null)
   // 403 (not owner/shared) and 404 (doesn't exist) are shown identically —
   // this also avoids leaking whether a given board id exists at all.
   const [accessDenied, setAccessDenied] = useState(false)
@@ -274,8 +279,11 @@ export default function Board() {
     }).catch(() => {})
   }
 
+  // Returns the in-flight request so callers can sequence a following order
+  // update after it — the backend rejects a list's card_ids PUT if it names
+  // a card that (as far as it's concerned) still belongs to another list.
   function persistCardMove(sourceListId: string, cardId: string, destListId: string) {
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${sourceListId}/cards/${cardId}`, {
+    return apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${sourceListId}/cards/${cardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_id: destListId }),
@@ -284,10 +292,17 @@ export default function Board() {
 
   function handleDragStart(event: DragStartEvent) {
     const { active } = event
-    if (active.data.current?.type !== 'card') return
-    const sourceListId = active.data.current.listId as string
-    const card = (cardsByList[sourceListId] ?? []).find(c => c.id === active.id)
-    if (card) setActiveCard(card)
+    if (active.data.current?.type === 'card') {
+      const sourceListId = active.data.current.listId as string
+      dragSourceListIdRef.current = sourceListId
+      const card = (cardsByList[sourceListId] ?? []).find(c => c.id === active.id)
+      if (card) setActiveCard(card)
+      return
+    }
+    if (active.data.current?.type === 'list') {
+      const list = sortedLists.find(l => l.id === active.id)
+      if (list) setActiveList(list)
+    }
   }
 
   // Resolves whatever the card was dropped on (another card, a list's empty
@@ -302,75 +317,122 @@ export default function Board() {
     return undefined
   }
 
-  function handleCardDragEnd(active: DragEndEvent['active'], over: NonNullable<DragEndEvent['over']>) {
+  function findCardListId(cardId: string): string | undefined {
+    return Object.keys(cardsByList).find(id => (cardsByList[id] ?? []).some(c => c.id === cardId))
+  }
+
+  // Cards live in per-list SortableContexts, so a card being dragged only
+  // gets a drop-slot placeholder rendered inside whichever list's array it's
+  // currently a member of. Hovering it over a *different* list therefore has
+  // to actually move it into that list's cardsByList entry right away —
+  // otherwise there's nothing there for dnd-kit to render a placeholder for,
+  // and the destination list shows no indication of the drop at all. Only
+  // cross-list moves are handled here; reordering within a single list is
+  // already animated by that list's own SortableContext.
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event
+    if (!over || active.data.current?.type !== 'card') return
+
     const cardId = active.id as string
-    const sourceListId = active.data.current?.listId as string | undefined
-    if (!sourceListId) return
+    const currentListId = findCardListId(cardId)
+    if (!currentListId) return
 
     const destListId = resolveDestinationListId(over)
-    if (!destListId) return
+    if (!destListId || destListId === currentListId) return
 
-    const sourceCards = cardsByList[sourceListId] ?? []
-    const movingCard = sourceCards.find(c => c.id === cardId)
-    if (!movingCard) return
+    setCardsByList(prev => {
+      const sourceCards = prev[currentListId] ?? []
+      const movingCard = sourceCards.find(c => c.id === cardId)
+      if (!movingCard) return prev
+
+      const destCards = prev[destListId] ?? []
+      const overIsCard = over.data.current?.type === 'card'
+      let insertIndex = overIsCard ? destCards.findIndex(c => c.id === over.id) : destCards.length
+      if (insertIndex === -1) insertIndex = destCards.length
+
+      const movedCard: CardRead = { ...movingCard, list_id: destListId }
+      const newDestCards = [...destCards.slice(0, insertIndex), movedCard, ...destCards.slice(insertIndex)]
+      const newSourceCards = sourceCards.filter(c => c.id !== cardId)
+
+      return { ...prev, [currentListId]: newSourceCards, [destListId]: newDestCards }
+    })
+  }
+
+  function handleCardDragEnd(
+    active: DragEndEvent['active'],
+    over: NonNullable<DragEndEvent['over']>,
+    originalListId: string,
+  ) {
+    const cardId = active.id as string
+
+    // handleDragOver may already have re-parented the card into a different
+    // list's array while it was being dragged — find wherever it currently
+    // lives to compute its final position.
+    const currentListId = findCardListId(cardId)
+    if (!currentListId) return
 
     const overIsCard = over.data.current?.type === 'card'
+    const currentCards = cardsByList[currentListId] ?? []
+    const displayed = sortCards(currentCards, sortMode, orderByList[currentListId] ?? [])
+    const oldIndex = displayed.findIndex(c => c.id === cardId)
+    if (oldIndex === -1) return
+    let newIndex = overIsCard ? displayed.findIndex(c => c.id === over.id) : displayed.length - 1
+    if (newIndex === -1) newIndex = displayed.length - 1
 
-    if (sourceListId === destListId) {
-      // Reordering within the same list only matters — and is only
-      // persisted — when the board is displaying the custom order.
-      if (sortMode !== 'custom') return
-      const displayed = sortCards(sourceCards, sortMode, orderByList[sourceListId] ?? [])
-      const oldIndex = displayed.findIndex(c => c.id === cardId)
-      const newIndex = overIsCard ? displayed.findIndex(c => c.id === over.id) : displayed.length - 1
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
-
-      const reordered = arrayMove(displayed, oldIndex, newIndex)
-      const newOrderIds = reordered.map(c => c.id)
-      setCardsByList(prev => ({ ...prev, [sourceListId]: reordered }))
-      setOrderByList(prev => ({ ...prev, [sourceListId]: newOrderIds }))
-      persistCardOrder(sourceListId, newOrderIds)
-      return
+    const reordered = oldIndex === newIndex ? displayed : arrayMove(displayed, oldIndex, newIndex)
+    if (oldIndex !== newIndex) {
+      setCardsByList(prev => ({ ...prev, [currentListId]: reordered }))
     }
 
-    // Moving to a different list — the card always moves; only its
-    // position within the destination is custom-order-specific.
-    const destCards = sortCards(cardsByList[destListId] ?? [], sortMode, orderByList[destListId] ?? [])
-    const withoutMoved = sourceCards.filter(c => c.id !== cardId)
-    let insertIndex = overIsCard ? destCards.findIndex(c => c.id === over.id) : destCards.length
-    if (insertIndex === -1) insertIndex = destCards.length
+    const movedAcrossLists = currentListId !== originalListId
+    const moveDone = movedAcrossLists
+      ? persistCardMove(originalListId, cardId, currentListId)
+      : Promise.resolve()
 
-    const movedCard: CardRead = { ...movingCard, list_id: destListId }
-    const newDestCards = [...destCards.slice(0, insertIndex), movedCard, ...destCards.slice(insertIndex)]
-
-    setCardsByList(prev => ({
-      ...prev,
-      [sourceListId]: withoutMoved,
-      [destListId]: newDestCards,
-    }))
-    persistCardMove(sourceListId, cardId, destListId)
-
+    // Reordering only matters — and is only persisted — when the board is
+    // displaying the custom order.
     if (sortMode === 'custom') {
-      const destOrderIds = newDestCards.map(c => c.id)
-      const sourceOrderIds = withoutMoved.map(c => c.id)
-      setOrderByList(prev => ({ ...prev, [destListId]: destOrderIds, [sourceListId]: sourceOrderIds }))
-      persistCardOrder(destListId, destOrderIds)
-      persistCardOrder(sourceListId, sourceOrderIds)
+      const newOrderIds = reordered.map(c => c.id)
+      setOrderByList(prev => ({ ...prev, [currentListId]: newOrderIds }))
+      const sourceOrderIds = movedAcrossLists ? (cardsByList[originalListId] ?? []).map(c => c.id) : null
+      if (sourceOrderIds) {
+        setOrderByList(prev => ({ ...prev, [originalListId]: sourceOrderIds }))
+      }
+
+      // The order PUT for the destination list names this card, which the
+      // backend rejects until the move PATCH above has actually committed
+      // — wait for it instead of firing both requests in parallel.
+      moveDone.then(() => {
+        persistCardOrder(currentListId, newOrderIds)
+        if (sourceOrderIds) persistCardOrder(originalListId, sourceOrderIds)
+      })
     }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setActiveCard(null)
-    if (!over) return
+    setActiveList(null)
 
     const activeType = active.data.current?.type
     if (activeType === 'card') {
-      handleCardDragEnd(active, over)
+      const cardId = active.id as string
+      const originalListId = dragSourceListIdRef.current
+      dragSourceListIdRef.current = null
+      if (!originalListId) return
+      if (!over) {
+        // Dropped outside any droppable — undo whatever optimistic
+        // re-parenting handleDragOver did by resyncing from the server.
+        fetchCardsForList(originalListId)
+        const currentListId = findCardListId(cardId)
+        if (currentListId && currentListId !== originalListId) fetchCardsForList(currentListId)
+        return
+      }
+      handleCardDragEnd(active, over, originalListId)
       return
     }
 
-    if (active.id === over.id) return
+    if (!over || active.id === over.id) return
     const oldIndex = sortedLists.findIndex(l => l.id === active.id)
     const newIndex = sortedLists.findIndex(l => l.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
@@ -604,6 +666,7 @@ export default function Board() {
         sensors={sensors}
         collisionDetection={listAwareCollisionDetection}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={sortedLists.map(l => l.id)} strategy={horizontalListSortingStrategy}>
@@ -653,6 +716,21 @@ export default function Board() {
               dateFormat={dateFormat}
               onArchived={() => {}}
               onUpdated={() => {}}
+              dragOverlay
+            />
+          ) : activeList ? (
+            <BoardListColumn
+              list={activeList}
+              cards={cardsByList[activeList.id] ?? []}
+              customOrderIds={orderByList[activeList.id] ?? []}
+              numberLocale={numberLocale}
+              dateFormat={dateFormat}
+              sortMode={sortMode}
+              onRenamed={() => {}}
+              onArchived={() => {}}
+              onCardCreated={() => {}}
+              onCardArchived={() => {}}
+              onCardUpdated={() => {}}
               dragOverlay
             />
           ) : null}
