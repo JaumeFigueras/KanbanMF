@@ -136,7 +136,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const jsonHeaders = { 'Content-Type': 'application/json' }
-  const API = `http://localhost:8000/api/v1/boards/${boardId}/labels`
+  const API = `/api/v1/boards/${boardId}/labels`
 
   useEffect(() => {
     if (!open) return

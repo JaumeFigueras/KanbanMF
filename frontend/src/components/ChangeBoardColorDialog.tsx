@@ -43,7 +43,7 @@ export default function ChangeBoardColorDialog({ open, onClose, board, currentCo
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/color`, {
+      const r = await apiFetch(`/api/v1/boards/${board.id}/color`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ color }),
@@ -63,7 +63,7 @@ export default function ChangeBoardColorDialog({ open, onClose, board, currentCo
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/color`, { method: 'DELETE' })
+      const r = await apiFetch(`/api/v1/boards/${board.id}/color`, { method: 'DELETE' })
       if (!r.ok) throw new Error()
       onSaved(null)
       onClose()

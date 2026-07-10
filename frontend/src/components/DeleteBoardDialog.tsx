@@ -29,7 +29,7 @@ export default function DeleteBoardDialog({ open, onClose, board, onDeleted }: P
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      const r = await apiFetch(`/api/v1/boards/${board.id}`, {
         method: 'DELETE',
       })
       if (!r.ok) throw new Error()

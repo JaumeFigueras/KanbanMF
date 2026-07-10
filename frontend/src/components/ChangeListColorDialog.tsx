@@ -41,7 +41,7 @@ export default function ChangeListColorDialog({ open, onClose, list, currentColo
     setError(null)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/color`,
+        `/api/v1/boards/${list.board_id}/lists/${list.id}/color`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -64,7 +64,7 @@ export default function ChangeListColorDialog({ open, onClose, list, currentColo
     setError(null)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/color`,
+        `/api/v1/boards/${list.board_id}/lists/${list.id}/color`,
         { method: 'DELETE' },
       )
       if (!r.ok) throw new Error()

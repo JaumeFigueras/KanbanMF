@@ -56,12 +56,12 @@ export default function ChangeDisplayNameDialog({
     try {
       const headers = { 'Content-Type': 'application/json' }
       const [r1, r2] = await Promise.all([
-        apiFetch('http://localhost:8000/api/v1/users/me', {
+        apiFetch('/api/v1/users/me', {
           method: 'PUT',
           headers,
           body: JSON.stringify({ display_name: displayName.trim() }),
         }),
-        apiFetch('http://localhost:8000/api/v1/users/me/preferences', {
+        apiFetch('/api/v1/users/me/preferences', {
           method: 'PUT',
           headers,
           body: JSON.stringify({ initials: initials.trim() || null }),

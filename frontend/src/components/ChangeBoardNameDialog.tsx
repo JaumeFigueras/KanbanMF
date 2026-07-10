@@ -43,7 +43,7 @@ export default function ChangeBoardNameDialog({ open, onClose, board, onSaved }:
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+      const r = await apiFetch(`/api/v1/boards/${board.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),

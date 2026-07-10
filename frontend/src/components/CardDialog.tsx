@@ -187,7 +187,7 @@ export default function CardDialog({
 
   useEffect(() => {
     if (!open) return
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/members`)
+    apiFetch(`/api/v1/boards/${boardId}/members`)
       .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
       .then(setCandidates)
       .catch(() => {})
@@ -208,8 +208,8 @@ export default function CardDialog({
     setError(null)
     try {
       const url = isEdit
-        ? `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card!.id}`
-        : `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards`
+        ? `/api/v1/boards/${boardId}/lists/${listId}/cards/${card!.id}`
+        : `/api/v1/boards/${boardId}/lists/${listId}/cards`
       const r = await apiFetch(url, {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -227,7 +227,7 @@ export default function CardDialog({
       if (!r.ok) throw new Error()
       const result: CardRead = await r.json()
 
-      const checklistsUrl = `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/checklists`
+      const checklistsUrl = `/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/checklists`
       await syncChecklists(checklistsUrl, initialChecklists, checklists)
       const checklistsRes = await apiFetch(checklistsUrl)
       result.checklists = checklistsRes.ok ? await checklistsRes.json() : result.checklists

@@ -44,7 +44,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   useEffect(() => {
     if (!open || !board) return
     setError(null)
-    apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/notifications`)
+    apiFetch(`/api/v1/boards/${board.id}/notifications`)
       .then((r) => r.ok ? r.json() as Promise<BoardNotificationSettingsRead> : null)
       .then((settings) => {
         setIsEnabled(settings?.is_enabled ?? false)
@@ -73,7 +73,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
     if (!board) return
     setError(null)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/notifications`, {
+      const r = await apiFetch(`/api/v1/boards/${board.id}/notifications`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(next),

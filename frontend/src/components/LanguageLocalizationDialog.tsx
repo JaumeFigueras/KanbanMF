@@ -81,7 +81,7 @@ export default function LanguageLocalizationDialog({
     setError(null)
     const backendLanguageLocale = I18N_TO_BACKEND[langCode] ?? 'en'
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/users/me/preferences', {
+      const r = await apiFetch('/api/v1/users/me/preferences', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

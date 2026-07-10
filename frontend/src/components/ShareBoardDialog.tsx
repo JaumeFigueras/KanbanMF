@@ -43,7 +43,7 @@ export default function ShareBoardDialog({ open, onClose, board }: Props) {
     setSearchTerm('')
     setSearchResults([])
     setError(null)
-    apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/members`)
+    apiFetch(`/api/v1/boards/${board.id}/members`)
       .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
       .then((members) => setSharedPeople(members.filter((m) => m.id !== board.owner_id)))
       .catch(() => setSharedPeople([]))
@@ -58,7 +58,7 @@ export default function ShareBoardDialog({ open, onClose, board }: Props) {
     }
     setSearching(true)
     const handle = setTimeout(() => {
-      apiFetch(`http://localhost:8000/api/v1/users/search?q=${encodeURIComponent(term)}`)
+      apiFetch(`/api/v1/users/search?q=${encodeURIComponent(term)}`)
         .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
         .then(setSearchResults)
         .catch(() => setSearchResults([]))
@@ -79,7 +79,7 @@ export default function ShareBoardDialog({ open, onClose, board }: Props) {
     setError(null)
     setAdding(true)
     try {
-      const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}/shares`, {
+      const r = await apiFetch(`/api/v1/boards/${board.id}/shares`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: person.id }),
@@ -100,7 +100,7 @@ export default function ShareBoardDialog({ open, onClose, board }: Props) {
     setRemoving(true)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${board.id}/shares/${removeTarget.id}`,
+        `/api/v1/boards/${board.id}/shares/${removeTarget.id}`,
         { method: 'DELETE' },
       )
       if (!r.ok) throw new Error()

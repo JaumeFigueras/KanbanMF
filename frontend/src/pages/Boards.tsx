@@ -117,8 +117,8 @@ export default function Boards() {
   const fetchBoards = useCallback(async () => {
     try {
       const [boardsRes, orderRes] = await Promise.all([
-        apiFetch('http://localhost:8000/api/v1/boards'),
-        apiFetch('http://localhost:8000/api/v1/boards/order'),
+        apiFetch('/api/v1/boards'),
+        apiFetch('/api/v1/boards/order'),
       ])
       if (boardsRes.ok) setBoards(await boardsRes.json())
       if (orderRes.ok) setOrder(await orderRes.json())
@@ -129,7 +129,7 @@ export default function Boards() {
 
   const fetchArchivedBoards = useCallback(async () => {
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/boards/archived')
+      const r = await apiFetch('/api/v1/boards/archived')
       if (r.ok) {
         const data: BoardRead[] = await r.json()
         setArchivedBoards(data)
@@ -154,7 +154,7 @@ export default function Boards() {
 
     Promise.all(
       idsToFetch.map(id =>
-        apiFetch(`http://localhost:8000/api/v1/boards/${id}/color`)
+        apiFetch(`/api/v1/boards/${id}/color`)
           .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
           .then(data => [id, data?.color ?? null] as const)
           .catch(() => [id, null] as const)
@@ -207,7 +207,7 @@ export default function Boards() {
         : prev.starred_ids.filter(id => id !== boardId),
     }))
 
-    const r = await apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/star`, {
+    const r = await apiFetch(`/api/v1/boards/${boardId}/star`, {
       method: starred ? 'POST' : 'DELETE',
     })
 
@@ -264,7 +264,7 @@ export default function Boards() {
   }
 
   async function handleRestoreBoard(board: BoardRead) {
-    const r = await apiFetch(`http://localhost:8000/api/v1/boards/${board.id}`, {
+    const r = await apiFetch(`/api/v1/boards/${board.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_archived: false }),
@@ -347,7 +347,7 @@ export default function Boards() {
     const newOrder = { ...order, [orderKey]: newIds }
     setOrder(newOrder)
 
-    apiFetch('http://localhost:8000/api/v1/boards/order', {
+    apiFetch('/api/v1/boards/order', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newOrder),

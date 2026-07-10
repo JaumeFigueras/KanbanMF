@@ -33,7 +33,7 @@ export default function SignIn() {
     setErrorKey(null)
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:8000/api/v1/auth/local/login', {
+      const res = await fetch('/api/v1/auth/local/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

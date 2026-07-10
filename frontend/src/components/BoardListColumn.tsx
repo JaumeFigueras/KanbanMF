@@ -64,7 +64,7 @@ export default function BoardListColumn({
   const [listColor, setListColor] = useState<string | null>(null)
 
   useEffect(() => {
-    apiFetch(`http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}/color`)
+    apiFetch(`/api/v1/boards/${list.board_id}/lists/${list.id}/color`)
       .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
       .then(data => setListColor(data?.color ?? null))
       .catch(() => {})
@@ -126,7 +126,7 @@ export default function BoardListColumn({
     closeMenu()
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}`,
+        `/api/v1/boards/${list.board_id}/lists/${list.id}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

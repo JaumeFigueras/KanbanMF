@@ -1,4 +1,9 @@
-const API_BASE = 'http://localhost:8000'
+// Relative on purpose: the app is always served from the same origin as the
+// API (directly in dev via Vite's /api proxy in vite.config.ts, and via the
+// reverse proxy in front of both in production) — see SETUP.md. That keeps
+// this same-origin (no CORS) and means the API never needs its own public
+// hostname or port.
+const API_BASE = ''
 const CLIENT_ID_KEY = 'kanbanmf.client_id'
 
 type TokenListener = (token: string | null) => void

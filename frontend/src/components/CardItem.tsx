@@ -50,7 +50,7 @@ export default function CardItem({
   const [cardColor, setCardColor] = useState<string | null>(null)
 
   useEffect(() => {
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}/color`)
+    apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}/color`)
       .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
       .then(data => setCardColor(data?.color ?? null))
       .catch(() => {})
@@ -87,7 +87,7 @@ export default function CardItem({
     closeMenu()
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}`,
+        `/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

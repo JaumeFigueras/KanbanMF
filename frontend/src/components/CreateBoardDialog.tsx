@@ -46,7 +46,7 @@ export default function CreateBoardDialog({ open, onClose, onCreated }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/boards', {
+      const r = await apiFetch('/api/v1/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, is_starred: starred }),

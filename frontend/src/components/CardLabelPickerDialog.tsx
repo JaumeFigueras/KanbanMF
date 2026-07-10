@@ -31,7 +31,7 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
   useEffect(() => {
     if (!open) return
     setChecked(new Set(selectedIds))
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/labels`)
+    apiFetch(`/api/v1/boards/${boardId}/labels`)
       .then(r => r.ok ? r.json() as Promise<LabelRead[]> : [])
       .then(setLabels)
       .catch(() => {})

@@ -9,7 +9,7 @@ interface Props {
 
 export default function PersonAvatar({ person, size = 28, onClick }: Props) {
   const avatarSrc = person.has_avatar
-    ? `http://localhost:8000/api/v1/users/${person.id}/avatar`
+    ? `/api/v1/users/${person.id}/avatar`
     : undefined
 
   const initials = person.initials

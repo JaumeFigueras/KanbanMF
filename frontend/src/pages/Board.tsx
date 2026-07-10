@@ -109,7 +109,7 @@ export default function Board() {
 
   useEffect(() => {
     if (!boardId) return
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}`)
+    apiFetch(`/api/v1/boards/${boardId}`)
       .then(r => {
         if (r.status === 403 || r.status === 404) {
           setAccessDenied(true)
@@ -123,7 +123,7 @@ export default function Board() {
 
   useEffect(() => {
     if (!boardId) return
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/color`)
+    apiFetch(`/api/v1/boards/${boardId}/color`)
       .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
       .then(data => setBoardColor(data?.color ?? null))
       .catch(() => {})
@@ -132,7 +132,7 @@ export default function Board() {
   // Needed to tell whether *this* viewer is the board owner — permanently
   // deleting a list or card in the archive view is an owner-only action.
   useEffect(() => {
-    apiFetch('http://localhost:8000/api/v1/users/me')
+    apiFetch('/api/v1/users/me')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setCurrentUserId(data.id) })
       .catch(() => {})
@@ -143,9 +143,9 @@ export default function Board() {
   const fetchLists = useCallback(() => {
     if (!boardId) return
     Promise.all([
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists`)
+      apiFetch(`/api/v1/boards/${boardId}/lists`)
         .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`)
+      apiFetch(`/api/v1/boards/${boardId}/lists/order`)
         .then(r => r.ok ? r.json() as Promise<BoardListOrderRead> : { board_id: boardId, list_ids: [] }),
     ])
       .then(([fetchedLists, fetchedOrder]) => {
@@ -177,9 +177,9 @@ export default function Board() {
   const fetchCardsForList = useCallback((listId: string) => {
     if (!boardId) return
     Promise.all([
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards`)
+      apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards`)
         .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/order`)
+      apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`)
         .then(r => r.ok ? r.json() as Promise<CardOrderRead> : { list_id: listId, card_ids: [] }),
     ])
       .then(([cards, order]) => {
@@ -272,7 +272,7 @@ export default function Board() {
   }
 
   function persistCardOrder(listId: string, cardIds: string[]) {
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/order`, {
+    apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ card_ids: cardIds }),
@@ -283,7 +283,7 @@ export default function Board() {
   // update after it — the backend rejects a list's card_ids PUT if it names
   // a card that (as far as it's concerned) still belongs to another list.
   function persistCardMove(sourceListId: string, cardId: string, destListId: string) {
-    return apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/${sourceListId}/cards/${cardId}`, {
+    return apiFetch(`/api/v1/boards/${boardId}/lists/${sourceListId}/cards/${cardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_id: destListId }),
@@ -442,7 +442,7 @@ export default function Board() {
     setLists(reordered)
     setOrder(newOrder)
 
-    apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/order`, {
+    apiFetch(`/api/v1/boards/${boardId}/lists/order`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_ids: newOrder }),

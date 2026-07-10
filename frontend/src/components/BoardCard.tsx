@@ -90,7 +90,7 @@ export default function BoardCard({
     ?? board.owner_display_name.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase()
 
   const ownerAvatarSrc = board.owner_has_avatar
-    ? `http://localhost:8000/api/v1/users/${board.owner_id}/avatar`
+    ? `/api/v1/users/${board.owner_id}/avatar`
     : undefined
 
   return (

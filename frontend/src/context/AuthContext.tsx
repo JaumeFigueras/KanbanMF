@@ -3,7 +3,8 @@ import i18n from '../i18n'
 import { apiFetch, onAccessTokenChange, setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 
-const API = 'http://localhost:8000'
+// Relative on purpose — see the comment on API_BASE in api/client.ts.
+const API = ''
 
 // Maps backend language_locale values to i18n language codes
 const LOCALE_TO_I18N: Record<string, string> = {

@@ -44,7 +44,7 @@ export default function RenameListDialog({ open, onClose, list, onSaved }: Props
     setError(null)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${list.board_id}/lists/${list.id}`,
+        `/api/v1/boards/${list.board_id}/lists/${list.id}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },

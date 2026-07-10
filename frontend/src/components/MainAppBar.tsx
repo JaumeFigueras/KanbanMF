@@ -69,7 +69,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
 
   const fetchAvatar = useCallback(async () => {
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar')
+      const r = await apiFetch('/api/v1/users/me/avatar')
       if (r.ok) {
         const blob = await r.blob()
         const url = URL.createObjectURL(blob)
@@ -85,7 +85,7 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
   }, [])
 
   useEffect(() => {
-    apiFetch('http://localhost:8000/api/v1/users/me')
+    apiFetch('/api/v1/users/me')
       .then((r) => {
         if (!r.ok) throw new Error()
         return r.json()

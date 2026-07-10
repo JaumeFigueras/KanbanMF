@@ -90,7 +90,7 @@ export default function UploadAvatarDialog({
     try {
       const form = new FormData()
       form.append('file', file)
-      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar', {
+      const r = await apiFetch('/api/v1/users/me/avatar', {
         method: 'PUT',
         body: form,
       })
@@ -110,7 +110,7 @@ export default function UploadAvatarDialog({
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/users/me/avatar', {
+      const r = await apiFetch('/api/v1/users/me/avatar', {
         method: 'DELETE',
       })
       if (!r.ok) throw new Error()

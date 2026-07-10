@@ -58,7 +58,7 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
     setSaving(true)
     setError(null)
     try {
-      const r = await apiFetch('http://localhost:8000/api/v1/users/me/password', {
+      const r = await apiFetch('/api/v1/users/me/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),

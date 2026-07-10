@@ -33,7 +33,7 @@ export default function GoogleButton() {
     // sets the refresh cookie and redirects here. AuthProvider's own
     // startup check then silently refreshes into a session, same as it
     // would after any page reload.
-    window.location.href = 'http://localhost:8000/api/v1/auth/google/'
+    window.location.href = '/api/v1/auth/google/'
   }
 
   return (

@@ -41,7 +41,7 @@ export default function ChangeCardColorDialog({ open, onClose, boardId, listId, 
     setError(null)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${cardId}/color`,
+        `/api/v1/boards/${boardId}/lists/${listId}/cards/${cardId}/color`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -63,7 +63,7 @@ export default function ChangeCardColorDialog({ open, onClose, boardId, listId, 
     setError(null)
     try {
       const r = await apiFetch(
-        `http://localhost:8000/api/v1/boards/${boardId}/lists/${listId}/cards/${cardId}/color`,
+        `/api/v1/boards/${boardId}/lists/${listId}/cards/${cardId}/color`,
         { method: 'DELETE' },
       )
       if (!r.ok) throw new Error()

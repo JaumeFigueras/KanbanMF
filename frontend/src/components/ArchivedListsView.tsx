@@ -66,9 +66,9 @@ export default function ArchivedListsView({
 
   useEffect(() => {
     Promise.all([
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/lists/archived`)
+      apiFetch(`/api/v1/boards/${boardId}/lists/archived`)
         .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
-      apiFetch(`http://localhost:8000/api/v1/boards/${boardId}/cards/archived`)
+      apiFetch(`/api/v1/boards/${boardId}/cards/archived`)
         .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
     ])
       .then(([lists, cards]) => {
@@ -129,8 +129,8 @@ export default function ArchivedListsView({
     if (!target) return
 
     const url = target.type === 'list'
-      ? `http://localhost:8000/api/v1/boards/${boardId}/lists/${target.id}`
-      : `http://localhost:8000/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
+      ? `/api/v1/boards/${boardId}/lists/${target.id}`
+      : `/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
     const r = await apiFetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -159,8 +159,8 @@ export default function ArchivedListsView({
     setDeleteError(false)
 
     const url = target.type === 'list'
-      ? `http://localhost:8000/api/v1/boards/${boardId}/lists/${target.id}`
-      : `http://localhost:8000/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
+      ? `/api/v1/boards/${boardId}/lists/${target.id}`
+      : `/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
     const r = await apiFetch(url, { method: 'DELETE' })
     if (!r.ok) {
       setDeleteError(true)
