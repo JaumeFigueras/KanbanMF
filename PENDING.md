@@ -20,3 +20,4 @@
 
 ✓ - Change background colors of cards, lists, boards
 ✓ - Only owners can delete
+✓ - Shade new location in DnD

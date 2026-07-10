@@ -117,6 +117,7 @@ migrations.
 backend/    FastAPI app — src/model (SQLAlchemy ORM), src/api/v1 (routes), src/schemas (Pydantic),
             src/core (auth, email, websockets, the notification scheduler), alembic/ (migrations), test/
 frontend/   React app — src/pages, src/components, src/api (fetch client + WebSocket), src/i18n
+deploy/     Apache vhost + systemd unit for the production deployment described in SETUP.md
 SETUP.md    Production deployment guide
 ```
 
