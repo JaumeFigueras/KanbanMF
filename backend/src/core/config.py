@@ -5,7 +5,11 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ENV_FILE = Path(__file__).parent.parent.parent.parent / ".env"
+# config.py -> src/core/ -> src/ -> backend/ -> backend/.env (3 parents, not
+# 4 — this used to point one level too high, at the repo root instead of
+# backend/, silently finding no .env there and leaving every setting to its
+# default/missing).
+_ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 
 class Settings(BaseSettings):
