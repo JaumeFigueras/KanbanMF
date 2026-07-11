@@ -12,30 +12,37 @@ import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import ColorPicker from './ColorPicker'
 
+// Fallback swatch value for a brand-new label — matches the app's default
+// indigo accent used elsewhere as a neutral starting color.
+export const DEFAULT_LABEL_COLOR = '#6366F1'
+
 interface Props {
   open: boolean
   onClose: () => void
+  // null means "create a new label" — the form starts blank/default instead
+  // of prefilled from an existing one.
   label: LabelRead | null
   saving?: boolean
   error?: string | null
   onSave: (form: { name: string; color: string }) => void
 }
 
-// A separate popup for editing an existing label's name/color — kept out of
-// ManageLabelsDialog's own list so editing one label doesn't turn the whole
-// "all labels" dialog into a big inline form (same pattern as
-// ChangeBoardColorDialog/ChangeListColorDialog/ChangeCardColorDialog being
-// their own dialogs rather than inline in the parent view).
+// A single dialog for both creating and editing a label — kept out of
+// ManageLabelsDialog's own list so it doesn't turn the "all labels" dialog
+// into a big inline form (same pattern as ChangeBoardColorDialog/
+// ChangeListColorDialog/ChangeCardColorDialog being their own dialogs
+// rather than inline in the parent view).
 export default function EditLabelDialog({ open, onClose, label, saving, error, onSave }: Props) {
   const { t } = useTranslation()
+  const isEdit = Boolean(label)
   const [name, setName] = useState('')
   const [color, setColor] = useState('')
   const [nameError, setNameError] = useState(false)
 
   useEffect(() => {
-    if (open && label) {
-      setName(label.name)
-      setColor(label.color)
+    if (open) {
+      setName(label?.name ?? '')
+      setColor(label?.color ?? DEFAULT_LABEL_COLOR)
       setNameError(false)
     }
   }, [open, label])
@@ -51,7 +58,7 @@ export default function EditLabelDialog({ open, onClose, label, saving, error, o
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t('board.editLabel')}</DialogTitle>
+      <DialogTitle>{isEdit ? t('board.editLabel') : t('board.createNewLabel')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <TextField
