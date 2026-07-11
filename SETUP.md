@@ -146,6 +146,50 @@ sudo mkdir -p /var/www/certbot
 sudo certbot certonly --webroot -w /var/www/certbot -d kanban.example.com
 ```
 
+If `DocumentRoot` lives under a user's home directory (as in the example config), Apache will
+403 with `AH00035: ... search permissions are missing on a component of the path` — Debian's
+default home directory mode (`750`) blocks `www-data` from traversing into it at all. Check
+exactly which path component is the problem with `namei -l /path/to/frontend/dist`, then grant
+*search only* (not read) on each directory from the home dir down to `frontend/`, and
+read+traverse recursively on `frontend/dist` itself (that's public content anyway — it's
+literally what gets served to browsers):
+
+```bash
+chmod o+x /home/kanbanmf /home/kanbanmf/soft /home/kanbanmf/soft/KanbanMF \
+          /home/kanbanmf/soft/KanbanMF/frontend
+chmod -R o+rX /home/kanbanmf/soft/KanbanMF/frontend/dist
+```
+
+Don't `chmod -R` anything higher up the tree than that — `backend/.env` holds the DB password,
+`SECRET_KEY`, SMTP password and Google OAuth secret, and must stay unreadable to anyone but the
+user the backend runs as.
+
+**Tighter alternative — group instead of other.** `o+x` opens traversal to *every* local
+account on the box, not just Apache. Scoping it to a group instead means only the accounts you
+explicitly add can reach it — everyone else stays denied:
+
+```bash
+# Directories under /home/kanbanmf are owned kanbanmf:kanbanmf (Debian gives
+# each user a private group by default) — add www-data as a member of it.
+sudo usermod -aG kanbanmf www-data
+
+chmod g+x /home/kanbanmf /home/kanbanmf/soft /home/kanbanmf/soft/KanbanMF \
+          /home/kanbanmf/soft/KanbanMF/frontend
+chmod -R g+rX /home/kanbanmf/soft/KanbanMF/frontend/dist
+
+# Not `reload` — group membership is read once at process start, and reload
+# doesn't re-exec the long-lived master process, so it'd keep the old list.
+sudo systemctl restart apache2
+```
+
+Either way, also tighten `.env` itself — a directory's `x` bit only gates *reaching* a file;
+the file's own permissions decide whether its content can be read once there, and the default
+umask leaves a freshly-created `.env` group/world-readable:
+
+```bash
+chmod 600 backend/.env
+```
+
 #### Firewall
 
 Only `80` and `443` should ever be reachable from the internet — everything else the app
