@@ -231,6 +231,7 @@ export default function BoardListColumn({
                   dateFormat={dateFormat}
                   onArchived={handleCardArchived}
                   onUpdated={handleCardUpdated}
+                  onCopied={onCardCreated}
                   dragOverlay={dragOverlay}
                 />
               ))}

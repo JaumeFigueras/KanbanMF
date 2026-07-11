@@ -36,6 +36,20 @@ class CardCreate(BaseModel):
         return self
 
 
+class CardCopyCreate(BaseModel):
+    name: str
+    target_board_id: uuid.UUID
+    target_list_id: uuid.UUID
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Card name cannot be blank.")
+        return v
+
+
 class CardRead(BaseModel):
     id: uuid.UUID
     list_id: uuid.UUID

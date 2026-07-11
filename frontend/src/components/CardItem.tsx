@@ -16,6 +16,7 @@ import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardFace from './CardFace'
 import ChangeCardColorDialog from './ChangeCardColorDialog'
+import CopyCardDialog from './CopyCardDialog'
 import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
 import { STRONG_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 
@@ -27,6 +28,9 @@ interface Props {
   dateFormat: DateFormat
   onArchived: (cardId: string) => void
   onUpdated: (card: CardRead) => void
+  // Same shape as CardDialog's onCreated — lets the copy show up immediately
+  // when it lands on a list already on screen.
+  onCopied: (targetListId: string, card: CardRead) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real card's) or
   // respond to clicks.
@@ -41,12 +45,14 @@ export default function CardItem({
   dateFormat,
   onArchived,
   onUpdated,
+  onCopied,
   dragOverlay = false,
 }: Props) {
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false)
   const [cardColor, setCardColor] = useState<string | null>(null)
 
   useEffect(() => {
@@ -81,6 +87,11 @@ export default function CardItem({
   function handleChangeColor() {
     closeMenu()
     setColorDialogOpen(true)
+  }
+
+  function handleCopy() {
+    closeMenu()
+    setCopyDialogOpen(true)
   }
 
   async function handleArchive() {
@@ -166,6 +177,7 @@ export default function CardItem({
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         <MenuItem onClick={handleEdit}>{t('board.editCard')}</MenuItem>
         <MenuItem onClick={handleChangeColor}>{t('board.changeCardColor')}</MenuItem>
+        <MenuItem onClick={handleCopy}>{t('board.copyCard')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveCard')}</MenuItem>
       </Menu>
 
@@ -187,6 +199,15 @@ export default function CardItem({
         cardId={card.id}
         currentColor={cardColor}
         onSaved={setCardColor}
+      />
+
+      <CopyCardDialog
+        open={copyDialogOpen}
+        onClose={() => setCopyDialogOpen(false)}
+        boardId={boardId}
+        listId={listId}
+        cardId={card.id}
+        onCopied={onCopied}
       />
     </>
   )

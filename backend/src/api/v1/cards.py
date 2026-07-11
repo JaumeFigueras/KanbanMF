@@ -17,13 +17,14 @@ from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.checklist import Checklist
+from src.model.checklist_item import ChecklistItem
 from src.model.label import Label
 from src.model.ui_card_color import UICardColor
 from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_preferences import UserPreferences
-from src.schemas.card import CardCreate, CardOrderRead, CardOrderUpdate, CardRead, CardUpdate
+from src.schemas.card import CardCopyCreate, CardCreate, CardOrderRead, CardOrderUpdate, CardRead, CardUpdate
 from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
 from src.schemas.person import PersonRead
@@ -298,6 +299,92 @@ async def create_card(
 
     people_by_id = await _people_by_id(_card_people_ids(card), db)
     return _card_to_read(card, people_by_id)
+
+
+@router.post("/{card_id}/copy", response_model=CardRead, status_code=status.HTTP_201_CREATED)
+async def copy_card(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    body: CardCopyCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
+) -> CardRead:
+    """Duplicate a card into a board/list the user has access to (owner or
+    shared member of the target board) — may be the same list, a different
+    list on the same board, or a list on an entirely different board.
+
+    Labels/members/assignees are re-scoped to the target board the same way
+    create_card scopes client-submitted ids, so anything that doesn't belong
+    there (e.g. a label from the source board when copying cross-board) is
+    silently dropped rather than erroring. Checklists have no bulk-copy
+    endpoint of their own, so they're duplicated item by item.
+    """
+    await _get_accessible_board(board_id, current_user, db)
+    await _get_list(board_id, list_id, db)
+    source_result = await db.execute(
+        select(Card)
+        .options(*_card_load_options())
+        .where(Card.id == card_id, Card.list_id == list_id, Card.is_deleted.is_(False))
+    )
+    source = source_result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+
+    target_board = await _get_accessible_board(body.target_board_id, current_user, db)
+    await _get_list(body.target_board_id, body.target_list_id, db)
+
+    # The copying user is always a member of the copy, same as create_card.
+    member_ids = {u.id for u in source.members} | {current_user.id}
+    members = await _get_users(body.target_board_id, list(member_ids), db)
+    if current_user not in members:
+        members.append(current_user)
+
+    new_card = Card(
+        list_id=body.target_list_id,
+        creator_id=current_user.id,
+        name=body.name,
+        description=source.description,
+        start_at=source.start_at,
+        due_at=source.due_at,
+        end_at=source.end_at,
+        labels=await _get_labels(body.target_board_id, [lbl.id for lbl in source.labels], db),
+        members=members,
+        assignees=await _get_users(body.target_board_id, [u.id for u in source.assignees], db),
+    )
+    db.add(new_card)
+    await db.flush()  # assigns new_card.id before the checklists below reference it
+
+    for checklist in source.checklists:
+        new_checklist = Checklist(card_id=new_card.id, name=checklist.name, position=checklist.position)
+        db.add(new_checklist)
+        await db.flush()  # assigns new_checklist.id before its items reference it
+        for item in checklist.items:
+            db.add(ChecklistItem(
+                checklist_id=new_checklist.id,
+                text=item.text,
+                is_done=item.is_done,
+                position=item.position,
+            ))
+
+    await db.commit()
+
+    result = await db.execute(
+        select(Card).options(*_card_load_options()).where(Card.id == new_card.id)
+    )
+    new_card = result.scalar_one()
+
+    recipients = await board_recipients(body.target_board_id, target_board.owner_id, db)
+    await manager.notify_many(
+        recipients,
+        board_notification(
+            "card_created", body.target_board_id, client_id, list_id=body.target_list_id
+        ),
+    )
+
+    people_by_id = await _people_by_id(_card_people_ids(new_card), db)
+    return _card_to_read(new_card, people_by_id)
 
 
 @router.patch("/{card_id}", response_model=CardRead)

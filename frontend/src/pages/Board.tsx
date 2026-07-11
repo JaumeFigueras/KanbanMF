@@ -716,6 +716,7 @@ export default function Board() {
               dateFormat={dateFormat}
               onArchived={() => {}}
               onUpdated={() => {}}
+              onCopied={() => {}}
               dragOverlay
             />
           ) : activeList ? (
