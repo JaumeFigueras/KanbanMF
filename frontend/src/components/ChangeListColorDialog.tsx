@@ -7,12 +7,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Typography,
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { BoardListRead } from '../types/board'
 import { apiFetch } from '../api/client'
 import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
+import ColorPicker from './ColorPicker'
 
 interface Props {
   open: boolean
@@ -82,25 +82,7 @@ export default function ChangeListColorDialog({ open, onClose, list, currentColo
       <DialogTitle>{t('board.changeListColor')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-          <Box
-            component="input"
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            sx={{
-              width: 48,
-              height: 48,
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              cursor: 'pointer',
-              p: '2px',
-              bgcolor: 'transparent',
-            }}
-          />
-          <Typography variant="body2" color="text.secondary">{color.toUpperCase()}</Typography>
-        </Box>
+        <ColorPicker value={color} onChange={setColor} />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'space-between' }}>
         <Button onClick={handleReset} color="inherit" disabled={saving}>
