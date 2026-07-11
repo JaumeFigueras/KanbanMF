@@ -19,6 +19,8 @@ import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import { apiFetch } from '../api/client'
 import { contrastColor } from '../utils/labelColor'
+import ColorPicker from './ColorPicker'
+import EditLabelDialog from './EditLabelDialog'
 
 interface Props {
   open: boolean
@@ -77,38 +79,19 @@ function InlineForm({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-        <Box
-          component="input"
-          type="color"
-          value={form.color}
-          onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
-          sx={{
-            width: 40,
-            height: 40,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            cursor: 'pointer',
-            p: '2px',
-            bgcolor: 'transparent',
-            flexShrink: 0,
-            mt: nameError ? '4px' : 0,
-          }}
-        />
-        <TextField
-          size="small"
-          label={t('board.labelName')}
-          value={form.name}
-          onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(false) }}
-          onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
-          error={nameError}
-          helperText={nameError ? t('board.labelNameRequired') : undefined}
-          sx={{ flexGrow: 1 }}
-          autoFocus
-          disabled={saving}
-        />
-      </Box>
+      <TextField
+        size="small"
+        label={t('board.labelName')}
+        value={form.name}
+        onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(false) }}
+        onKeyDown={e => { if (e.key === 'Enter') handleSave() }}
+        error={nameError}
+        helperText={nameError ? t('board.labelNameRequired') : undefined}
+        fullWidth
+        autoFocus
+        disabled={saving}
+      />
+      <ColorPicker value={form.color} onChange={color => setForm(f => ({ ...f, color }))} />
       <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
         <Button
           size="small"
@@ -209,33 +192,25 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{t('board.manageLabels')}</DialogTitle>
+    <>
+      <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+        <DialogTitle>{t('board.manageLabels')}</DialogTitle>
 
-      <DialogContent sx={{ pt: 2.5, pb: 1 }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+        <DialogContent sx={{ pt: 2.5, pb: 1 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-        {labels.length === 0 && !creating && !error && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {t('board.noLabels')}
-          </Typography>
-        )}
+          {labels.length === 0 && !creating && !error && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {t('board.noLabels')}
+            </Typography>
+          )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
-          {labels.map(label =>
-            editingId === label.id ? (
-              <InlineForm
-                key={label.id}
-                initial={{ name: label.name, color: label.color }}
-                onSave={form => handleEdit(label, form)}
-                onCancel={() => setEditingId(null)}
-                saving={saving}
-              />
-            ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
+            {labels.map(label => (
               <Box key={label.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <LabelChip label={label} />
                 <Tooltip title={t('board.editLabel')}>
@@ -252,33 +227,45 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
                   </IconButton>
                 </Tooltip>
               </Box>
-            )
-          )}
+            ))}
 
-          {creating && (
-            <InlineForm
-              initial={{ name: '', color: DEFAULT_COLOR }}
-              onSave={handleCreate}
-              onCancel={() => setCreating(false)}
-              saving={saving}
-            />
-          )}
-        </Box>
-      </DialogContent>
+            {creating && (
+              <InlineForm
+                initial={{ name: '', color: DEFAULT_COLOR }}
+                onSave={handleCreate}
+                onCancel={() => setCreating(false)}
+                saving={saving}
+              />
+            )}
+          </Box>
+        </DialogContent>
 
-      <Divider />
+        <Divider />
 
-      <DialogActions sx={{ justifyContent: 'space-between', px: 2.5, py: 2 }}>
-        <Button
-          variant="outlined"
-          size="small"
-          disabled={creating || editingId !== null}
-          onClick={() => { setEditingId(null); setCreating(true); setError(null) }}
-        >
-          {t('board.createNewLabel')}
-        </Button>
-        <Button onClick={onClose}>{t('common.close')}</Button>
-      </DialogActions>
-    </Dialog>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 2.5, py: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={creating || editingId !== null}
+            onClick={() => { setEditingId(null); setCreating(true); setError(null) }}
+          >
+            {t('board.createNewLabel')}
+          </Button>
+          <Button onClick={onClose}>{t('common.close')}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <EditLabelDialog
+        open={editingId !== null}
+        onClose={() => setEditingId(null)}
+        label={labels.find(l => l.id === editingId) ?? null}
+        saving={saving}
+        error={error}
+        onSave={form => {
+          const label = labels.find(l => l.id === editingId)
+          if (label) handleEdit(label, form)
+        }}
+      />
+    </>
   )
 }
