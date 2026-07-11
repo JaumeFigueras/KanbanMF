@@ -12,7 +12,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Delete } from '@mui/icons-material'
+import { Delete, DragIndicator } from '@mui/icons-material'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { ChecklistData, ChecklistItemData } from '../types/board'
 
@@ -21,6 +24,49 @@ interface Props {
   onClose: () => void
   checklist: ChecklistData | null
   onSave: (checklist: ChecklistData) => void
+}
+
+function SortableItemRow({
+  item,
+  onEditText,
+  onRemove,
+  removeLabel,
+  dragLabel,
+}: {
+  item: ChecklistItemData
+  onEditText: (text: string) => void
+  onRemove: () => void
+  removeLabel: string
+  dragLabel: string
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+
+  return (
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: isDragging ? 0.5 : 1 }}
+    >
+      <IconButton
+        size="small"
+        aria-label={dragLabel}
+        sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none', flexShrink: 0 }}
+        {...attributes}
+        {...listeners}
+      >
+        <DragIndicator fontSize="small" />
+      </IconButton>
+      <TextField
+        size="small"
+        value={item.text}
+        onChange={(e) => onEditText(e.target.value)}
+        fullWidth
+      />
+      <IconButton size="small" onClick={onRemove} aria-label={removeLabel}>
+        <Delete fontSize="small" />
+      </IconButton>
+    </Box>
+  )
 }
 
 export default function ChecklistDialog({ open, onClose, checklist, onSave }: Props) {
@@ -52,6 +98,18 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
 
   function handleRemoveItem(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id))
+  }
+
+  const itemSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  function handleItemDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setItems((prev) => {
+      const oldIndex = prev.findIndex((i) => i.id === active.id)
+      const newIndex = prev.findIndex((i) => i.id === over.id)
+      return arrayMove(prev, oldIndex, newIndex)
+    })
   }
 
   function handleSave() {
@@ -96,25 +154,22 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
           </Typography>
         )}
 
-        <Stack spacing={1}>
-          {items.map((item) => (
-            <Box key={item.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                size="small"
-                value={item.text}
-                onChange={(e) => handleEditItem(item.id, e.target.value)}
-                fullWidth
-              />
-              <IconButton
-                size="small"
-                onClick={() => handleRemoveItem(item.id)}
-                aria-label={t('board.removeChecklistItem')}
-              >
-                <Delete fontSize="small" />
-              </IconButton>
-            </Box>
-          ))}
-        </Stack>
+        <DndContext sensors={itemSensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
+          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <Stack spacing={1}>
+              {items.map((item) => (
+                <SortableItemRow
+                  key={item.id}
+                  item={item}
+                  onEditText={(text) => handleEditItem(item.id, text)}
+                  onRemove={() => handleRemoveItem(item.id)}
+                  removeLabel={t('board.removeChecklistItem')}
+                  dragLabel={t('board.moveChecklistItem')}
+                />
+              ))}
+            </Stack>
+          </SortableContext>
+        </DndContext>
 
         <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
           <TextField

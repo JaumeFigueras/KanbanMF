@@ -81,3 +81,11 @@ class ChecklistUpdate(BaseModel):
             if not v:
                 raise ValueError("Checklist name cannot be blank.")
         return v
+
+
+class ChecklistOrderUpdate(BaseModel):
+    checklist_ids: list[uuid.UUID]
+
+
+class ChecklistItemOrderUpdate(BaseModel):
+    item_ids: list[uuid.UUID]

@@ -20,12 +20,16 @@ import {
   Add,
   Checklist as ChecklistIcon,
   Delete,
+  DragIndicator,
   Edit,
   Label as LabelIcon,
   People as PeopleIcon,
 } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { CardRead, ChecklistData, LabelRead, PersonSummary } from '../types/board'
@@ -44,8 +48,13 @@ function jsonInit(method: string, body: unknown): RequestInit {
 
 // Reconciles the checklists edited locally in the dialog against what was
 // loaded from the server, issuing the create/update/delete calls needed to
-// bring the card's checklists in line. Runs as part of the Save action,
-// since checklists have no draft/local-only persistence of their own.
+// bring the card's checklists in line, then the order calls needed to match
+// the (possibly drag-reordered) local array — since the order endpoints
+// require the full current id set, `orderedChecklistIds`/`orderedItemIds`
+// are built from the real, post-create ids as each entry is processed, so
+// they always validate regardless of whether anything actually moved. Runs
+// as part of the Save action, since checklists have no draft/local-only
+// persistence of their own.
 async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next: ChecklistData[]) {
   const nextIds = new Set(next.map((c) => c.id))
   for (const checklist of prev) {
@@ -54,18 +63,18 @@ async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next
     }
   }
 
+  const orderedChecklistIds: string[] = []
   for (const checklist of next) {
     const before = prev.find((c) => c.id === checklist.id)
 
     if (!before) {
       const r = await apiFetch(checklistsUrl, jsonInit('POST', { name: checklist.name }))
       const created = await r.json()
+      const itemsUrl = `${checklistsUrl}/${created.id}/items`
       for (const item of checklist.items) {
-        await apiFetch(
-          `${checklistsUrl}/${created.id}/items`,
-          jsonInit('POST', { text: item.text, is_done: item.is_done }),
-        )
+        await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
       }
+      orderedChecklistIds.push(created.id)
       continue
     }
 
@@ -81,15 +90,121 @@ async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next
       }
     }
 
+    const orderedItemIds: string[] = []
     for (const item of checklist.items) {
       const beforeItem = before.items.find((i) => i.id === item.id)
       if (!beforeItem) {
-        await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
-      } else if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
-        await apiFetch(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
+        const r = await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+        const created = await r.json()
+        orderedItemIds.push(created.id)
+      } else {
+        if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
+          await apiFetch(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
+        }
+        orderedItemIds.push(item.id)
       }
     }
+    if (orderedItemIds.length > 0) {
+      await apiFetch(`${itemsUrl}/order`, jsonInit('PUT', { item_ids: orderedItemIds }))
+    }
+
+    orderedChecklistIds.push(checklist.id)
   }
+
+  if (orderedChecklistIds.length > 0) {
+    await apiFetch(`${checklistsUrl}/order`, jsonInit('PUT', { checklist_ids: orderedChecklistIds }))
+  }
+}
+
+function SortableChecklistRow({
+  checklist,
+  onEdit,
+  onRemove,
+  onToggleItem,
+  editLabel,
+  removeLabel,
+  dragLabel,
+}: {
+  checklist: ChecklistData
+  onEdit: () => void
+  onRemove: () => void
+  onToggleItem: (itemId: string) => void
+  editLabel: string
+  removeLabel: string
+  dragLabel: string
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id })
+  const doneCount = checklist.items.filter((i) => i.is_done).length
+
+  return (
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 1,
+        p: 1,
+        bgcolor: 'background.paper',
+        opacity: isDragging ? 0.5 : 1,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <IconButton
+          size="small"
+          aria-label={dragLabel}
+          sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+          {...attributes}
+          {...listeners}
+        >
+          <DragIndicator fontSize="small" />
+        </IconButton>
+        <Typography variant="subtitle2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
+          {checklist.name}
+        </Typography>
+        {checklist.items.length > 0 && (
+          <Typography variant="caption" color="text.secondary">
+            {doneCount}/{checklist.items.length}
+          </Typography>
+        )}
+        <IconButton size="small" onClick={onEdit} aria-label={editLabel}>
+          <Edit fontSize="small" />
+        </IconButton>
+        <IconButton size="small" onClick={onRemove} aria-label={removeLabel}>
+          <Delete fontSize="small" />
+        </IconButton>
+      </Box>
+
+      {checklist.items.length > 0 && (
+        <Stack sx={{ mt: 0.5 }}>
+          {checklist.items.map((item) => (
+            <FormControlLabel
+              key={item.id}
+              sx={{ ml: 0 }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={item.is_done}
+                  onChange={() => onToggleItem(item.id)}
+                />
+              }
+              label={
+                <Typography
+                  variant="body2"
+                  sx={{
+                    textDecoration: item.is_done ? 'line-through' : 'none',
+                    color: item.is_done ? 'text.disabled' : 'text.primary',
+                  }}
+                >
+                  {item.text}
+                </Typography>
+              }
+            />
+          ))}
+        </Stack>
+      )}
+    </Box>
+  )
 }
 
 interface Props {
@@ -185,6 +300,18 @@ export default function CardDialog({
       ...c,
       items: c.items.map((i) => i.id === itemId ? { ...i, is_done: !i.is_done } : i),
     }))
+  }
+
+  const checklistSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  function handleChecklistDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setChecklists((prev) => {
+      const oldIndex = prev.findIndex((c) => c.id === active.id)
+      const newIndex = prev.findIndex((c) => c.id === over.id)
+      return arrayMove(prev, oldIndex, newIndex)
+    })
   }
 
   useEffect(() => {
@@ -436,68 +563,24 @@ export default function CardDialog({
           </Typography>
         )}
 
-        <Stack spacing={1.5}>
-          {checklists.map((checklist) => {
-            const doneCount = checklist.items.filter((i) => i.is_done).length
-            return (
-              <Box key={checklist.id} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="subtitle2" sx={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
-                    {checklist.name}
-                  </Typography>
-                  {checklist.items.length > 0 && (
-                    <Typography variant="caption" color="text.secondary">
-                      {doneCount}/{checklist.items.length}
-                    </Typography>
-                  )}
-                  <IconButton
-                    size="small"
-                    onClick={() => handleEditChecklist(checklist)}
-                    aria-label={t('board.editChecklist')}
-                  >
-                    <Edit fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleRemoveChecklist(checklist.id)}
-                    aria-label={t('board.deleteChecklist')}
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Box>
-
-                {checklist.items.length > 0 && (
-                  <Stack sx={{ mt: 0.5 }}>
-                    {checklist.items.map((item) => (
-                      <FormControlLabel
-                        key={item.id}
-                        sx={{ ml: 0 }}
-                        control={
-                          <Checkbox
-                            size="small"
-                            checked={item.is_done}
-                            onChange={() => handleToggleChecklistItem(checklist.id, item.id)}
-                          />
-                        }
-                        label={
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              textDecoration: item.is_done ? 'line-through' : 'none',
-                              color: item.is_done ? 'text.disabled' : 'text.primary',
-                            }}
-                          >
-                            {item.text}
-                          </Typography>
-                        }
-                      />
-                    ))}
-                  </Stack>
-                )}
-              </Box>
-            )
-          })}
-        </Stack>
+        <DndContext sensors={checklistSensors} collisionDetection={closestCenter} onDragEnd={handleChecklistDragEnd}>
+          <SortableContext items={checklists.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            <Stack spacing={1.5}>
+              {checklists.map((checklist) => (
+                <SortableChecklistRow
+                  key={checklist.id}
+                  checklist={checklist}
+                  onEdit={() => handleEditChecklist(checklist)}
+                  onRemove={() => handleRemoveChecklist(checklist.id)}
+                  onToggleItem={(itemId) => handleToggleChecklistItem(checklist.id, itemId)}
+                  editLabel={t('board.editChecklist')}
+                  removeLabel={t('board.deleteChecklist')}
+                  dragLabel={t('board.moveChecklist')}
+                />
+              ))}
+            </Stack>
+          </SortableContext>
+        </DndContext>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} color="error" disabled={saving}>

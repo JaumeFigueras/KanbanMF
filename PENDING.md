@@ -17,7 +17,10 @@
 ✓ - Color picker
 - Captcha
 ✓ - New list should use the same colors as the board
-- New card of the same color of the list
+✓ - New card of the same color of the list
+✓ - Copy card
+✓ - DnD of Checklist Items
+- DnD of Labels
 
 ## UI
 
@@ -25,9 +28,15 @@
 ✓ - Only owners can delete
 ✓ - Shade new location in DnD
 - Add change color to board menu
+- DnD checklist and checklist item with new position preview
 
 # Bugs
 
 - Upload avatar does not change the initials on the board page
 - Card face line not of the same color
 - When changed to light theme the colors of the list and cards are not kept
+
+# FUTURE
+
+- Templates
+- Recurring tasks

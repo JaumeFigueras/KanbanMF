@@ -19,8 +19,10 @@ from src.model.user import User
 from src.schemas.checklist import (
     ChecklistCreate,
     ChecklistItemCreate,
+    ChecklistItemOrderUpdate,
     ChecklistItemRead,
     ChecklistItemUpdate,
+    ChecklistOrderUpdate,
     ChecklistRead,
     ChecklistUpdate,
 )
@@ -154,6 +156,40 @@ async def create_checklist(
     return ChecklistRead.model_validate(checklist)
 
 
+@router.put("/order", response_model=list[ChecklistRead])
+async def update_checklist_order(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    body: ChecklistOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ChecklistRead]:
+    """Reorder a card's checklists — body must list every checklist on the
+    card exactly once; position is set to each id's index."""
+    await _require_card(board_id, list_id, card_id, current_user, db)
+    result = await db.execute(
+        select(Checklist).where(Checklist.card_id == card_id)
+    )
+    checklists = {c.id: c for c in result.scalars().all()}
+    if set(body.checklist_ids) != set(checklists.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="checklist_ids must list every checklist on this card exactly once.",
+        )
+    for position, checklist_id in enumerate(body.checklist_ids):
+        checklists[checklist_id].position = position
+    await db.commit()
+
+    result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.card_id == card_id)
+        .order_by(Checklist.position)
+    )
+    return [ChecklistRead.model_validate(c) for c in result.scalars().all()]
+
+
 @router.patch("/{checklist_id}", response_model=ChecklistRead)
 async def update_checklist(
     board_id: uuid.UUID,
@@ -217,6 +253,38 @@ async def create_checklist_item(
     await db.commit()
     await db.refresh(item)
     return ChecklistItemRead.model_validate(item)
+
+
+@router.put("/{checklist_id}/items/order", response_model=list[ChecklistItemRead])
+async def update_checklist_item_order(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    checklist_id: uuid.UUID,
+    body: ChecklistItemOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ChecklistItemRead]:
+    """Reorder a checklist's items — body must list every item in the
+    checklist exactly once; position is set to each id's index."""
+    await _require_card(board_id, list_id, card_id, current_user, db)
+    checklist = await _get_checklist(card_id, checklist_id, db)
+    items = {i.id: i for i in checklist.items}
+    if set(body.item_ids) != set(items.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="item_ids must list every item in this checklist exactly once.",
+        )
+    for position, item_id in enumerate(body.item_ids):
+        items[item_id].position = position
+    await db.commit()
+
+    result = await db.execute(
+        select(ChecklistItem)
+        .where(ChecklistItem.checklist_id == checklist_id)
+        .order_by(ChecklistItem.position)
+    )
+    return [ChecklistItemRead.model_validate(i) for i in result.scalars().all()]
 
 
 @router.patch("/{checklist_id}/items/{item_id}", response_model=ChecklistItemRead)
