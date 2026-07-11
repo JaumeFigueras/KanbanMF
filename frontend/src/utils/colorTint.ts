@@ -1,5 +1,13 @@
 function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '')
+  // Expand shorthand (#fff) to full form first — MUI's default light theme
+  // uses '#fff' for palette.background.paper/default, which would otherwise
+  // parse as [255, 15, NaN] below and silently break every tint that uses it
+  // as a base (the invalid resulting hex gets dropped by the browser, so the
+  // element just falls back to its default background).
+  const shorthand = hex.replace('#', '')
+  const clean = shorthand.length === 3
+    ? shorthand.split('').map((c) => c + c).join('')
+    : shorthand
   return [
     parseInt(clean.slice(0, 2), 16),
     parseInt(clean.slice(2, 4), 16),

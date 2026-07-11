@@ -114,6 +114,7 @@ export default function CardItem({
           // Opaque (not alpha) so this doesn't blend with the list's own
           // tinted background sitting behind it — see utils/colorTint.
           bgcolor: (theme) => tintColor(cardColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
+          borderColor: cardColor ?? DEFAULT_COLOR,
         }}
       >
         {/* Content stays laid out (visibility, not display) so the card keeps
@@ -124,6 +125,7 @@ export default function CardItem({
             card={card}
             numberLocale={numberLocale}
             dateFormat={dateFormat}
+            color={cardColor ?? DEFAULT_COLOR}
             headerActions={
               <>
                 <IconButton

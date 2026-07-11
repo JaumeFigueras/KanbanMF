@@ -24,12 +24,17 @@ interface Props {
   // drag handle + menu button for the interactive board, nothing for a
   // read-only surface like the archive view.
   headerActions?: ReactNode
+  // The card's own color (falls back to the theme divider when omitted, as
+  // in the read-only archive view which doesn't track per-card color) —
+  // used for the separator between the name row and labels/dates/checklists
+  // so it matches the card's outline instead of always being neutral gray.
+  color?: string
 }
 
 // The card's visual content shared by CardItem (interactive, on the board)
 // and the read-only archive view — both surfaces show the exact same face,
 // only the interactivity wrapped around it differs.
-export default function CardFace({ card, numberLocale, dateFormat, headerActions }: Props) {
+export default function CardFace({ card, numberLocale, dateFormat, headerActions, color }: Props) {
   const { t } = useTranslation()
 
   const isCompleted = Boolean(card.end_at)
@@ -49,7 +54,7 @@ export default function CardFace({ card, numberLocale, dateFormat, headerActions
             alignItems: 'flex-start',
             ...((hasLabels || hasDates || hasChecklists) && {
               borderBottom: 1,
-              borderColor: 'divider',
+              borderColor: color ?? 'divider',
               pb: 1,
             }),
           }}

@@ -99,6 +99,7 @@ interface Props {
   boardId: string
   numberLocale: string
   card?: CardRead | null
+  listColor?: string | null
   onCreated?: (card: CardRead) => void
   onUpdated?: (card: CardRead) => void
 }
@@ -110,6 +111,7 @@ export default function CardDialog({
   boardId,
   numberLocale,
   card,
+  listColor,
   onCreated,
   onUpdated,
 }: Props) {
@@ -231,6 +233,18 @@ export default function CardDialog({
       await syncChecklists(checklistsUrl, initialChecklists, checklists)
       const checklistsRes = await apiFetch(checklistsUrl)
       result.checklists = checklistsRes.ok ? await checklistsRes.json() : result.checklists
+
+      // A new card inherits its list's own color (the viewer's per-user
+      // choice) so it doesn't stick out — same as a new list inherits its
+      // board's color — but only when the list actually has a non-default
+      // color set.
+      if (!isEdit && listColor) {
+        await apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/color`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ color: listColor }),
+        }).catch(() => {})
+      }
 
       if (isEdit) onUpdated?.(result)
       else onCreated?.(result)

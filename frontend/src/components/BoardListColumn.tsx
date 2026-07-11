@@ -281,6 +281,7 @@ export default function BoardListColumn({
         listId={list.id}
         boardId={list.board_id}
         numberLocale={numberLocale}
+        listColor={listColor}
         onCreated={handleCardCreated}
       />
     </>

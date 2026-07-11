@@ -741,6 +741,7 @@ export default function Board() {
         open={createListOpen}
         onClose={() => setCreateListOpen(false)}
         boardId={boardId ?? ''}
+        boardColor={boardColor}
         onCreated={handleListCreated}
       />
 
