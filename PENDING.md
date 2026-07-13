@@ -21,6 +21,8 @@
 ✓ - Copy card
 ✓ - DnD of Checklist Items
 - DnD of Labels
+- Send emails only if no End Date set 
+- Time in dates default to current day AND Hour!
 
 ## UI
 
