@@ -2,6 +2,7 @@
 
 - Captcha
 - ✓ DnD of Labels
+- Add boards and labels in e-mail
 
 ## UI
 
@@ -17,5 +18,6 @@
 # FUTURE
 
 - Extract card from checklist item
+- E-mail digest
 - Templates
 - Recurring tasks
