@@ -23,13 +23,16 @@ interface Props {
   boardId: string
   listId: string
   cardId: string
+  // The source card's current title — prefilled into the name field so
+  // copying doesn't force retyping it; the user can still edit or clear it.
+  cardName: string
   // Reports the target list, the newly created card, and the color it was
   // copied with (see cards.py's copy_card) so the caller can render it with
   // its final color right away — same shape as CardDialog's onCreated.
   onCopied: (targetListId: string, card: CardRead, color: string | null) => void
 }
 
-export default function CopyCardDialog({ open, onClose, boardId, listId, cardId, onCopied }: Props) {
+export default function CopyCardDialog({ open, onClose, boardId, listId, cardId, cardName, onCopied }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
@@ -42,7 +45,7 @@ export default function CopyCardDialog({ open, onClose, boardId, listId, cardId,
 
   useEffect(() => {
     if (!open) return
-    setName('')
+    setName(cardName)
     setNameError(false)
     setTargetBoardId(boardId)
     setError(null)
@@ -50,7 +53,7 @@ export default function CopyCardDialog({ open, onClose, boardId, listId, cardId,
       .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(`HTTP ${r.status}`))
       .then(data => setBoards([...data.owned, ...data.shared]))
       .catch(err => setError(String(err)))
-  }, [open, boardId])
+  }, [open, boardId, cardName])
 
   useEffect(() => {
     if (!open || !targetBoardId) return

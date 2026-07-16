@@ -212,6 +212,7 @@ export default function CardItem({
         boardId={boardId}
         listId={listId}
         cardId={card.id}
+        cardName={card.name}
         onCopied={onCopied}
       />
     </>
