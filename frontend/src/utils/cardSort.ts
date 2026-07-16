@@ -22,11 +22,19 @@ export function sortCards(cards: CardRead[], mode: SortMode, customOrderIds: str
   }
   const sorted = [...cards]
   if (mode === 'due_date') {
+    const position = new Map(customOrderIds.map((id, index) => [id, index]))
     sorted.sort((a, b) => {
-      if (a.due_at && b.due_at) return Date.parse(a.due_at) - Date.parse(b.due_at)
+      if (a.due_at && b.due_at) {
+        const diff = Date.parse(a.due_at) - Date.parse(b.due_at)
+        return diff !== 0 ? diff : a.name.localeCompare(b.name)
+      }
       if (a.due_at) return 1
       if (b.due_at) return -1
-      return 0
+      // Neither has a due date: fall back to this list's custom order so the
+      // user can still arrange undated cards manually.
+      const posA = position.has(a.id) ? position.get(a.id)! : Infinity
+      const posB = position.has(b.id) ? position.get(b.id)! : Infinity
+      return posA - posB
     })
   } else if (mode === 'alpha_asc') {
     sorted.sort((a, b) => a.name.localeCompare(b.name))
