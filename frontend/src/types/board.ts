@@ -57,6 +57,7 @@ export interface LabelRead {
   board_id: string
   name: string
   color: string
+  position: number
   created_at: string
   updated_at: string
 }

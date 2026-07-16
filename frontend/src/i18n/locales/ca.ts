@@ -134,6 +134,7 @@ const ca = {
     labelNameRequired: 'El nom de l\'etiqueta és obligatori.',
     editLabel: 'Edita l\'etiqueta',
     deleteLabel: 'Elimina l\'etiqueta',
+    moveLabel: 'Mou l\'etiqueta',
     createCard: 'Crea una tarja',
     editCard: 'Edita la tarja',
     changeCardColor: 'Canvia el color',

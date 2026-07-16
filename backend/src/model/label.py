@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, List
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -46,6 +46,13 @@ class Label(Base):
         String(50),
         nullable=False,
         comment="Hex colour code (e.g. #FF5733) or any CSS colour string.",
+    )
+
+    position: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Display order among the board's labels. Lower value = higher position.",
     )
 
     created_at: Mapped[datetime] = mapped_column(

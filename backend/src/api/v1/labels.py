@@ -4,7 +4,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
@@ -12,7 +12,7 @@ from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.label import Label
 from src.model.user import User
-from src.schemas.label import LabelCreate, LabelRead, LabelUpdate
+from src.schemas.label import LabelCreate, LabelOrderUpdate, LabelRead, LabelUpdate
 
 router = APIRouter()
 
@@ -54,12 +54,13 @@ async def list_labels(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[LabelRead]:
-    """Return all labels for the board. Accessible by owner and shared users."""
+    """Return all labels for the board, in display order. Accessible by owner
+    and shared users."""
     await _get_accessible_board(board_id, current_user, db)
     result = await db.execute(
         select(Label)
         .where(Label.board_id == board_id)
-        .order_by(Label.created_at)
+        .order_by(Label.position)
     )
     return [LabelRead.model_validate(lbl) for lbl in result.scalars().all()]
 
@@ -71,13 +72,49 @@ async def create_label(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabelRead:
-    """Create a label on the board. Owner only."""
+    """Create a label on the board, appended after any existing labels.
+    Owner only."""
     await _require_owner(board_id, current_user, db)
-    label = Label(board_id=board_id, name=body.name, color=body.color)
+    count_result = await db.execute(
+        select(func.count()).select_from(Label).where(Label.board_id == board_id)
+    )
+    label = Label(
+        board_id=board_id,
+        name=body.name,
+        color=body.color,
+        position=count_result.scalar_one(),
+    )
     db.add(label)
     await db.commit()
     await db.refresh(label)
     return LabelRead.model_validate(label)
+
+
+@router.put("/order", response_model=list[LabelRead])
+async def update_label_order(
+    board_id: uuid.UUID,
+    body: LabelOrderUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[LabelRead]:
+    """Reorder a board's labels — body must list every label on the board
+    exactly once; position is set to each id's index. Owner only."""
+    await _require_owner(board_id, current_user, db)
+    result = await db.execute(select(Label).where(Label.board_id == board_id))
+    labels = {lbl.id: lbl for lbl in result.scalars().all()}
+    if set(body.label_ids) != set(labels.keys()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="label_ids must list every label on this board exactly once.",
+        )
+    for position, label_id in enumerate(body.label_ids):
+        labels[label_id].position = position
+    await db.commit()
+
+    result = await db.execute(
+        select(Label).where(Label.board_id == board_id).order_by(Label.position)
+    )
+    return [LabelRead.model_validate(lbl) for lbl in result.scalars().all()]
 
 
 @router.patch("/{label_id}", response_model=LabelRead)

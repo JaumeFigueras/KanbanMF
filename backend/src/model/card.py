@@ -134,6 +134,7 @@ class Card(Base):
         "Label",
         secondary=CardLabel.__table__,
         back_populates="cards",
+        order_by="Label.position",
     )
 
     checklists: Mapped[List["Checklist"]] = relationship(

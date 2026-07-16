@@ -38,6 +38,7 @@ class LabelRead(BaseModel):
     board_id: uuid.UUID
     name: str
     color: str
+    position: int
     created_at: datetime
     updated_at: datetime
 
@@ -59,3 +60,7 @@ class LabelUpdate(BaseModel):
     @classmethod
     def color_valid(cls, v: str | None) -> str | None:
         return _validate_color(v) if v is not None else v
+
+
+class LabelOrderUpdate(BaseModel):
+    label_ids: list[uuid.UUID]

@@ -12,7 +12,17 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
-import { Delete, Edit } from '@mui/icons-material'
+import { Delete, DragIndicator, Edit } from '@mui/icons-material'
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import { apiFetch } from '../api/client'
@@ -48,6 +58,53 @@ function LabelChip({ label }: { label: LabelRead }) {
       }}
     >
       {label.name}
+    </Box>
+  )
+}
+
+function SortableLabelRow({
+  label,
+  onEdit,
+  onRemove,
+  editLabel,
+  removeLabel,
+  dragLabel,
+}: {
+  label: LabelRead
+  onEdit: () => void
+  onRemove: () => void
+  editLabel: string
+  removeLabel: string
+  dragLabel: string
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: label.id })
+
+  return (
+    <Box
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: isDragging ? 0.5 : 1 }}
+    >
+      <IconButton
+        size="small"
+        aria-label={dragLabel}
+        sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none', flexShrink: 0 }}
+        {...attributes}
+        {...listeners}
+      >
+        <DragIndicator fontSize="small" />
+      </IconButton>
+      <LabelChip label={label} />
+      <Tooltip title={editLabel}>
+        <IconButton size="small" onClick={onEdit}>
+          <Edit fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={removeLabel}>
+        <IconButton size="small" color="error" onClick={onRemove}>
+          <Delete fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Box>
   )
 }
@@ -146,6 +203,32 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
     }
   }
 
+  const labelSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = labels.findIndex(l => l.id === active.id)
+    const newIndex = labels.findIndex(l => l.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(labels, oldIndex, newIndex)
+    setLabels(reordered)
+
+    apiFetch(`${API}/order`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ label_ids: reordered.map(l => l.id) }),
+    })
+      .then(r => { if (!r.ok) throw new Error() })
+      .catch(() => {
+        // Rejected (e.g. stale state) — resync from the server.
+        apiFetch(API)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(setLabels)
+          .catch(() => setError(t('common.saveError')))
+      })
+  }
+
   return (
     <>
       <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
@@ -164,23 +247,23 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
             </Typography>
           )}
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
-            {labels.map(label => (
-              <Box key={label.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LabelChip label={label} />
-                <Tooltip title={t('board.editLabel')}>
-                  <IconButton size="small" onClick={() => openEditForm(label)}>
-                    <Edit fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={t('board.deleteLabel')}>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(label.id)}>
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+          <DndContext sensors={labelSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={labels.map(l => l.id)} strategy={verticalListSortingStrategy}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
+                {labels.map(label => (
+                  <SortableLabelRow
+                    key={label.id}
+                    label={label}
+                    onEdit={() => openEditForm(label)}
+                    onRemove={() => handleDelete(label.id)}
+                    editLabel={t('board.editLabel')}
+                    removeLabel={t('board.deleteLabel')}
+                    dragLabel={t('board.moveLabel')}
+                  />
+                ))}
               </Box>
-            ))}
-          </Box>
+            </SortableContext>
+          </DndContext>
         </DialogContent>
 
         <Divider />

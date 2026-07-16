@@ -134,6 +134,7 @@ const en = {
     labelNameRequired: 'Label name is required.',
     editLabel: 'Edit label',
     deleteLabel: 'Delete label',
+    moveLabel: 'Move label',
     createCard: 'Create Card',
     editCard: 'Edit Card',
     changeCardColor: 'Change Color',

@@ -129,6 +129,7 @@ class Board(Base):
         "Label",
         back_populates="board",
         cascade="all, delete-orphan",
+        order_by="Label.position",
     )
 
     # One row per user with access to this board — see BoardNotificationSettings.
