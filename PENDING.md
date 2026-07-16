@@ -1,7 +1,7 @@
 ## Functionality
 
 - Captcha
-- DnD of Labels
+- ✓ DnD of Labels
 
 ## UI
 
@@ -11,8 +11,8 @@
 # Bugs
 
 - Upload avatar does not change the initials on the board page
-- Card face line not of the same color
 - When changed to light theme the colors of the list and cards are not kept
+- ✓ When copying a card the Title is not used as starting point 
 
 # FUTURE
 
