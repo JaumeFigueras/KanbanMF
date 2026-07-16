@@ -6,6 +6,8 @@
 
 ## UI
 
+- Order for cards with no due date when selected order is due date
+- Add logo, favicon and application name (instead of frontend)
 - Add change color to board menu
 - DnD checklist and checklist item with new position preview
 
