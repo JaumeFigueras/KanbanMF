@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Box,
   IconButton,
@@ -31,9 +31,14 @@ interface Props {
   numberLocale: string
   dateFormat: DateFormat
   sortMode: SortMode
+  // The viewer's color for this list, and for every card on the board,
+  // fetched once up front by the parent — avoids the default-color flash
+  // that per-entity fetch-on-mount used to cause. See Board.tsx's `colors`.
+  initialColor: string | null
+  cardColors: Record<string, string>
   onRenamed: (listId: string, newName: string) => void
   onArchived: (listId: string) => void
-  onCardCreated: (listId: string, card: CardRead) => void
+  onCardCreated: (listId: string, card: CardRead, color: string | null) => void
   onCardArchived: (listId: string, cardId: string) => void
   onCardUpdated: (listId: string, card: CardRead) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
@@ -49,6 +54,8 @@ export default function BoardListColumn({
   numberLocale,
   dateFormat,
   sortMode,
+  initialColor,
+  cardColors,
   onRenamed,
   onArchived,
   onCardCreated,
@@ -61,22 +68,15 @@ export default function BoardListColumn({
   const [renameOpen, setRenameOpen] = useState(false)
   const [cardDialogOpen, setCardDialogOpen] = useState(false)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
-  const [listColor, setListColor] = useState<string | null>(null)
-
-  useEffect(() => {
-    apiFetch(`/api/v1/boards/${list.board_id}/lists/${list.id}/color`)
-      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
-      .then(data => setListColor(data?.color ?? null))
-      .catch(() => {})
-  }, [list.board_id, list.id])
+  const [listColor, setListColor] = useState<string | null>(initialColor)
 
   const sortedCards = useMemo(
     () => sortCards(cards, sortMode, customOrderIds),
     [cards, sortMode, customOrderIds],
   )
 
-  function handleCardCreated(card: CardRead) {
-    onCardCreated(list.id, card)
+  function handleCardCreated(card: CardRead, color: string | null) {
+    onCardCreated(list.id, card, color)
   }
 
   function handleCardArchived(cardId: string) {
@@ -229,6 +229,7 @@ export default function BoardListColumn({
                   listId={list.id}
                   numberLocale={numberLocale}
                   dateFormat={dateFormat}
+                  initialColor={cardColors[card.id] ?? null}
                   onArchived={handleCardArchived}
                   onUpdated={handleCardUpdated}
                   onCopied={onCardCreated}

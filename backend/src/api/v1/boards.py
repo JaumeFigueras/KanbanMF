@@ -12,9 +12,13 @@ from src.api.deps import get_client_id, get_current_user, get_db
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
+from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
+from src.model.card import Card
 from src.model.ui_board_color import UIBoardColor
 from src.model.ui_board_order import UIBoardOrder
+from src.model.ui_card_color import UICardColor
+from src.model.ui_list_color import UIListColor
 from src.model.user import User
 from src.model.user_avatar import UserAvatar
 from src.model.user_board_star import UserBoardStar
@@ -29,7 +33,7 @@ from src.schemas.board import (
     BoardsResponse,
 )
 from src.schemas.person import PersonRead
-from src.schemas.ui_color import ColorRead, ColorUpdate
+from src.schemas.ui_color import BoardColorsRead, ColorRead, ColorUpdate
 
 router = APIRouter()
 
@@ -690,6 +694,45 @@ async def unstar_board(
     )
 
     await db.commit()
+
+
+@router.get("/{board_id}/colors", response_model=BoardColorsRead)
+async def get_board_colors(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardColorsRead:
+    """Return every color the current user has personally set on this board
+    (the board itself, its lists, and their cards) in one shot, so the
+    frontend can render the whole board with its final colors from the
+    first paint instead of one request per list/card.
+    """
+    await _check_board_access(board_id, current_user, db)
+
+    board_color_result = await db.execute(
+        select(UIBoardColor.color).where(
+            UIBoardColor.user_id == current_user.id,
+            UIBoardColor.board_id == board_id,
+        )
+    )
+    board_color = board_color_result.scalar_one_or_none()
+
+    lists_result = await db.execute(
+        select(UIListColor.list_id, UIListColor.color)
+        .join(BoardList, BoardList.id == UIListColor.list_id)
+        .where(BoardList.board_id == board_id, UIListColor.user_id == current_user.id)
+    )
+    list_colors = {str(list_id): color for list_id, color in lists_result.all()}
+
+    cards_result = await db.execute(
+        select(UICardColor.card_id, UICardColor.color)
+        .join(Card, Card.id == UICardColor.card_id)
+        .join(BoardList, BoardList.id == Card.list_id)
+        .where(BoardList.board_id == board_id, UICardColor.user_id == current_user.id)
+    )
+    card_colors = {str(card_id): color for card_id, color in cards_result.all()}
+
+    return BoardColorsRead(board=board_color, lists=list_colors, cards=card_colors)
 
 
 @router.get("/{board_id}/color", response_model=ColorRead)

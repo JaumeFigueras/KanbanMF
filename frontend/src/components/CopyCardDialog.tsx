@@ -23,10 +23,10 @@ interface Props {
   boardId: string
   listId: string
   cardId: string
-  // Reports the target list and the newly created card so the caller can
-  // update local state when the copy lands on a list already on screen
-  // (same shape as CardDialog's onCreated — harmless no-op otherwise).
-  onCopied: (targetListId: string, card: CardRead) => void
+  // Reports the target list, the newly created card, and the color it was
+  // copied with (see cards.py's copy_card) so the caller can render it with
+  // its final color right away — same shape as CardDialog's onCreated.
+  onCopied: (targetListId: string, card: CardRead, color: string | null) => void
 }
 
 export default function CopyCardDialog({ open, onClose, boardId, listId, cardId, onCopied }: Props) {
@@ -103,7 +103,17 @@ export default function CopyCardDialog({ open, onClose, boardId, listId, cardId,
       )
       if (!r.ok) throw new Error()
       const copied: CardRead = await r.json()
-      onCopied(targetListId, copied)
+
+      // Fetched before onCopied fires (not after) so the caller can render
+      // the copy with its final color immediately — the color endpoint is
+      // per-user/per-card, not part of CardRead, and copy_card already
+      // propagated the source card's color server-side.
+      const colorRes = await apiFetch(
+        `/api/v1/boards/${targetBoardId}/lists/${targetListId}/cards/${copied.id}/color`,
+      )
+      const colorData = colorRes.ok ? await colorRes.json() as { color: string | null } : null
+
+      onCopied(targetListId, copied, colorData?.color ?? null)
       onClose()
     } catch {
       setError(t('common.saveError'))

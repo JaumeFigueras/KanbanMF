@@ -37,7 +37,7 @@ import CardItem from '../components/CardItem'
 import ArchivedListsView from '../components/ArchivedListsView'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
-import type { BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
+import type { BoardColorsRead, BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
 import { SORT_OPTIONS, sortCards } from '../utils/cardSort'
@@ -71,7 +71,12 @@ export default function Board() {
   const navigate = useNavigate()
   const { boardId } = useParams<{ boardId: string }>()
   const [board, setBoard] = useState<BoardRead | null>(null)
-  const [boardColor, setBoardColor] = useState<string | null>(null)
+  // Every color the current user has personally set anywhere on this board
+  // (board/lists/cards), fetched once alongside the lists themselves so
+  // everything renders with its final color from the first paint — see
+  // fetchLists below.
+  const [colors, setColors] = useState<BoardColorsRead>({ board: null, lists: {}, cards: {} })
+  const boardColor = colors.board
   const [lists, setLists] = useState<BoardListRead[]>([])
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
@@ -121,14 +126,6 @@ export default function Board() {
       .catch(() => {})
   }, [boardId])
 
-  useEffect(() => {
-    if (!boardId) return
-    apiFetch(`/api/v1/boards/${boardId}/color`)
-      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
-      .then(data => setBoardColor(data?.color ?? null))
-      .catch(() => {})
-  }, [boardId])
-
   // Needed to tell whether *this* viewer is the board owner — permanently
   // deleting a list or card in the archive view is an owner-only action.
   useEffect(() => {
@@ -147,10 +144,16 @@ export default function Board() {
         .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
       apiFetch(`/api/v1/boards/${boardId}/lists/order`)
         .then(r => r.ok ? r.json() as Promise<BoardListOrderRead> : { board_id: boardId, list_ids: [] }),
+      // Fetched alongside the lists themselves (not on-demand per list/card)
+      // so every list/card column can render with its final color on first
+      // paint — no default-color flash while N per-entity requests resolve.
+      apiFetch(`/api/v1/boards/${boardId}/colors`)
+        .then(r => r.ok ? r.json() as Promise<BoardColorsRead> : { board: null, lists: {}, cards: {} }),
     ])
-      .then(([fetchedLists, fetchedOrder]) => {
+      .then(([fetchedLists, fetchedOrder, fetchedColors]) => {
         setLists(fetchedLists)
         setOrder(fetchedOrder.list_ids)
+        setColors(fetchedColors)
       })
       .catch(() => {})
   }, [boardId])
@@ -221,6 +224,13 @@ export default function Board() {
   function handleListCreated(list: BoardListRead) {
     setLists(prev => [...prev, list])
     setOrder(prev => [...prev, list.id])
+    // CreateListDialog inherits the board's own color onto a new list
+    // server-side when boardColor is set — mirror that here so the bulk
+    // `colors` map (fetched once at board load) knows about it too, or the
+    // new list would render with the default color until the next reload.
+    if (boardColor) {
+      setColors(prev => ({ ...prev, lists: { ...prev.lists, [list.id]: boardColor } }))
+    }
   }
 
   function openSortMenu(e: React.MouseEvent<HTMLElement>) {
@@ -253,8 +263,16 @@ export default function Board() {
     setOrder(prev => prev.filter(id => id !== listId))
   }
 
-  function handleCardCreated(listId: string, card: CardRead) {
+  function handleCardCreated(listId: string, card: CardRead, color: string | null) {
+    // The color (inherited list color for a plain create, or the source
+    // card's own color for a copy — see CardDialog/CopyCardDialog) is
+    // already resolved by the caller before this fires, so it lands in the
+    // same render as the card itself: no default-color flash while a
+    // follow-up fetch resolves.
     setCardsByList(prev => ({ ...prev, [listId]: [...(prev[listId] ?? []), card] }))
+    if (color) {
+      setColors(prev => ({ ...prev, cards: { ...prev.cards, [card.id]: color } }))
+    }
   }
 
   function handleCardArchived(listId: string, cardId: string) {
@@ -696,6 +714,8 @@ export default function Board() {
                 numberLocale={numberLocale}
                 dateFormat={dateFormat}
                 sortMode={sortMode}
+                initialColor={colors.lists[list.id] ?? null}
+                cardColors={colors.cards}
                 onRenamed={handleListRenamed}
                 onArchived={handleListArchived}
                 onCardCreated={handleCardCreated}
@@ -714,6 +734,7 @@ export default function Board() {
               listId={activeCard.list_id}
               numberLocale={numberLocale}
               dateFormat={dateFormat}
+              initialColor={colors.cards[activeCard.id] ?? null}
               onArchived={() => {}}
               onUpdated={() => {}}
               onCopied={() => {}}
@@ -727,6 +748,8 @@ export default function Board() {
               numberLocale={numberLocale}
               dateFormat={dateFormat}
               sortMode={sortMode}
+              initialColor={colors.lists[activeList.id] ?? null}
+              cardColors={colors.cards}
               onRenamed={() => {}}
               onArchived={() => {}}
               onCardCreated={() => {}}

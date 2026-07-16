@@ -215,7 +215,11 @@ interface Props {
   numberLocale: string
   card?: CardRead | null
   listColor?: string | null
-  onCreated?: (card: CardRead) => void
+  // Reports the color the new card was created with (the inherited list
+  // color, or null) alongside the card itself, so the caller can show it
+  // with its final color immediately instead of a moment after — see
+  // Board.tsx's handleCardCreated.
+  onCreated?: (card: CardRead, color: string | null) => void
   onUpdated?: (card: CardRead) => void
 }
 
@@ -365,16 +369,17 @@ export default function CardDialog({
       // choice) so it doesn't stick out — same as a new list inherits its
       // board's color — but only when the list actually has a non-default
       // color set.
-      if (!isEdit && listColor) {
+      const appliedColor = !isEdit && listColor ? listColor : null
+      if (appliedColor) {
         await apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/color`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ color: listColor }),
+          body: JSON.stringify({ color: appliedColor }),
         }).catch(() => {})
       }
 
       if (isEdit) onUpdated?.(result)
-      else onCreated?.(result)
+      else onCreated?.(result, appliedColor)
       onClose()
     } catch {
       setError(t('common.saveError'))

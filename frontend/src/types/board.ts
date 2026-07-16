@@ -32,6 +32,12 @@ export interface BoardListOrderRead {
   list_ids: string[]
 }
 
+export interface BoardColorsRead {
+  board: string | null
+  lists: Record<string, string>
+  cards: Record<string, string>
+}
+
 export interface BoardOrderRead {
   starred_ids: string[]
   owned_ids: string[]

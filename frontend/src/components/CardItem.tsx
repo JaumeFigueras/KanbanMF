@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Box,
   Card,
@@ -26,11 +26,15 @@ interface Props {
   listId: string
   numberLocale: string
   dateFormat: DateFormat
+  // The viewer's color for this card, fetched once up front by the board
+  // page — avoids the default-color flash that fetching it on mount used
+  // to cause. See Board.tsx's `colors`.
+  initialColor: string | null
   onArchived: (cardId: string) => void
   onUpdated: (card: CardRead) => void
   // Same shape as CardDialog's onCreated — lets the copy show up immediately
   // when it lands on a list already on screen.
-  onCopied: (targetListId: string, card: CardRead) => void
+  onCopied: (targetListId: string, card: CardRead, color: string | null) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real card's) or
   // respond to clicks.
@@ -43,6 +47,7 @@ export default function CardItem({
   listId,
   numberLocale,
   dateFormat,
+  initialColor,
   onArchived,
   onUpdated,
   onCopied,
@@ -53,14 +58,14 @@ export default function CardItem({
   const [editOpen, setEditOpen] = useState(false)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
   const [copyDialogOpen, setCopyDialogOpen] = useState(false)
-  const [cardColor, setCardColor] = useState<string | null>(null)
-
-  useEffect(() => {
-    apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}/color`)
-      .then(r => r.ok ? r.json() as Promise<{ color: string | null }> : null)
-      .then(data => setCardColor(data?.color ?? null))
-      .catch(() => {})
-  }, [boardId, listId, card.id])
+  // undefined = no explicit local choice yet, so `initialColor` (which the
+  // board page can still update after mount — e.g. a freshly created or
+  // copied card's color arrives via a follow-up fetch, see Board.tsx's
+  // handleCardCreated) keeps driving the display. Once the user explicitly
+  // saves or clears a color via ChangeCardColorDialog, that choice wins for
+  // the rest of this component's lifetime.
+  const [colorOverride, setColorOverride] = useState<string | null | undefined>(undefined)
+  const cardColor = colorOverride !== undefined ? colorOverride : initialColor
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dragOverlay ? `overlay-${card.id}` : card.id,
@@ -198,7 +203,7 @@ export default function CardItem({
         listId={listId}
         cardId={card.id}
         currentColor={cardColor}
-        onSaved={setCardColor}
+        onSaved={setColorOverride}
       />
 
       <CopyCardDialog
