@@ -126,6 +126,7 @@ async def send_due_date_notifications() -> None:
                     Card.is_archived.is_(False),
                     Card.is_deleted.is_(False),
                     Card.due_at.isnot(None),
+                    Card.end_at.is_(None),
                 )
             )
             cards = list(cards_result.scalars().all())
