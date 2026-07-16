@@ -3,6 +3,7 @@ import { Box, IconButton, Typography } from '@mui/material'
 import { Delete } from '@mui/icons-material'
 import { MobileDateTimePicker } from '@mui/x-date-pickers/MobileDateTimePicker'
 import type { DateTimeValidationError } from '@mui/x-date-pickers/models'
+import dayjs from 'dayjs'
 import type { Dayjs } from 'dayjs'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +13,11 @@ interface Props {
   onChange: (value: Dayjs | null) => void
 }
 
+function roundToNearestFiveMinutes(d: Dayjs): Dayjs {
+  const rounded = Math.round(d.minute() / 5) * 5
+  return d.startOf('minute').minute(0).add(rounded, 'minute')
+}
+
 // MobileDateTimePicker always opens its calendar/clock in a centered Dialog
 // (rather than a Popper anchored to the field), and its field is natively
 // editable — the user can type the date/time directly or click to open the
@@ -19,6 +25,11 @@ interface Props {
 export default function CardDateField({ label, value, onChange }: Props) {
   const { t } = useTranslation()
   const [invalid, setInvalid] = useState(false)
+  // MUI's own default `referenceDate` (used to seed the picker when there's
+  // no value yet) is today at 00:00, not "now" — recomputed on every open
+  // so it reflects the actual current time, rounded to the nearest 5
+  // minutes, rather than going stale from whenever the dialog first mounted.
+  const [referenceDate, setReferenceDate] = useState(() => roundToNearestFiveMinutes(dayjs()))
 
   function handleError(error: DateTimeValidationError) {
     setInvalid(error !== null)
@@ -34,6 +45,8 @@ export default function CardDateField({ label, value, onChange }: Props) {
           value={value}
           onChange={onChange}
           onError={handleError}
+          referenceDate={referenceDate}
+          onOpen={() => setReferenceDate(roundToNearestFiveMinutes(dayjs()))}
           slotProps={{
             textField: {
               size: 'small',
