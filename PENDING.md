@@ -16,5 +16,6 @@
 
 # FUTURE
 
+- Extract card from checklist item
 - Templates
 - Recurring tasks
