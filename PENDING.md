@@ -18,6 +18,7 @@
 # FUTURE
 
 - Extract card from checklist item
+- Copy checklist to another card
 - E-mail digest
 - Templates
 - Recurring tasks
