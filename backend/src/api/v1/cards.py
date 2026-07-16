@@ -356,6 +356,16 @@ async def copy_card(
     db.add(new_card)
     await db.flush()  # assigns new_card.id before the checklists below reference it
 
+    source_color_result = await db.execute(
+        select(UICardColor.color).where(
+            UICardColor.user_id == current_user.id,
+            UICardColor.card_id == card_id,
+        )
+    )
+    source_color = source_color_result.scalar_one_or_none()
+    if source_color is not None:
+        db.add(UICardColor(user_id=current_user.id, card_id=new_card.id, color=source_color))
+
     for checklist in source.checklists:
         new_checklist = Checklist(card_id=new_card.id, name=checklist.name, position=checklist.position)
         db.add(new_checklist)
