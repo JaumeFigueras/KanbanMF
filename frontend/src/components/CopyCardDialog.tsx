@@ -25,14 +25,36 @@ interface Props {
   cardId: string
   // The source card's current title — prefilled into the name field so
   // copying doesn't force retyping it; the user can still edit or clear it.
+  // CardDialog reuses this dialog to extract a checklist item into its own
+  // card, and passes the item's text here instead.
   cardName: string
   // Reports the target list, the newly created card, and the color it was
   // copied with (see cards.py's copy_card) so the caller can render it with
   // its final color right away — same shape as CardDialog's onCreated.
   onCopied: (targetListId: string, card: CardRead, color: string | null) => void
+  // Overrides the dialog heading. Defaults to "Copy Card"; the checklist-item
+  // extraction reuses the dialog under its own title.
+  title?: string
+  // Passed through to the copy endpoint. Both default to true, so a plain
+  // copy is a full copy; extracting a checklist item clears both — it wants
+  // the card's labels, dates, people and color but an empty description and
+  // no checklists. See cards.py's copy_card.
+  includeDescription?: boolean
+  includeChecklists?: boolean
 }
 
-export default function CopyCardDialog({ open, onClose, boardId, listId, cardId, cardName, onCopied }: Props) {
+export default function CopyCardDialog({
+  open,
+  onClose,
+  boardId,
+  listId,
+  cardId,
+  cardName,
+  onCopied,
+  title,
+  includeDescription = true,
+  includeChecklists = true,
+}: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
@@ -101,6 +123,8 @@ export default function CopyCardDialog({ open, onClose, boardId, listId, cardId,
             name: trimmed,
             target_board_id: targetBoardId,
             target_list_id: targetListId,
+            include_description: includeDescription,
+            include_checklists: includeChecklists,
           }),
         },
       )
@@ -127,7 +151,7 @@ export default function CopyCardDialog({ open, onClose, boardId, listId, cardId,
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t('board.copyCard')}</DialogTitle>
+      <DialogTitle>{title ?? t('board.copyCard')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <TextField

@@ -18,6 +18,7 @@ import {
 } from '@mui/material'
 import {
   Add,
+  ArrowOutward,
   Checklist as ChecklistIcon,
   Delete,
   DragIndicator,
@@ -32,10 +33,11 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { CardRead, ChecklistData, LabelRead, PersonSummary } from '../types/board'
+import type { CardRead, ChecklistData, ChecklistItemData, LabelRead, PersonSummary } from '../types/board'
 import CardDateField from './CardDateField'
 import CardLabelPickerDialog from './CardLabelPickerDialog'
 import ChecklistDialog from './ChecklistDialog'
+import CopyCardDialog from './CopyCardDialog'
 import PersonAvatar from './PersonAvatar'
 import SelectUserDialog from './SelectUserDialog'
 import { dayjsLocaleFor } from '../utils/locale'
@@ -121,17 +123,24 @@ function SortableChecklistRow({
   onEdit,
   onRemove,
   onToggleItem,
+  onExtractItem,
   editLabel,
   removeLabel,
   dragLabel,
+  extractLabel,
 }: {
   checklist: ChecklistData
   onEdit: () => void
   onRemove: () => void
   onToggleItem: (itemId: string) => void
+  // Undefined while the card itself hasn't been created yet — there is no
+  // source card to copy labels/dates/people from, so the action is hidden
+  // rather than shown broken.
+  onExtractItem?: (item: ChecklistItemData) => void
   editLabel: string
   removeLabel: string
   dragLabel: string
+  extractLabel: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id })
   const doneCount = checklist.items.filter((i) => i.is_done).length
@@ -178,28 +187,45 @@ function SortableChecklistRow({
       {checklist.items.length > 0 && (
         <Stack sx={{ mt: 0.5 }}>
           {checklist.items.map((item) => (
-            <FormControlLabel
-              key={item.id}
-              sx={{ ml: 0 }}
-              control={
-                <Checkbox
+            // Flex row rather than a bare FormControlLabel so the extract
+            // button sits at the right edge; every row shares the same
+            // container width, which is what lines the buttons up as a
+            // column without any fixed sizing.
+            <Box key={item.id} sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControlLabel
+                sx={{ ml: 0, mr: 0, flex: 1, minWidth: 0 }}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={item.is_done}
+                    onChange={() => onToggleItem(item.id)}
+                  />
+                }
+                label={
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      textDecoration: item.is_done ? 'line-through' : 'none',
+                      color: item.is_done ? 'text.disabled' : 'text.primary',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {item.text}
+                  </Typography>
+                }
+              />
+              {onExtractItem && (
+                <IconButton
                   size="small"
-                  checked={item.is_done}
-                  onChange={() => onToggleItem(item.id)}
-                />
-              }
-              label={
-                <Typography
-                  variant="body2"
-                  sx={{
-                    textDecoration: item.is_done ? 'line-through' : 'none',
-                    color: item.is_done ? 'text.disabled' : 'text.primary',
-                  }}
+                  onClick={() => onExtractItem(item)}
+                  aria-label={extractLabel}
+                  title={extractLabel}
+                  sx={{ flexShrink: 0 }}
                 >
-                  {item.text}
-                </Typography>
-              }
-            />
+                  <ArrowOutward fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
           ))}
         </Stack>
       )}
@@ -221,6 +247,10 @@ interface Props {
   // Board.tsx's handleCardCreated.
   onCreated?: (card: CardRead, color: string | null) => void
   onUpdated?: (card: CardRead) => void
+  // Same shape as CardItem's own onCopied — fired when a checklist item is
+  // extracted into a new card, so the board can show it straight away. The
+  // extract action is hidden when this is absent.
+  onCopied?: (targetListId: string, card: CardRead, color: string | null) => void
 }
 
 export default function CardDialog({
@@ -233,6 +263,7 @@ export default function CardDialog({
   listColor,
   onCreated,
   onUpdated,
+  onCopied,
 }: Props) {
   const { t } = useTranslation()
   const isEdit = Boolean(card)
@@ -252,6 +283,11 @@ export default function CardDialog({
   const [initialChecklists, setInitialChecklists] = useState<ChecklistData[]>([])
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false)
   const [editingChecklist, setEditingChecklist] = useState<ChecklistData | null>(null)
+  // The checklist item currently being extracted into its own card, or null.
+  // Only its text is used — the item may still be a local draft with a
+  // client-generated id that the server has never seen, so the extraction
+  // copies the *card* and takes the item's text as the new card's name.
+  const [extractingItem, setExtractingItem] = useState<ChecklistItemData | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -578,9 +614,11 @@ export default function CardDialog({
                   onEdit={() => handleEditChecklist(checklist)}
                   onRemove={() => handleRemoveChecklist(checklist.id)}
                   onToggleItem={(itemId) => handleToggleChecklistItem(checklist.id, itemId)}
+                  onExtractItem={card && onCopied ? setExtractingItem : undefined}
                   editLabel={t('board.editChecklist')}
                   removeLabel={t('board.deleteChecklist')}
                   dragLabel={t('board.moveChecklist')}
+                  extractLabel={t('board.extractToCard')}
                 />
               ))}
             </Stack>
@@ -628,6 +666,23 @@ export default function CardDialog({
         checklist={editingChecklist}
         onSave={handleChecklistSaved}
       />
+
+      {card && onCopied && (
+        <CopyCardDialog
+          open={extractingItem !== null}
+          onClose={() => setExtractingItem(null)}
+          boardId={boardId}
+          listId={listId}
+          cardId={card.id}
+          cardName={extractingItem?.text ?? ''}
+          title={t('board.extractToCard')}
+          // The new card takes the source card's labels, dates, people and
+          // color, but starts empty otherwise — see cards.py's copy_card.
+          includeDescription={false}
+          includeChecklists={false}
+          onCopied={onCopied}
+        />
+      )}
     </Dialog>
   )
 }

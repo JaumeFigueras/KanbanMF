@@ -194,6 +194,7 @@ export default function CardItem({
         numberLocale={numberLocale}
         card={card}
         onUpdated={onUpdated}
+        onCopied={onCopied}
       />
 
       <ChangeCardColorDialog

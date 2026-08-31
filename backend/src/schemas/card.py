@@ -40,6 +40,12 @@ class CardCopyCreate(BaseModel):
     name: str
     target_board_id: uuid.UUID
     target_list_id: uuid.UUID
+    # Both default to True so a plain copy stays a full copy. They exist for
+    # the "promote a checklist item to a card" action, which wants the source
+    # card's labels/dates/people but neither its description nor its
+    # checklists — see copy_card.
+    include_description: bool = True
+    include_checklists: bool = True
 
     @field_validator("name")
     @classmethod

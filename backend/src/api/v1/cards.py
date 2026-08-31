@@ -320,6 +320,12 @@ async def copy_card(
     there (e.g. a label from the source board when copying cross-board) is
     silently dropped rather than erroring. Checklists have no bulk-copy
     endpoint of their own, so they're duplicated item by item.
+
+    `include_description` and `include_checklists` both default to True, so
+    the plain copy action is unaffected. The frontend clears both when
+    extracting a checklist item into its own card: that wants the source
+    card's labels, dates, people and color, but starts with an empty
+    description and no checklists of its own.
     """
     await _get_accessible_board(board_id, current_user, db)
     await _get_list(board_id, list_id, db)
@@ -345,7 +351,7 @@ async def copy_card(
         list_id=body.target_list_id,
         creator_id=current_user.id,
         name=body.name,
-        description=source.description,
+        description=source.description if body.include_description else None,
         start_at=source.start_at,
         due_at=source.due_at,
         end_at=source.end_at,
@@ -366,17 +372,18 @@ async def copy_card(
     if source_color is not None:
         db.add(UICardColor(user_id=current_user.id, card_id=new_card.id, color=source_color))
 
-    for checklist in source.checklists:
-        new_checklist = Checklist(card_id=new_card.id, name=checklist.name, position=checklist.position)
-        db.add(new_checklist)
-        await db.flush()  # assigns new_checklist.id before its items reference it
-        for item in checklist.items:
-            db.add(ChecklistItem(
-                checklist_id=new_checklist.id,
-                text=item.text,
-                is_done=item.is_done,
-                position=item.position,
-            ))
+    if body.include_checklists:
+        for checklist in source.checklists:
+            new_checklist = Checklist(card_id=new_card.id, name=checklist.name, position=checklist.position)
+            db.add(new_checklist)
+            await db.flush()  # assigns new_checklist.id before its items reference it
+            for item in checklist.items:
+                db.add(ChecklistItem(
+                    checklist_id=new_checklist.id,
+                    text=item.text,
+                    is_done=item.is_done,
+                    position=item.position,
+                ))
 
     await db.commit()
 

@@ -184,6 +184,7 @@ const en = {
     addChecklistItem: 'Add an item',
     removeChecklistItem: 'Remove item',
     moveChecklistItem: 'Move item',
+    extractToCard: 'Extract to New Card',
     sortCards: 'Sort cards',
     sortDueDate: 'Due date',
     sortAlphaAsc: 'Alphabetically (A-Z)',

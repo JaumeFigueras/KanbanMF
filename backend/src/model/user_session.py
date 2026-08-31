@@ -20,6 +20,7 @@ class UserSession(Base):
     """Persistent login session for a user.
 
     Implements the refresh token rotation pattern:
+
     - On login: a refresh token is created and stored HASHED here.
       The plain token is sent to the client as an HTTP-only cookie.
     - On token refresh: the plain token from the cookie is verified

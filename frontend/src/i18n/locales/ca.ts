@@ -184,6 +184,7 @@ const ca = {
     addChecklistItem: 'Afegeix un element',
     removeChecklistItem: 'Elimina l\'element',
     moveChecklistItem: 'Mou l\'element',
+    extractToCard: 'Extreu a targeta nova',
     sortCards: 'Ordena les targetes',
     sortDueDate: 'Data de venciment',
     sortAlphaAsc: 'Alfabèticament (A-Z)',
