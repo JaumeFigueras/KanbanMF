@@ -51,7 +51,7 @@ cp .env.example .env
 alembic upgrade head
 ```
 
-#### `.env` values that must change for production
+#### `backend/.env` values that must change for production
 
 The dev defaults in `.env.example` all point at `localhost`. For a real deployment behind
 the domain you're putting in the Apache vhost, update these in `backend/.env`:
@@ -64,7 +64,7 @@ the domain you're putting in the Apache vhost, update these in `backend/.env`:
 | `DATABASE_URL`           | Same PostgreSQL cluster/DB created above, but with production credentials |
 | `EMAIL_SENDER`           | Worth setting explicitly, e.g. `Kanban Reminder system <kanban@example.com>` — if the SMTP account you authenticate as (`SMTP_USERNAME`) isn't the address you want recipients to see, leaving `EMAIL_SENDER` blank and falling back to `SMTP_FROM_EMAIL` risks SPF/DKIM misalignment and spam classification |
 
-The frontend itself needs no `.env` of its own: it talks to the API through relative URLs
+The frontend itself needs no `backend/.env` of its own: it talks to the API through relative URLs
 (`/api/v1/...`), so it always calls back to whatever origin served the page — see
 `frontend/src/api/client.ts`. There's nothing to point at a hostname or port.
 
@@ -182,9 +182,9 @@ chmod -R g+rX /home/kanbanmf/soft/KanbanMF/frontend/dist
 sudo systemctl restart apache2
 ```
 
-Either way, also tighten `.env` itself — a directory's `x` bit only gates *reaching* a file;
+Either way, also tighten `backend/.env` itself — a directory's `x` bit only gates *reaching* a file;
 the file's own permissions decide whether its content can be read once there, and the default
-umask leaves a freshly-created `.env` group/world-readable:
+umask leaves a freshly-created `backend/.env` group/world-readable:
 
 ```bash
 chmod 600 backend/.env

@@ -47,6 +47,7 @@ async def google_callback(
     """Handle Google's OAuth callback.
 
     Steps:
+
     1. Exchange the authorization code for tokens.
     2. Fetch the user's Google profile (email, name, sub).
     3. Look up or create the User row (matched on email).

@@ -86,8 +86,8 @@ python3 -m pytest -x -v --cov-report=html:./test/coverage_reports --cov=./src ./
 ## Database migrations
 
 Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/). Run these from `backend/`, with the
-virtualenv active. `alembic/env.py` reads the connection string from `.env` (via `src/core/config.py`), so there's
-nothing to configure beyond having a working `.env`.
+virtualenv active. `alembic/env.py` reads the connection string from `backend/.env` (via `src/core/config.py`), so there's
+nothing to configure beyond having a working `backend/.env`.
 
 ```bash
 # After changing a model in src/model/, generate a migration from the diff
