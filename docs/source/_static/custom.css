@@ -1,0 +1,19 @@
+/* Small readability tweaks on top of the Read the Docs theme. */
+
+/* The RTD theme caps content at 800px, which is cramped for the long
+   signatures autodoc produces for the SQLAlchemy models. */
+.wy-nav-content {
+    max-width: 1100px;
+}
+
+/* Keep long code samples and generated signatures scrollable instead of
+   pushing the page sideways. */
+.rst-content pre.literal-block,
+.rst-content div[class^='highlight'] pre {
+    overflow-x: auto;
+}
+
+/* Module/class signatures are dense; give them a little breathing room. */
+.rst-content dl.py > dt {
+    margin-bottom: 0.6em;
+}

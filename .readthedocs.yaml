@@ -1,0 +1,25 @@
+# Read the Docs build configuration.
+# https://docs.readthedocs.io/en/stable/config-file/v2.html
+
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.13"
+
+sphinx:
+  configuration: docs/source/conf.py
+  # Flip to true once the build is warning-free in CI to keep it that way.
+  fail_on_warning: false
+
+python:
+  install:
+    # autodoc imports the backend, so the docs build needs the backend's own
+    # dependencies (SQLAlchemy, FastAPI, pydantic, ...) as well as Sphinx.
+    # They all live in one requirements file.
+    - requirements: backend/requirements.txt
+
+formats:
+  - htmlzip
+  - pdf
