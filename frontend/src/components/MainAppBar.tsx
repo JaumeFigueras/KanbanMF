@@ -22,6 +22,7 @@ import {
   LightMode,
   Lock,
   Logout,
+  Timer,
 } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
@@ -130,6 +131,17 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
           >
             KanbanMF
           </Typography>
+
+          <Tooltip title={t('timeTracker.title')}>
+            <IconButton
+              color="inherit"
+              onClick={() => navigate('/time-tracker')}
+              sx={{ mr: 1 }}
+              aria-label={t('timeTracker.title')}
+            >
+              <Timer />
+            </IconButton>
+          </Tooltip>
 
           <Tooltip title={t('boards.userProfile')}>
             <Box

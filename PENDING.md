@@ -3,6 +3,7 @@
 - ✓ Copy checklist to another card
 - ✓ Order for cards with no due date when selected order is due date
 - ✓ Archive all cards of a list
+- ✓ Time tracker
 
 ## Functionality
 
@@ -22,7 +23,7 @@
 ## Bugs
 
 - Upload avatar does not change the initials on the board page
-- When changed to light theme the colors of the list and cards are not kept
+- ✓ When changed to light theme the colors of the list and cards are not kept
 - ✓ When copying a card the Title is not used as starting point 
 
 ## FUTURE

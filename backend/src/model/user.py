@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from src.model.board_notification_settings import BoardNotificationSettings
     from src.model.card import Card
     from src.model.card_due_notification import CardDueNotification
+    from src.model.time_entry import TimeEntry
     from src.model.ui_board_color import UIBoardColor
     from src.model.ui_board_order import UIBoardOrder
     from src.model.ui_card_color import UICardColor
@@ -188,6 +189,12 @@ class User(Base):
 
     board_notification_settings: Mapped[List["BoardNotificationSettings"]] = relationship(
         "BoardNotificationSettings",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    time_entries: Mapped[List["TimeEntry"]] = relationship(
+        "TimeEntry",
         back_populates="user",
         cascade="all, delete-orphan",
     )

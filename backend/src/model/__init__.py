@@ -27,6 +27,7 @@ from src.model.user_identity import UserIdentity
 from src.model.user_avatar import UserAvatar
 from src.model.user_session import UserSession
 from src.model.user_preferences import UserPreferences
+from src.model.time_entry import TimeEntry
 
 __all__ = [
     "Base", "Board", "BoardList",
@@ -37,4 +38,5 @@ __all__ = [
     "UIBoardColor", "UIBoardListOrder", "UIBoardOrder", "UICardColor", "UIListCardOrder", "UIListColor",
     "BoardShare", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
+    "TimeEntry",
 ]
