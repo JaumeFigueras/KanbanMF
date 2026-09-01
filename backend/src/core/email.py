@@ -135,10 +135,10 @@ def _due_status_phrase(days_diff: int, language: str) -> str:
     if language == "ca":
         if days_diff < 0:
             n = abs(days_diff)
-            return f"venç d'aquí a {n} dia{'s' if n != 1 else ''}"
+            return f"venç d'aquí a {n} {'dies' if n != 1 else 'dia'}"
         if days_diff == 0:
             return "venç avui"
-        return f"porta {days_diff} dia{'s' if days_diff != 1 else ''} de retard"
+        return f"porta {days_diff} {'dies' if days_diff != 1 else 'dia'} de retard"
 
     if days_diff < 0:
         n = abs(days_diff)
