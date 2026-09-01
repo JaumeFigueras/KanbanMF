@@ -12,6 +12,10 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Typography,
@@ -20,9 +24,11 @@ import {
   Add,
   ArrowOutward,
   Checklist as ChecklistIcon,
+  ContentCopy,
   Delete,
   DragIndicator,
   Edit,
+  Menu as HamburgerIcon,
   Label as LabelIcon,
   People as PeopleIcon,
 } from '@mui/icons-material'
@@ -38,6 +44,7 @@ import CardDateField from './CardDateField'
 import CardLabelPickerDialog from './CardLabelPickerDialog'
 import ChecklistDialog from './ChecklistDialog'
 import CopyCardDialog from './CopyCardDialog'
+import CopyChecklistDialog from './CopyChecklistDialog'
 import PersonAvatar from './PersonAvatar'
 import SelectUserDialog from './SelectUserDialog'
 import { dayjsLocaleFor } from '../utils/locale'
@@ -122,9 +129,12 @@ function SortableChecklistRow({
   checklist,
   onEdit,
   onRemove,
+  onCopy,
   onToggleItem,
   onExtractItem,
   editLabel,
+  menuLabel,
+  copyLabel,
   removeLabel,
   dragLabel,
   extractLabel,
@@ -132,18 +142,26 @@ function SortableChecklistRow({
   checklist: ChecklistData
   onEdit: () => void
   onRemove: () => void
+  onCopy: () => void
   onToggleItem: (itemId: string) => void
   // Undefined while the card itself hasn't been created yet — there is no
   // source card to copy labels/dates/people from, so the action is hidden
   // rather than shown broken.
   onExtractItem?: (item: ChecklistItemData) => void
   editLabel: string
+  menuLabel: string
+  copyLabel: string
   removeLabel: string
   dragLabel: string
   extractLabel: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id })
   const doneCount = checklist.items.filter((i) => i.is_done).length
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+
+  function closeMenu() {
+    setMenuAnchor(null)
+  }
 
   return (
     <Box
@@ -179,9 +197,23 @@ function SortableChecklistRow({
         <IconButton size="small" onClick={onEdit} aria-label={editLabel}>
           <Edit fontSize="small" />
         </IconButton>
-        <IconButton size="small" onClick={onRemove} aria-label={removeLabel}>
-          <Delete fontSize="small" />
+        <IconButton
+          size="small"
+          onClick={(e) => setMenuAnchor(e.currentTarget)}
+          aria-label={menuLabel}
+        >
+          <HamburgerIcon fontSize="small" />
         </IconButton>
+        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+          <MenuItem onClick={() => { closeMenu(); onCopy() }}>
+            <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
+            <ListItemText>{copyLabel}</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { closeMenu(); onRemove() }}>
+            <ListItemIcon><Delete fontSize="small" /></ListItemIcon>
+            <ListItemText>{removeLabel}</ListItemText>
+          </MenuItem>
+        </Menu>
       </Box>
 
       {checklist.items.length > 0 && (
@@ -251,6 +283,10 @@ interface Props {
   // extracted into a new card, so the board can show it straight away. The
   // extract action is hidden when this is absent.
   onCopied?: (targetListId: string, card: CardRead, color: string | null) => void
+  // Fired after a checklist is copied onto another card, naming where the
+  // copy landed so the board can refetch that card — the target card's face
+  // shows its checklists, and nothing else tells the board they changed.
+  onChecklistCopied?: (targetBoardId: string, targetListId: string) => void
 }
 
 export default function CardDialog({
@@ -264,6 +300,7 @@ export default function CardDialog({
   onCreated,
   onUpdated,
   onCopied,
+  onChecklistCopied,
 }: Props) {
   const { t } = useTranslation()
   const isEdit = Boolean(card)
@@ -288,6 +325,10 @@ export default function CardDialog({
   // client-generated id that the server has never seen, so the extraction
   // copies the *card* and takes the item's text as the new card's name.
   const [extractingItem, setExtractingItem] = useState<ChecklistItemData | null>(null)
+  // The checklist currently being copied onto another card, or null. Copied
+  // from this local state rather than the server, so edits not yet saved on
+  // this card still make it into the copy.
+  const [copyingChecklist, setCopyingChecklist] = useState<ChecklistData | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -613,9 +654,12 @@ export default function CardDialog({
                   checklist={checklist}
                   onEdit={() => handleEditChecklist(checklist)}
                   onRemove={() => handleRemoveChecklist(checklist.id)}
+                  onCopy={() => setCopyingChecklist(checklist)}
                   onToggleItem={(itemId) => handleToggleChecklistItem(checklist.id, itemId)}
                   onExtractItem={card && onCopied ? setExtractingItem : undefined}
                   editLabel={t('board.editChecklist')}
+                  menuLabel={t('board.checklistMenu')}
+                  copyLabel={t('board.copyChecklist')}
                   removeLabel={t('board.deleteChecklist')}
                   dragLabel={t('board.moveChecklist')}
                   extractLabel={t('board.extractToCard')}
@@ -665,6 +709,16 @@ export default function CardDialog({
         onClose={() => setChecklistDialogOpen(false)}
         checklist={editingChecklist}
         onSave={handleChecklistSaved}
+      />
+
+      <CopyChecklistDialog
+        open={copyingChecklist !== null}
+        onClose={() => setCopyingChecklist(null)}
+        boardId={boardId}
+        listId={listId}
+        cardId={card?.id}
+        checklist={copyingChecklist}
+        onCopied={onChecklistCopied}
       />
 
       {card && onCopied && (

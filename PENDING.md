@@ -1,12 +1,20 @@
+## High priority
+
+- ✓ Copy checklist to another card
+- ✓ Order for cards with no due date when selected order is due date
+- ✓ Archive all cards of a list
+
 ## Functionality
 
+- ✓ Copy checklist to another card
 - Captcha
 - ✓ DnD of Labels
 - Add boards and labels in e-mail
+- ✓ Archive all cards of a list
 
 ## UI
 
-- Order for cards with no due date when selected order is due date
+- ✓ Order for cards with no due date when selected order is due date
 - Add logo, favicon and application name (instead of frontend)
 - Add change color to board menu
 - DnD checklist and checklist item with new position preview
@@ -20,7 +28,6 @@
 ## FUTURE
 
 - ✓ Extract card from checklist item
-- Copy checklist to another card
 - E-mail digest
 - Templates
 - Recurring tasks

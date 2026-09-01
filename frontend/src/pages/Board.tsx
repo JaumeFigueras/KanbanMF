@@ -40,7 +40,7 @@ import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 import type { BoardColorsRead, BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
-import { SORT_OPTIONS, sortCards } from '../utils/cardSort'
+import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isUndated, sortCards } from '../utils/cardSort'
 import { apiFetch } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
@@ -282,6 +282,13 @@ export default function Board() {
     }))
   }
 
+  // A checklist copied onto another card changes that card's face (it
+  // lists its checklists), and checklist writes send no WebSocket
+  // notification — so refetch the target list here when it's on this board.
+  function handleChecklistCopied(targetBoardId: string, targetListId: string) {
+    if (targetBoardId === boardId) fetchCardsForList(targetListId)
+  }
+
   function handleCardUpdated(listId: string, card: CardRead) {
     setCardsByList(prev => ({
       ...prev,
@@ -397,8 +404,18 @@ export default function Board() {
     let newIndex = overIsCard ? displayed.findIndex(c => c.id === over.id) : displayed.length - 1
     if (newIndex === -1) newIndex = displayed.length - 1
 
-    const reordered = oldIndex === newIndex ? displayed : arrayMove(displayed, oldIndex, newIndex)
-    if (oldIndex !== newIndex) {
+    // Due-date mode only lets the undated block at the top be arranged by
+    // hand: a drop past it lands at the block's end rather than among the
+    // dated cards, and dragging a dated card around inside its own list
+    // does nothing (null) — its place follows from its due date.
+    const targetIndex = sortMode === 'due_date'
+      ? clampDueDateDropIndex(displayed, cardId, newIndex)
+      : newIndex
+
+    const reordered = targetIndex === null || oldIndex === targetIndex
+      ? displayed
+      : arrayMove(displayed, oldIndex, targetIndex)
+    if (targetIndex !== null && oldIndex !== targetIndex) {
       setCardsByList(prev => ({ ...prev, [currentListId]: reordered }))
     }
 
@@ -407,8 +424,9 @@ export default function Board() {
       ? persistCardMove(originalListId, cardId, currentListId)
       : Promise.resolve()
 
-    // Reordering only matters — and is only persisted — when the board is
-    // displaying the custom order.
+    // Reordering is only persisted in the two modes that let the user do it:
+    // custom, where the whole list is theirs to arrange, and due date, where
+    // only the undated block at the top is (handled below).
     if (sortMode === 'custom') {
       const newOrderIds = reordered.map(c => c.id)
       setOrderByList(prev => ({ ...prev, [currentListId]: newOrderIds }))
@@ -420,6 +438,34 @@ export default function Board() {
       // The order PUT for the destination list names this card, which the
       // backend rejects until the move PATCH above has actually committed
       // — wait for it instead of firing both requests in parallel.
+      moveDone.then(() => {
+        persistCardOrder(currentListId, newOrderIds)
+        if (sourceOrderIds) persistCardOrder(originalListId, sourceOrderIds)
+      })
+    } else if (sortMode === 'due_date' && targetIndex !== null) {
+      // The undated cards were rearranged, so their new sequence goes into
+      // the same stored order custom mode uses — only the slots they already
+      // held are rewritten, leaving the dated cards where the user put them.
+      const newOrderIds = applyUndatedOrder(
+        orderByList[currentListId] ?? [],
+        reordered,
+        reordered.filter(isUndated).map(c => c.id),
+      )
+      setOrderByList(prev => ({ ...prev, [currentListId]: newOrderIds }))
+
+      // handleDragOver already took the card out of the source list's array,
+      // so filtering the stored order against it drops the card that left —
+      // naming it in that list's PUT would be rejected.
+      const sourceCardIds = movedAcrossLists
+        ? new Set((cardsByList[originalListId] ?? []).map(c => c.id))
+        : null
+      const sourceOrderIds = sourceCardIds
+        ? (orderByList[originalListId] ?? []).filter(id => sourceCardIds.has(id))
+        : null
+      if (sourceOrderIds) {
+        setOrderByList(prev => ({ ...prev, [originalListId]: sourceOrderIds }))
+      }
+
       moveDone.then(() => {
         persistCardOrder(currentListId, newOrderIds)
         if (sourceOrderIds) persistCardOrder(originalListId, sourceOrderIds)
@@ -721,6 +767,7 @@ export default function Board() {
                 onCardCreated={handleCardCreated}
                 onCardArchived={handleCardArchived}
                 onCardUpdated={handleCardUpdated}
+                onChecklistCopied={handleChecklistCopied}
               />
             ))}
           </Box>
@@ -738,6 +785,7 @@ export default function Board() {
               onArchived={() => {}}
               onUpdated={() => {}}
               onCopied={() => {}}
+              onChecklistCopied={() => {}}
               dragOverlay
             />
           ) : activeList ? (
@@ -755,6 +803,7 @@ export default function Board() {
               onCardCreated={() => {}}
               onCardArchived={() => {}}
               onCardUpdated={() => {}}
+              onChecklistCopied={() => {}}
               dragOverlay
             />
           ) : null}

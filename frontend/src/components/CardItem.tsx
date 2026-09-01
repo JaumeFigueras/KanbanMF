@@ -35,6 +35,9 @@ interface Props {
   // Same shape as CardDialog's onCreated — lets the copy show up immediately
   // when it lands on a list already on screen.
   onCopied: (targetListId: string, card: CardRead, color: string | null) => void
+  // Passed straight through to CardDialog — the board refetches the card a
+  // checklist was copied onto, since its face lists its checklists.
+  onChecklistCopied: (targetBoardId: string, targetListId: string) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real card's) or
   // respond to clicks.
@@ -51,6 +54,7 @@ export default function CardItem({
   onArchived,
   onUpdated,
   onCopied,
+  onChecklistCopied,
   dragOverlay = false,
 }: Props) {
   const { t } = useTranslation()
@@ -195,6 +199,7 @@ export default function CardItem({
         card={card}
         onUpdated={onUpdated}
         onCopied={onCopied}
+        onChecklistCopied={onChecklistCopied}
       />
 
       <ChangeCardColorDialog

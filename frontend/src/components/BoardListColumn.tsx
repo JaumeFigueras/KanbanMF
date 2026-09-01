@@ -41,6 +41,9 @@ interface Props {
   onCardCreated: (listId: string, card: CardRead, color: string | null) => void
   onCardArchived: (listId: string, cardId: string) => void
   onCardUpdated: (listId: string, card: CardRead) => void
+  // Reports where a checklist copy landed, so the board can refetch that
+  // list's cards — see Board.tsx's handleChecklistCopied.
+  onChecklistCopied: (targetBoardId: string, targetListId: string) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real column's) or
   // respond to clicks. Mirrors CardItem's own dragOverlay prop.
@@ -61,6 +64,7 @@ export default function BoardListColumn({
   onCardCreated,
   onCardArchived,
   onCardUpdated,
+  onChecklistCopied,
   dragOverlay = false,
 }: Props) {
   const { t } = useTranslation()
@@ -110,6 +114,29 @@ export default function BoardListColumn({
 
   function closeMenu() {
     setMenuAnchor(null)
+  }
+
+  // Archives every card currently in the list, one PATCH per card (there is no
+  // bulk endpoint); each success removes that card from the parent's state.
+  async function handleArchiveAllCards() {
+    closeMenu()
+    await Promise.all(
+      cards.map(async card => {
+        try {
+          const r = await apiFetch(
+            `/api/v1/boards/${list.board_id}/lists/${list.id}/cards/${card.id}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_archived: true }),
+            },
+          )
+          if (r.ok) onCardArchived(list.id, card.id)
+        } catch {
+          // silently ignore — parent still shows the card
+        }
+      }),
+    )
   }
 
   function handleRename() {
@@ -233,6 +260,7 @@ export default function BoardListColumn({
                   onArchived={handleCardArchived}
                   onUpdated={handleCardUpdated}
                   onCopied={onCardCreated}
+                  onChecklistCopied={onChecklistCopied}
                   dragOverlay={dragOverlay}
                 />
               ))}
@@ -257,6 +285,9 @@ export default function BoardListColumn({
       </Paper>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        <MenuItem onClick={handleArchiveAllCards} disabled={cards.length === 0}>
+          {t('board.archiveAllCards')}
+        </MenuItem>
         <MenuItem onClick={handleRename}>{t('board.renameList')}</MenuItem>
         <MenuItem onClick={handleChangeColor}>{t('board.changeListColor')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveList')}</MenuItem>
@@ -285,6 +316,7 @@ export default function BoardListColumn({
         numberLocale={numberLocale}
         listColor={listColor}
         onCreated={handleCardCreated}
+        onChecklistCopied={onChecklistCopied}
       />
     </>
   )
