@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import delete as sqlalchemy_delete, select
 
 from src.model.board import Board
 from src.model.board_list import BoardList
@@ -271,3 +271,79 @@ async def test_time_entries_04(
     assert r.status_code == 204
     remaining = await db_session_async.execute(select(TimeEntry))
     assert remaining.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_time_entries_05(
+    client, db_session_async, tracked_card: Card, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify a task started just after the previous one ended takes that end as
+    its start, so no phantom gap is left behind, and that a real break, a
+    first-ever task and a future end time are all left alone.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session used to plant the preceding entry with a chosen end time.
+    tracked_card : Card
+        The card being tracked.
+    auth_headers : dict[str, str]
+        Bearer token header for the card's owner.
+    """
+    board_id, list_id = await _ids(db_session_async, tracked_card)
+    body = _start_body(tracked_card, board_id, list_id)
+
+    async def _previous(ended_ago: timedelta) -> datetime:
+        """Replace the user's history with one entry ending `ended_ago` from now."""
+        await db_session_async.execute(sqlalchemy_delete(TimeEntry))
+        end = datetime.now(timezone.utc) - ended_ago
+        db_session_async.add(TimeEntry(
+            user_id=tracked_card.creator_id,
+            started_at=end - timedelta(hours=1),
+            ended_at=end,
+            board_name="Board",
+            card_name="Previous",
+            labels=[],
+        ))
+        await db_session_async.commit()
+        return end
+
+    async def _start_and_stop() -> datetime:
+        r = await client.post("/api/v1/time-entries/start", json=body, headers=auth_headers)
+        assert r.status_code == 201
+        started = datetime.fromisoformat(r.json()["started_at"])
+        await client.post(f"/api/v1/time-entries/{r.json()['id']}/stop", headers=auth_headers)
+        return started
+
+    # A minute-old gap is an artefact of the clicking: closed.
+    end = await _previous(timedelta(minutes=1))
+    assert await _start_and_stop() == end
+
+    # Just inside the five-minute window (not exactly on it: the clock moves
+    # between planting the entry and the request, so an exact boundary test
+    # would race).
+    end = await _previous(timedelta(minutes=4, seconds=50))
+    assert await _start_and_stop() == end
+
+    # Just outside it: recorded as it happened.
+    end = await _previous(timedelta(minutes=5, seconds=30))
+    assert await _start_and_stop() > end + timedelta(minutes=5)
+
+    # A real break is a real break.
+    end = await _previous(timedelta(minutes=30))
+    assert await _start_and_stop() > end + timedelta(minutes=29)
+
+    # An entry whose end lies in the future (manually recorded) must not drag
+    # the new task's start backwards — or forwards.
+    end = await _previous(timedelta(minutes=-10))
+    started = await _start_and_stop()
+    assert started < end
+
+    # Nothing to snap to on the very first task.
+    await db_session_async.execute(sqlalchemy_delete(TimeEntry))
+    await db_session_async.commit()
+    before = datetime.now(timezone.utc)
+    assert await _start_and_stop() >= before

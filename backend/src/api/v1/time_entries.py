@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import extract, select
@@ -24,6 +24,13 @@ from src.schemas.time_entry import (
 )
 
 router = APIRouter()
+
+# A new task started within this long of the previous one ending takes that
+# end as its start instead of the current time. Stopping one task and picking
+# the next off a dialog takes a moment, and the minute can turn while you do
+# it — a gap of a minute or two is an artefact of the clicking, not of the
+# work, so it's closed rather than recorded.
+_START_SNAP_WINDOW = timedelta(minutes=5)
 
 
 async def _card_snapshot(
@@ -88,6 +95,28 @@ async def _get_own_entry(entry_id: uuid.UUID, user: User, db: AsyncSession) -> T
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Time entry not found")
     return entry
+
+
+async def _start_time_for(user: User, db: AsyncSession) -> datetime:
+    """When a task starting now should be recorded as having started.
+
+    Normally now — but if the user's last task ended no more than
+    ``_START_SNAP_WINDOW`` ago, that end time, so the two meet exactly and no
+    phantom gap is left between them. A previous end in the *future* (from a
+    manually entered entry) is left alone: the entry it would produce would
+    start before it was created.
+    """
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(TimeEntry.ended_at)
+        .where(TimeEntry.user_id == user.id, TimeEntry.ended_at.is_not(None))
+        .order_by(TimeEntry.ended_at.desc())
+        .limit(1)
+    )
+    previous_end = result.scalar_one_or_none()
+    if previous_end is not None and timedelta(0) <= now - previous_end <= _START_SNAP_WINDOW:
+        return previous_end
+    return now
 
 
 async def _get_running(user: User, db: AsyncSession) -> TimeEntry | None:
@@ -168,6 +197,9 @@ async def start_time_entry(
 
     Refused while another entry is still running: the previous one has to be
     ended deliberately, so a stray click can't silently close it.
+
+    The start is snapped back to the previous task's end when that was only
+    moments ago — see :func:`_start_time_for`.
     """
     if await _get_running(current_user, db) is not None:
         raise HTTPException(
@@ -180,7 +212,7 @@ async def start_time_entry(
     )
     entry = TimeEntry(
         user_id=current_user.id,
-        started_at=datetime.now(timezone.utc),
+        started_at=await _start_time_for(current_user, db),
         ended_at=None,
         board_name=board_name,
         card_name=card_name,
