@@ -627,6 +627,9 @@ export default function Board() {
           setNumberLocale(num)
           setDateFormat(fmt)
         }}
+        // A card carries its members' and assignees' avatar state, so an
+        // avatar change of the viewer's own only lands on a refetch.
+        onAvatarChanged={() => lists.forEach(l => fetchCardsForList(l.id))}
       />
 
       {/* Secondary board toolbar — sits below the main AppBar. Tinted with

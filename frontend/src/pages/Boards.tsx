@@ -139,6 +139,14 @@ export default function Boards() {
     }
   }, [])
 
+  // Each board carries its owner's avatar state (owner_has_avatar) in the
+  // payload it was fetched with, so changing your own avatar only shows up
+  // on the cards you own once they're fetched again.
+  const handleAvatarChanged = useCallback(() => {
+    fetchBoards()
+    if (showArchived) fetchArchivedBoards()
+  }, [fetchBoards, fetchArchivedBoards, showArchived])
+
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
@@ -371,7 +379,7 @@ export default function Boards() {
 
   return (
     <>
-      <MainAppBar onLocaleChanged={handleLocaleChanged} />
+      <MainAppBar onLocaleChanged={handleLocaleChanged} onAvatarChanged={handleAvatarChanged} />
 
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
 

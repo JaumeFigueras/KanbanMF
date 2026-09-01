@@ -10,7 +10,7 @@
 - ✓ Copy checklist to another card
 - Captcha
 - ✓ DnD of Labels
-- Add boards and labels in e-mail
+- ✓ Add boards in e-mail
 - ✓ Archive all cards of a list
 
 ## UI
@@ -22,7 +22,7 @@
 
 ## Bugs
 
-- Upload avatar does not change the initials on the board page
+- ✓ Upload avatar does not change the initials on the board page
 - ✓ When changed to light theme the colors of the list and cards are not kept
 - ✓ When copying a card the Title is not used as starting point 
 

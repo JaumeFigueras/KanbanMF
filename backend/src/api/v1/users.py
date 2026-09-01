@@ -3,7 +3,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -160,8 +160,27 @@ async def change_my_password(
     await db.commit()
 
 
+def _avatar_response(avatar: UserAvatar, request: Request) -> Response:
+    """Serve an avatar so a replaced one is never taken from the browser cache.
+
+    The URL of a user's avatar never changes, so without this a new image
+    would keep rendering as the old one. ``no-cache`` doesn't mean "don't
+    store" — it means revalidate every time, and the ETag (the row's
+    updated_at) turns the usual case into an empty 304.
+    """
+    etag = f'"{avatar.updated_at.timestamp()}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": etag})
+    return Response(
+        content=avatar.data,
+        media_type=avatar.mime_type,
+        headers={"ETag": etag, "Cache-Control": "no-cache"},
+    )
+
+
 @router.get("/me/avatar")
 async def get_my_avatar(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -170,7 +189,7 @@ async def get_my_avatar(
     avatar = result.scalar_one_or_none()
     if avatar is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
-    return Response(content=avatar.data, media_type=avatar.mime_type)
+    return _avatar_response(avatar, request)
 
 
 @router.put("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
@@ -274,6 +293,7 @@ async def search_users(
 @router.get("/{user_id}/avatar")
 async def get_user_avatar(
     user_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Return any user's avatar image. No authentication required — avatars are public."""
@@ -281,7 +301,7 @@ async def get_user_avatar(
     avatar = result.scalar_one_or_none()
     if avatar is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No avatar")
-    return Response(content=avatar.data, media_type=avatar.mime_type)
+    return _avatar_response(avatar, request)
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)

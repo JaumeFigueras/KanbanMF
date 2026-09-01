@@ -39,9 +39,13 @@ const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
 interface Props {
   onLocaleChanged?: (numberLocale: string, dateFormat: 'numeric' | 'textual') => void
+  // Fired after the user's own avatar is uploaded, replaced or removed.
+  // Pages carry other people's avatar state in their own payloads (a board's
+  // owner_has_avatar, a card's members), so they have to refetch to notice.
+  onAvatarChanged?: () => void
 }
 
-export default function MainAppBar({ onLocaleChanged }: Props) {
+export default function MainAppBar({ onLocaleChanged, onAvatarChanged }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { logout } = useAuth()
@@ -61,6 +65,8 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
   // because the parent re-rendered and passed a new inline function reference.
   const onLocaleChangedRef = useRef(onLocaleChanged)
   useLayoutEffect(() => { onLocaleChangedRef.current = onLocaleChanged })
+  const onAvatarChangedRef = useRef(onAvatarChanged)
+  useLayoutEffect(() => { onAvatarChangedRef.current = onAvatarChanged })
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [changeNameOpen, setChangeNameOpen] = useState(false)
@@ -229,7 +235,10 @@ export default function MainAppBar({ onLocaleChanged }: Props) {
         onClose={() => setUploadAvatarOpen(false)}
         hasAvatar={avatarUrl !== null}
         currentAvatarUrl={avatarUrl}
-        onSaved={fetchAvatar}
+        onSaved={() => {
+          fetchAvatar()
+          onAvatarChangedRef.current?.()
+        }}
       />
 
       <LanguageLocalizationDialog
