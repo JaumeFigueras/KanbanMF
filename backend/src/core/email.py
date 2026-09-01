@@ -94,8 +94,8 @@ async def send_verification_email(email: str, display_name: str, token: str, lan
 
 
 _DUE_SUBJECTS: dict[str, str] = {
-    "en": 'Reminder: "{card_name}" {phrase}',
-    "ca": 'Recordatori: "{card_name}" {phrase}',
+    "en": 'Reminder: "{card_name}" of "{board_name}" {phrase}',
+    "ca": 'Recordatori: "{card_name}" de "{board_name}" {phrase}',
 }
 
 _DUE_BODIES: dict[str, str] = {
@@ -164,7 +164,9 @@ async def send_due_date_reminder_email(
     board_url = f"{settings.frontend_url}/boards/{board_id}"
 
     message = MessageSchema(
-        subject=_DUE_SUBJECTS[lang].format(card_name=card_name, phrase=phrase),
+        subject=_DUE_SUBJECTS[lang].format(
+            card_name=card_name, board_name=board_name, phrase=phrase
+        ),
         recipients=[email],
         body=_DUE_BODIES[lang].format(
             display_name=display_name,
