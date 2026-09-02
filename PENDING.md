@@ -1,5 +1,7 @@
 ## High priority
 
+- Add comment to Time tracker data model
+- Time Overlap with same minutes
 - ✓ Copy checklist to another card
 - ✓ Order for cards with no due date when selected order is due date
 - ✓ Archive all cards of a list
@@ -16,6 +18,7 @@
 ## UI
 
 - ✓ Order for cards with no due date when selected order is due date
+- Optimize Mobile view
 - Add logo, favicon and application name (instead of frontend)
 - Add change color to board menu
 - DnD checklist and checklist item with new position preview
