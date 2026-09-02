@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AppBar,
   Box,
@@ -129,6 +129,15 @@ export default function TimeTracker() {
     return new Intl.DateTimeFormat(intlCodeFor(numberLocale), options).format(new Date(iso))
   }, [numberLocale, dateFormat])
 
+  // The weekday is in both formats on purpose: a day total only means
+  // something once you can see whether it was a working day.
+  const formatDay = useCallback((iso: string) => {
+    const options: Intl.DateTimeFormatOptions = dateFormat === 'textual'
+      ? { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+      : { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' }
+    return new Intl.DateTimeFormat(intlCodeFor(numberLocale), options).format(new Date(iso))
+  }, [numberLocale, dateFormat])
+
   // Recomputed as the clock ticks: the running entry grows into recorded
   // ones, so what overlaps what can change while you watch.
   const overlapping = useMemo(() => findOverlappingEntryIds(entries, now), [entries, now])
@@ -137,6 +146,30 @@ export default function TimeTracker() {
     () => recorded.reduce((sum, e) => sum + durationSeconds(e.started_at, e.ended_at, now), 0),
     [recorded, now],
   )
+
+  // The table is grouped by the calendar day each entry *started* on, in the
+  // browser's own timezone. A stretch of work running past midnight counts
+  // wholly towards the day it began: splitting it across two days would
+  // invent a start and an end the user never recorded.
+  //
+  // A Map keyed by the day, rather than a new group whenever the day changes
+  // from one row to the next, so a single day can never end up with two
+  // headers. Insertion order keeps the newest day first, the order the API
+  // already returns the entries in.
+  const days = useMemo(() => {
+    const groups = new Map<string, TimeEntryRead[]>()
+    for (const entry of recorded) {
+      const key = dayjs(entry.started_at).format('YYYY-MM-DD')
+      const group = groups.get(key)
+      if (group) group.push(entry)
+      else groups.set(key, [entry])
+    }
+    return [...groups].map(([key, entries]) => ({
+      key,
+      entries,
+      seconds: entries.reduce((sum, e) => sum + durationSeconds(e.started_at, e.ended_at, now), 0),
+    }))
+  }, [recorded, now])
 
   function replaceEntry(entry: TimeEntryRead) {
     setEntries((prev) => {
@@ -171,6 +204,7 @@ export default function TimeTracker() {
       t('timeTracker.boardColumn'),
       t('timeTracker.cardColumn'),
       t('timeTracker.labelsColumn'),
+      t('timeTracker.commentColumn'),
     ]
     const rows = recorded.map((e) => {
       const seconds = durationSeconds(e.started_at, e.ended_at, now)
@@ -184,6 +218,7 @@ export default function TimeTracker() {
         e.board_name,
         e.card_name,
         e.labels.map((l) => l.name).join(', '),
+        e.comment ?? '',
       ]
     })
     const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')
@@ -305,6 +340,15 @@ export default function TimeTracker() {
                 <Typography variant="body2" color="text.secondary">
                   {running.board_name} · {formatStamp(running.started_at)}
                 </Typography>
+                {running.comment && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                  >
+                    {running.comment}
+                  </Typography>
+                )}
                 {running.labels.length > 0 && (
                   <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
                     {running.labels.map((label) => (
@@ -344,63 +388,87 @@ export default function TimeTracker() {
                 <TableCell>{t('timeTracker.boardColumn')}</TableCell>
                 <TableCell>{t('timeTracker.cardColumn')}</TableCell>
                 <TableCell>{t('timeTracker.labelsColumn')}</TableCell>
+                <TableCell>{t('timeTracker.commentColumn')}</TableCell>
                 <TableCell align="right">{t('timeTracker.actionsColumn')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {recorded.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8}>
+                  <TableCell colSpan={9}>
                     <Typography variant="body2" color="text.secondary">
                       {t('timeTracker.noEntries')}
                     </Typography>
                   </TableCell>
                 </TableRow>
               )}
-              {recorded.map((entry) => (
-                <TableRow key={entry.id} hover>
-                  <TableCell sx={{ width: 40 }}>
-                    {overlapping.has(entry.id) && (
-                      <Tooltip title={t('timeTracker.overlapWarning')}>
-                        <ErrorOutlined color="error" fontSize="small" sx={{ display: 'block' }} />
-                      </Tooltip>
-                    )}
-                  </TableCell>
-                  <TableCell>{formatStamp(entry.started_at)}</TableCell>
-                  <TableCell>{entry.ended_at ? formatStamp(entry.ended_at) : ''}</TableCell>
-                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                    {formatDuration(durationSeconds(entry.started_at, entry.ended_at, now))}
-                  </TableCell>
-                  <TableCell>{entry.board_name}</TableCell>
-                  <TableCell>{entry.card_name}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {entry.labels.map((label) => (
-                        <Chip
-                          key={`${label.name}-${label.color}`}
-                          label={label.name}
-                          size="small"
-                          sx={{ bgcolor: label.color, color: contrastColor(label.color) }}
-                        />
-                      ))}
-                    </Box>
-                  </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title={t('timeTracker.editEntry')}>
-                      <IconButton
-                        size="small"
-                        onClick={() => { setEditingEntry(entry); setEntryDialogOpen(true) }}
-                      >
-                        <Edit fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={t('timeTracker.deleteEntry')}>
-                      <IconButton size="small" onClick={() => setDeletingEntry(entry)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
+              {days.map((day) => (
+                <Fragment key={day.key}>
+                  {/* The day's total sits in the Duration column, so it lines
+                      up with the entry durations it adds up. */}
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell colSpan={3} sx={{ py: 0.75 }}>
+                      <Typography variant="subtitle2">
+                        {formatDay(day.entries[0].started_at)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{ py: 0.75, fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      <Typography variant="subtitle2">{formatDuration(day.seconds)}</Typography>
+                    </TableCell>
+                    <TableCell colSpan={5} sx={{ py: 0.75 }} />
+                  </TableRow>
+                  {day.entries.map((entry) => (
+                    <TableRow key={entry.id} hover>
+                      <TableCell sx={{ width: 40 }}>
+                        {overlapping.has(entry.id) && (
+                          <Tooltip title={t('timeTracker.overlapWarning')}>
+                            <ErrorOutlined color="error" fontSize="small" sx={{ display: 'block' }} />
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                      <TableCell>{formatStamp(entry.started_at)}</TableCell>
+                      <TableCell>{entry.ended_at ? formatStamp(entry.ended_at) : ''}</TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatDuration(durationSeconds(entry.started_at, entry.ended_at, now))}
+                      </TableCell>
+                      <TableCell>{entry.board_name}</TableCell>
+                      <TableCell>{entry.card_name}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                          {entry.labels.map((label) => (
+                            <Chip
+                              key={`${label.name}-${label.color}`}
+                              label={label.name}
+                              size="small"
+                              sx={{ bgcolor: label.color, color: contrastColor(label.color) }}
+                            />
+                          ))}
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'pre-wrap', minWidth: 160 }}>
+                        {entry.comment}
+                      </TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Tooltip title={t('timeTracker.editEntry')}>
+                          <IconButton
+                            size="small"
+                            onClick={() => { setEditingEntry(entry); setEntryDialogOpen(true) }}
+                          >
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={t('timeTracker.deleteEntry')}>
+                          <IconButton size="small" onClick={() => setDeletingEntry(entry)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Fragment>
               ))}
             </TableBody>
           </Table>

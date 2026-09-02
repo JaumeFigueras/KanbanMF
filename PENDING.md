@@ -1,7 +1,7 @@
 ## High priority
 
-- Add comment to Time tracker data model
-- Time Overlap with same minutes
+- ✓ Add comment to Time tracker data model
+- ✓ Time Overlap with same minutes
 - ✓ Copy checklist to another card
 - ✓ Order for cards with no due date when selected order is due date
 - ✓ Archive all cards of a list

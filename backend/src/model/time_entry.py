@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Optional
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -27,6 +27,10 @@ class TimeEntry(Base):
     An entry with no ``ended_at`` is the one currently running. A partial
     unique index allows only one of those per user, so "already tracking"
     is enforced by the database rather than only by the API.
+
+    ``comment`` is the one field that isn't copied from anywhere: it's the
+    user's own note on what this stretch of work actually was, written when
+    the entry is created or added later from the edit dialog.
 
     The entry belongs to exactly one user and is never shared, unlike the
     boards the work happened on.
@@ -91,6 +95,12 @@ class TimeEntry(Base):
         default=list,
         server_default="[]",
         comment="Copy of the card's labels when the entry was created: [{name, color}, ...].",
+    )
+
+    comment: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Free note the user wrote about this stretch of work. Not copied from the card.",
     )
 
     created_at: Mapped[datetime] = mapped_column(

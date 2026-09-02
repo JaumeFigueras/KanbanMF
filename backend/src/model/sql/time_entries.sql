@@ -7,6 +7,7 @@ CREATE TABLE time_entries (
 	board_name VARCHAR(255) NOT NULL, 
 	card_name VARCHAR(255) NOT NULL, 
 	labels JSONB DEFAULT '[]' NOT NULL, 
+	comment TEXT, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (id), 

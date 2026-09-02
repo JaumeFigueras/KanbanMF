@@ -41,6 +41,7 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
   const [endAt, setEndAt] = useState<Dayjs | null>(null)
   const [boardName, setBoardName] = useState('')
   const [cardName, setCardName] = useState('')
+  const [comment, setComment] = useState('')
   // Editing an entry keeps its stored snapshot by default; ticking this
   // re-copies board name, card name and labels from a card that exists now.
   const [recopy, setRecopy] = useState(false)
@@ -58,6 +59,7 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
       setEndAt(entry.ended_at ? dayjs(entry.ended_at) : null)
       setBoardName(entry.board_name)
       setCardName(entry.card_name)
+      setComment(entry.comment ?? '')
     } else {
       // An hour ending now: the shape of a stretch of work being written up
       // just after it happened, and both ends are editable anyway.
@@ -66,13 +68,22 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
       setEndAt(now)
       setBoardName('')
       setCardName('')
+      setComment('')
     }
   }, [open, entry])
 
-  const invalidRange = Boolean(startAt && endAt && !endAt.isAfter(startAt))
+  // The pickers only go down to the minute, so that's the precision the user
+  // is actually choosing: seconds inherited from a live-tracked entry would
+  // survive an edit invisibly, leaving times that read as touching but really
+  // overlap (or leave a gap) by a few seconds. Truncating before the range
+  // check too, so a span the server would reject is caught here instead.
+  const start = startAt?.second(0).millisecond(0) ?? null
+  const end = endAt?.second(0).millisecond(0) ?? null
+
+  const invalidRange = Boolean(start && end && !end.isAfter(start))
 
   async function handleSave() {
-    if (!startAt || !endAt) {
+    if (!start || !end) {
       setError(t('timeTracker.timesRequired'))
       return
     }
@@ -102,8 +113,10 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            started_at: startAt.toISOString(),
-            ended_at: endAt.toISOString(),
+            started_at: start.toISOString(),
+            ended_at: end.toISOString(),
+            // Always sent, even blank: that's how a note gets removed.
+            comment,
             // Re-copying wins over the text fields: the server overwrites
             // both names (and the labels) from the card it's given.
             ...(recopy ? cardRef : { board_name: boardName, card_name: cardName }),
@@ -114,8 +127,9 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...cardRef,
-            started_at: startAt.toISOString(),
-            ended_at: endAt.toISOString(),
+            started_at: start.toISOString(),
+            ended_at: end.toISOString(),
+            comment,
           }),
         })
       if (!r.ok) throw new Error()
@@ -200,6 +214,21 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
         {(!isEdit || recopy) && (
           <CardPicker active={open && (!isEdit || recopy)} disabled={saving} onChange={setSelection} />
         )}
+
+        {/* Last, and outside the snapshot block: unlike the names above it,
+            the note is the user's own text and never comes from a card. */}
+        <TextField
+          label={t('timeTracker.commentColumn')}
+          placeholder={t('timeTracker.commentHint')}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          fullWidth
+          multiline
+          minRows={2}
+          size="small"
+          disabled={saving}
+          sx={{ mt: 2 }}
+        />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} color="error" disabled={saving}>

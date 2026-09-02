@@ -4,6 +4,18 @@ interface Interval {
   ended_at: string | null
 }
 
+const MINUTE_MS = 60_000
+
+// Instants are compared at the granularity the table shows them in: the
+// columns, the pickers in the edit dialog and the CSV export all stop at
+// the minute, so an overlap of a few seconds would be a warning about
+// something the user can neither see nor edit away. Flooring both ends can
+// only ever hide such an overlap, never invent one — two entries that
+// really are disjoint stay disjoint once floored.
+function toMinute(ms: number): number {
+  return Math.floor(ms / MINUTE_MS) * MINUTE_MS
+}
+
 // Ids of every entry that shares time with at least one other entry. Two
 // entries overlap when each starts before the other ends; touching ends
 // (one starting exactly when the previous stopped) is not an overlap.
@@ -18,8 +30,8 @@ export function findOverlappingEntryIds(entries: Interval[], now: number): Set<s
   const spans = entries
     .map((e) => ({
       id: e.id,
-      start: Date.parse(e.started_at),
-      end: e.ended_at ? Date.parse(e.ended_at) : now,
+      start: toMinute(Date.parse(e.started_at)),
+      end: toMinute(e.ended_at ? Date.parse(e.ended_at) : now),
     }))
     .sort((a, b) => a.start - b.start)
 

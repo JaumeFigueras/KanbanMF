@@ -15,6 +15,9 @@ export interface TimeEntryRead {
   board_name: string
   card_name: string
   labels: TimeEntryLabel[]
+  // The user's own note on the work — the one field not copied from the
+  // card. null when nothing was written; the API stores a blank note as none.
+  comment: string | null
   created_at: string
   updated_at: string
 }

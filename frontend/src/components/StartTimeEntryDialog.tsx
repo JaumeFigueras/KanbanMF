@@ -6,6 +6,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  TextField,
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../api/client'
@@ -23,8 +24,17 @@ const EMPTY: CardSelection = { boardId: '', listId: '', cardId: '' }
 export default function StartTimeEntryDialog({ open, onClose, onStarted }: Props) {
   const { t } = useTranslation()
   const [selection, setSelection] = useState<CardSelection>(EMPTY)
+  const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // The dialog stays mounted between openings, so the note has to be cleared
+  // on the way out or the next task would start with the last one's text.
+  function handleClose() {
+    setComment('')
+    setError(null)
+    onClose()
+  }
 
   async function handleStart() {
     if (!selection.cardId) {
@@ -41,6 +51,7 @@ export default function StartTimeEntryDialog({ open, onClose, onStarted }: Props
           board_id: selection.boardId,
           list_id: selection.listId,
           card_id: selection.cardId,
+          comment,
         }),
       })
       // 409: something else is already being tracked — say so rather than
@@ -51,7 +62,7 @@ export default function StartTimeEntryDialog({ open, onClose, onStarted }: Props
       }
       if (!r.ok) throw new Error()
       onStarted(await r.json() as TimeEntryRead)
-      onClose()
+      handleClose()
     } catch {
       setError(t('common.saveError'))
     } finally {
@@ -60,14 +71,26 @@ export default function StartTimeEntryDialog({ open, onClose, onStarted }: Props
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
       <DialogTitle>{t('timeTracker.startTitle')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
         <CardPicker active={open} disabled={saving} onChange={setSelection} />
+        <TextField
+          label={t('timeTracker.commentColumn')}
+          placeholder={t('timeTracker.commentHint')}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          fullWidth
+          multiline
+          minRows={2}
+          size="small"
+          disabled={saving}
+          sx={{ mt: 2 }}
+        />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} color="error" disabled={saving}>
+        <Button onClick={handleClose} color="error" disabled={saving}>
           {t('common.cancel')}
         </Button>
         <Button onClick={handleStart} color="success" variant="contained" disabled={saving}>

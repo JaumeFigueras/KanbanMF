@@ -3,6 +3,7 @@
 
 """Tests for the /api/v1/time-entries endpoints."""
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -347,3 +348,91 @@ async def test_time_entries_05(
     await db_session_async.commit()
     before = datetime.now(timezone.utc)
     assert await _start_and_stop() >= before
+
+
+@pytest.mark.asyncio
+async def test_time_entries_06(
+    client, db_session_async, tracked_card: Card, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify the comment can be written when starting or adding an entry and
+    changed or removed afterwards, and that a blank one is stored as no
+    comment at all.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session used to resolve the card's board and list ids.
+    tracked_card : Card
+        The card the entries are recorded against.
+    auth_headers : dict[str, str]
+        Bearer token header for the card's owner.
+    """
+    board_id, list_id = await _ids(db_session_async, tracked_card)
+
+    # Written when the timer is started, and surrounding whitespace dropped.
+    body = _start_body(tracked_card, board_id, list_id) | {"comment": "  Reviewing the TFE  "}
+    r = await client.post("/api/v1/time-entries/start", json=body, headers=auth_headers)
+    assert r.status_code == 201
+    running_id = r.json()["id"]
+    assert r.json()["comment"] == "Reviewing the TFE"
+
+    # Stopping the entry leaves the note alone.
+    r = await client.post(f"/api/v1/time-entries/{running_id}/stop", headers=auth_headers)
+    assert r.json()["comment"] == "Reviewing the TFE"
+
+    # Written when a stretch of work is added after the fact.
+    start = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+    created = await client.post(
+        "/api/v1/time-entries",
+        json={"board_id": str(board_id), "list_id": str(list_id), "card_id": str(tracked_card.id),
+              "started_at": start.isoformat(), "ended_at": (start + timedelta(hours=1)).isoformat(),
+              "comment": "Wrote up the meeting"},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    entry_id = created.json()["id"]
+    assert created.json()["comment"] == "Wrote up the meeting"
+
+    # Omitting it entirely means no note.
+    r = await client.patch(
+        f"/api/v1/time-entries/{entry_id}",
+        json={"card_name": "Corrected"},
+        headers=auth_headers,
+    )
+    assert r.json()["comment"] == "Wrote up the meeting"
+
+    r = await client.patch(
+        f"/api/v1/time-entries/{entry_id}",
+        json={"comment": "Wrote it up properly"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["comment"] == "Wrote it up properly"
+
+    # A blank note is how the field gets cleared — there's no separate call.
+    r = await client.patch(
+        f"/api/v1/time-entries/{entry_id}",
+        json={"comment": "   "},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["comment"] is None
+
+    stored = await db_session_async.execute(
+        select(TimeEntry.comment).where(TimeEntry.id == uuid.UUID(entry_id))
+    )
+    assert stored.scalar_one() is None
+
+    # Nothing written at all is the same "no comment".
+    r = await client.post(
+        "/api/v1/time-entries",
+        json={"board_id": str(board_id), "list_id": str(list_id), "card_id": str(tracked_card.id),
+              "started_at": (start + timedelta(days=1)).isoformat(),
+              "ended_at": (start + timedelta(days=1, hours=1)).isoformat()},
+        headers=auth_headers,
+    )
+    assert r.status_code == 201
+    assert r.json()["comment"] is None

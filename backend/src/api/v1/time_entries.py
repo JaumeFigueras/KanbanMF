@@ -217,6 +217,7 @@ async def start_time_entry(
         board_name=board_name,
         card_name=card_name,
         labels=labels,
+        comment=body.comment,
     )
     db.add(entry)
     await db.commit()
@@ -249,7 +250,11 @@ async def create_time_entry(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TimeEntryRead:
-    """Record a stretch of work that wasn't tracked live."""
+    """Record a stretch of work that wasn't tracked live.
+
+    The optional comment is the user's own note on the work — the only field
+    on the entry that isn't copied from the card.
+    """
     board_name, card_name, labels = await _card_snapshot(
         body.board_id, body.list_id, body.card_id, current_user, db
     )
@@ -260,6 +265,7 @@ async def create_time_entry(
         board_name=board_name,
         card_name=card_name,
         labels=labels,
+        comment=body.comment,
     )
     db.add(entry)
     await db.commit()
@@ -278,7 +284,8 @@ async def update_time_entry(
 
     Naming a card re-copies the snapshot from it (labels included); the
     snapshot text can also be edited on its own, which is the only way to
-    fix an entry whose card no longer exists.
+    fix an entry whose card no longer exists. Sending a blank comment
+    removes the note.
     """
     entry = await _get_own_entry(entry_id, current_user, db)
 
@@ -301,6 +308,10 @@ async def update_time_entry(
         entry.board_name = body.board_name
     if body.card_name is not None:
         entry.card_name = body.card_name
+    # Tested for having been *sent* rather than for being non-null: the note
+    # normalises to None when it's blank, and that's how it gets cleared.
+    if "comment" in body.model_fields_set:
+        entry.comment = body.comment
     entry.started_at = started_at
     entry.ended_at = ended_at
 

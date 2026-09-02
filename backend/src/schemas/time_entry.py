@@ -7,6 +7,18 @@ from datetime import datetime
 from pydantic import BaseModel, field_validator, model_validator
 
 
+def _blank_comment_is_none(v: str | None) -> str | None:
+    """Store a note that's only whitespace as no note at all.
+
+    Keeps "" and NULL from both meaning "no comment" in the table, and makes
+    clearing the field from the edit dialog — which sends whatever is in the
+    box — do the obvious thing.
+    """
+    if v is not None:
+        v = v.strip()
+    return v or None
+
+
 class TimeEntryLabel(BaseModel):
     """One label as it looked when the entry was recorded.
 
@@ -28,6 +40,9 @@ class TimeEntryStart(BaseModel):
     board_id: uuid.UUID
     list_id: uuid.UUID
     card_id: uuid.UUID
+    comment: str | None = None
+
+    _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 
 
 class TimeEntryCreate(BaseModel):
@@ -38,6 +53,9 @@ class TimeEntryCreate(BaseModel):
     card_id: uuid.UUID
     started_at: datetime
     ended_at: datetime
+    comment: str | None = None
+
+    _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 
     @model_validator(mode="after")
     def check_time_order(self) -> "TimeEntryCreate":
@@ -53,6 +71,10 @@ class TimeEntryUpdate(BaseModel):
     entry whose card has since been deleted can still be corrected; passing
     board_id/list_id/card_id instead re-copies the snapshot from that card,
     labels included.
+
+    An omitted ``comment`` leaves the note alone; a blank one clears it —
+    that's the only way to remove a note, since there's no distinguishing a
+    blank note from no note.
     """
 
     started_at: datetime | None = None
@@ -62,6 +84,9 @@ class TimeEntryUpdate(BaseModel):
     board_id: uuid.UUID | None = None
     list_id: uuid.UUID | None = None
     card_id: uuid.UUID | None = None
+    comment: str | None = None
+
+    _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 
     @field_validator("board_name", "card_name")
     @classmethod
@@ -88,6 +113,7 @@ class TimeEntryRead(BaseModel):
     board_name: str
     card_name: str
     labels: list[TimeEntryLabel]
+    comment: str | None
     created_at: datetime
     updated_at: datetime
 
