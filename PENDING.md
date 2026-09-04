@@ -1,5 +1,7 @@
 ## High priority
 
+- Add original card title to extract checklist item
+- Add pending tasks overview (global)
 - ✓ Add comment to Time tracker data model
 - ✓ Time Overlap with same minutes
 - ✓ Copy checklist to another card
