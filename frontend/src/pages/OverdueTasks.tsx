@@ -96,11 +96,15 @@ export default function OverdueTasks() {
                   // columns, so an expanded board reads as that board.
                   bgcolor: (theme) =>
                     tintColor(board.color ?? DEFAULT_COLOR, theme.palette.background.default, LIGHT_TINT_WEIGHT),
-                  // Masonry-like flow, as in the archived view: columns fill
-                  // top-to-bottom and wrap downward instead of growing
-                  // endlessly to the right.
-                  columnWidth: 330,
-                  columnGap: '16px',
+                  // Columns side by side, as on the board itself, scrolling
+                  // sideways when they don't fit. (A CSS multi-column flow
+                  // can't work here: an accordion body has no fixed height,
+                  // so every column collapses into one.)
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: 2,
+                  overflowX: 'auto',
                 }}
               >
                 {board.lists.map((list) => (

@@ -33,9 +33,7 @@ export default function OverdueListColumn({
       elevation={2}
       sx={{
         width: 330,
-        display: 'inline-block',
-        breakInside: 'avoid',
-        mb: 2,
+        flexShrink: 0,
         borderRadius: 2,
         overflow: 'hidden',
       }}
