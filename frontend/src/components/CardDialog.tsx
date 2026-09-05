@@ -728,7 +728,9 @@ export default function CardDialog({
           boardId={boardId}
           listId={listId}
           cardId={card.id}
-          cardName={extractingItem?.text ?? ''}
+          // Prefix the source card's title so the extracted card keeps the
+          // context of where the checklist item came from.
+          cardName={extractingItem ? `${name} - ${extractingItem.text}` : ''}
           title={t('board.extractToCard')}
           // The new card takes the source card's labels, dates, people and
           // color, but starts empty otherwise — see cards.py's copy_card.
