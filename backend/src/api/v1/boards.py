@@ -2,13 +2,22 @@
 # -*- coding: utf-8 -*-
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_client_id, get_current_user, get_db
+# The overdue page draws the same card faces the board does, so it reuses the
+# card serialization helpers instead of growing a second copy of them here.
+from src.api.v1.cards import (
+    _card_load_options,
+    _card_people_ids,
+    _card_to_read,
+    _people_by_id,
+)
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
@@ -16,6 +25,7 @@ from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.ui_board_color import UIBoardColor
+from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_board_order import UIBoardOrder
 from src.model.ui_card_color import UICardColor
 from src.model.ui_list_color import UIListColor
@@ -31,6 +41,8 @@ from src.schemas.board import (
     BoardShareCreate,
     BoardUpdate,
     BoardsResponse,
+    OverdueBoardRead,
+    OverdueListRead,
 )
 from src.schemas.person import PersonRead
 from src.schemas.ui_color import BoardColorsRead, ColorRead, ColorUpdate
@@ -254,8 +266,140 @@ async def list_archived_boards(
     ]
 
 
-# NOTE: /order must be defined before /{board_id} so FastAPI matches the
-# literal "order" segment before trying to parse it as a UUID.
+@router.get("/overdue", response_model=list[OverdueBoardRead])
+async def list_overdue_boards(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[OverdueBoardRead]:
+    """Return every overdue card the user can see, grouped by board and list.
+
+    A card counts as overdue when its due date has passed and it has no end
+    date — the same "still open, past due" rule the reminder e-mails use (see
+    :mod:`src.core.notifications`). Archived and deleted boards, lists and
+    cards are all left out, as are boards and lists with nothing overdue.
+
+    Boards come back ordered by how many overdue cards they hold (most first),
+    lists in the board's own list order, and cards oldest due date first. The
+    viewer's personal board/list/card colors ride along so the page can paint
+    the columns exactly as the board itself does.
+    """
+    result = await db.execute(
+        select(Card, BoardList)
+        .options(*_card_load_options())
+        .join(BoardList, Card.list_id == BoardList.id)
+        .join(Board, BoardList.board_id == Board.id)
+        .outerjoin(
+            BoardShare,
+            (BoardShare.board_id == Board.id) & (BoardShare.user_id == current_user.id),
+        )
+        .where(
+            or_(Board.owner_id == current_user.id, BoardShare.user_id.isnot(None)),
+            Board.is_deleted.is_(False),
+            Board.is_archived.is_(False),
+            BoardList.is_deleted.is_(False),
+            BoardList.is_archived.is_(False),
+            Card.is_deleted.is_(False),
+            Card.is_archived.is_(False),
+            Card.due_at.isnot(None),
+            Card.due_at < datetime.now(timezone.utc),
+            Card.end_at.is_(None),
+        )
+        .order_by(Card.due_at)
+    )
+    rows = result.all()
+    if not rows:
+        return []
+
+    # board id -> list id -> its overdue cards, both dicts kept in insertion
+    # order: the rows arrive due-date ascending, so each list's cards already
+    # come out oldest first.
+    by_board: dict[uuid.UUID, dict[uuid.UUID, list[Card]]] = {}
+    lists_by_id: dict[uuid.UUID, BoardList] = {}
+    for card, board_list in rows:
+        lists_by_id[board_list.id] = board_list
+        by_board.setdefault(board_list.board_id, {}).setdefault(board_list.id, []).append(card)
+
+    board_ids = list(by_board)
+    board_names_result = await db.execute(
+        select(Board.id, Board.name).where(Board.id.in_(board_ids))
+    )
+    board_names = {row.id: row.name for row in board_names_result.all()}
+
+    people_ids: set[uuid.UUID] = set()
+    for card, _ in rows:
+        people_ids |= _card_people_ids(card)
+    people_by_id = await _people_by_id(people_ids, db)
+
+    # The viewer's own colors, in three batched queries rather than one per
+    # entity — mirrors the board page's /boards/{id}/colors.
+    board_colors_result = await db.execute(
+        select(UIBoardColor.board_id, UIBoardColor.color).where(
+            UIBoardColor.user_id == current_user.id,
+            UIBoardColor.board_id.in_(board_ids),
+        )
+    )
+    board_colors = {row.board_id: row.color for row in board_colors_result.all()}
+
+    list_colors_result = await db.execute(
+        select(UIListColor.list_id, UIListColor.color).where(
+            UIListColor.user_id == current_user.id,
+            UIListColor.list_id.in_(list(lists_by_id)),
+        )
+    )
+    list_colors = {row.list_id: row.color for row in list_colors_result.all()}
+
+    card_colors_result = await db.execute(
+        select(UICardColor.card_id, UICardColor.color).where(
+            UICardColor.user_id == current_user.id,
+            UICardColor.card_id.in_([card.id for card, _ in rows]),
+        )
+    )
+    card_colors = {row.card_id: row.color for row in card_colors_result.all()}
+
+    order_result = await db.execute(
+        select(UIBoardListOrder.board_id, UIBoardListOrder.list_ids).where(
+            UIBoardListOrder.board_id.in_(board_ids)
+        )
+    )
+    list_order = {row.board_id: row.list_ids for row in order_result.all()}
+
+    boards: list[OverdueBoardRead] = []
+    for board_id, cards_by_list in by_board.items():
+        # Follow the board's own list order; a list missing from it (older
+        # board, or a row never written) falls in after the ordered ones.
+        ordered_ids = [lid for lid in list_order.get(board_id, []) if lid in cards_by_list]
+        ordered_ids += [lid for lid in cards_by_list if lid not in ordered_ids]
+
+        boards.append(
+            OverdueBoardRead(
+                board_id=board_id,
+                board_name=board_names.get(board_id, ""),
+                overdue_count=sum(len(c) for c in cards_by_list.values()),
+                color=board_colors.get(board_id),
+                card_colors={
+                    str(card.id): card_colors[card.id]
+                    for cards in cards_by_list.values()
+                    for card in cards
+                    if card.id in card_colors
+                },
+                lists=[
+                    OverdueListRead(
+                        list_id=list_id,
+                        list_name=lists_by_id[list_id].name,
+                        color=list_colors.get(list_id),
+                        cards=[_card_to_read(c, people_by_id) for c in cards_by_list[list_id]],
+                    )
+                    for list_id in ordered_ids
+                ],
+            )
+        )
+
+    boards.sort(key=lambda b: (-b.overdue_count, b.board_name))
+    return boards
+
+
+# NOTE: /order and /overdue must be defined before /{board_id} so FastAPI
+# matches the literal segment before trying to parse it as a UUID.
 
 @router.get("/order", response_model=BoardOrderRead)
 async def get_board_order(

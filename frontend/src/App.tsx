@@ -8,6 +8,7 @@ import PublicRoute from './components/PublicRoute'
 import Boards from './pages/Boards'
 import Board from './pages/Board'
 import TimeTracker from './pages/TimeTracker'
+import OverdueTasks from './pages/OverdueTasks'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import VerifyEmail from './pages/VerifyEmail'
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/boards" element={<ProtectedRoute><Boards /></ProtectedRoute>} />
             <Route path="/boards/:boardId" element={<ProtectedRoute><Board /></ProtectedRoute>} />
             <Route path="/time-tracker" element={<ProtectedRoute><TimeTracker /></ProtectedRoute>} />
+            <Route path="/overdue" element={<ProtectedRoute><OverdueTasks /></ProtectedRoute>} />
             <Route path="/signin" element={<PublicRoute><SignIn /></PublicRoute>} />
             <Route path="/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
             <Route path="/verify-email" element={<VerifyEmail />} />

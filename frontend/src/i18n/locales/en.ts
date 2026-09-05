@@ -94,6 +94,7 @@ const en = {
     archiveBoardConfirmMessage: 'Are you sure you want to archive "{{name}}"? It will be hidden from your boards list.',
     archive: 'Archive',
     showArchivedBoards: 'Show Archived Boards',
+    showOverdueTasks: 'Show Overdue Tasks',
     archivedBoards: 'Archived Boards',
     restoreBoard: 'Restore Board',
     deleteBoard: 'Delete Board',
@@ -203,6 +204,11 @@ const en = {
     restore: 'Restore',
     deleteConfirmTitle: 'Delete permanently?',
     deleteConfirmMessage: 'Are you sure you want to permanently delete "{{name}}"? This cannot be undone.',
+  },
+  overdue: {
+    title: 'Overdue Tasks',
+    backToBoards: 'Back to Boards',
+    noOverdueTasks: 'No overdue tasks.',
   },
   timeTracker: {
     title: 'Time Tracker',

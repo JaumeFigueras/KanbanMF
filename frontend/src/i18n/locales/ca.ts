@@ -94,6 +94,7 @@ const ca = {
     archiveBoardConfirmMessage: 'Segur que vols arxivar "{{name}}"? Quedarà ocult de la llista de taulers.',
     archive: 'Arxiva',
     showArchivedBoards: 'Mostra els taulers arxivats',
+    showOverdueTasks: 'Mostra les tasques endarrerides',
     archivedBoards: 'Taulers arxivats',
     restoreBoard: 'Restaura el tauler',
     deleteBoard: 'Elimina el tauler',
@@ -203,6 +204,11 @@ const ca = {
     restore: 'Restaura',
     deleteConfirmTitle: 'Voleu eliminar-ho permanentment?',
     deleteConfirmMessage: 'Segur que voleu eliminar permanentment "{{name}}"? Aquesta acció no es pot desfer.',
+  },
+  overdue: {
+    title: 'Tasques endarrerides',
+    backToBoards: 'Torna als taulers',
+    noOverdueTasks: 'No hi ha cap tasca endarrerida.',
   },
   timeTracker: {
     title: 'Comptador de temps',

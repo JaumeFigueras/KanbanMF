@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -65,6 +66,7 @@ type Section = 'starred' | 'owned' | 'shared'
 
 export default function Boards() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -607,14 +609,18 @@ export default function Boards() {
           </Accordion>
         )}
 
-        {/* Show button only when accordion is hidden */}
-        {!showArchived && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+        {/* The archived button shows only while its accordion is hidden; the
+            overdue one leads to its own page, so it's always available. */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 3 }}>
+          {!showArchived && (
             <Button variant="outlined" color="error" size="small" onClick={handleToggleArchived}>
               {t('boards.showArchivedBoards')}
             </Button>
-          </Box>
-        )}
+          )}
+          <Button variant="outlined" color="warning" size="small" onClick={() => navigate('/overdue')}>
+            {t('boards.showOverdueTasks')}
+          </Button>
+        </Box>
       </Box>
     </>
   )

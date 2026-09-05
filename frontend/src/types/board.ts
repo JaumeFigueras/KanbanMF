@@ -17,6 +17,26 @@ export interface BoardsResponse {
   shared: BoardRead[]
 }
 
+// The overdue-tasks page's payload (see the /boards/overdue endpoint): the
+// boards with cards past their due date, each carrying only the lists that
+// hold one, and only the overdue cards themselves. `color`/`card_colors` are
+// the viewer's own colors, so the page paints columns as the board does.
+export interface OverdueListRead {
+  list_id: string
+  list_name: string
+  color: string | null
+  cards: CardRead[]
+}
+
+export interface OverdueBoardRead {
+  board_id: string
+  board_name: string
+  overdue_count: number
+  color: string | null
+  card_colors: Record<string, string>
+  lists: OverdueListRead[]
+}
+
 export interface BoardListRead {
   id: string
   board_id: string

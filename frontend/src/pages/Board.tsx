@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AppBar,
   Box,
@@ -34,6 +34,7 @@ import ManageLabelsDialog from '../components/ManageLabelsDialog'
 import EmailNotificationDialog from '../components/EmailNotificationDialog'
 import BoardListColumn from '../components/BoardListColumn'
 import CardItem from '../components/CardItem'
+import CardDialog from '../components/CardDialog'
 import ArchivedListsView from '../components/ArchivedListsView'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
@@ -70,6 +71,12 @@ export default function Board() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { boardId } = useParams<{ boardId: string }>()
+  // ?card=<id> deep link (the overdue-tasks page links here) — opens that
+  // card's edit dialog once its list has loaded, exactly as clicking the
+  // card on the board does. Dropped from the URL when the dialog closes, so
+  // closing and reopening the board doesn't reopen the card.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deepLinkedCardId = searchParams.get('card')
   const [board, setBoard] = useState<BoardRead | null>(null)
   // Every color the current user has personally set anywhere on this board
   // (board/lists/cards), fetched once alongside the lists themselves so
@@ -294,6 +301,26 @@ export default function Board() {
       ...prev,
       [listId]: (prev[listId] ?? []).map(c => c.id === card.id ? card : c),
     }))
+  }
+
+  // The ?card=<id> deep link resolves against the cards already fetched, so
+  // the dialog opens as soon as that card's list arrives — no extra request,
+  // and nothing happens if the card is archived, deleted or on another board.
+  const deepLinkedCard = useMemo(() => {
+    if (!deepLinkedCardId) return null
+    for (const cards of Object.values(cardsByList)) {
+      const found = cards.find(c => c.id === deepLinkedCardId)
+      if (found) return found
+    }
+    return null
+  }, [deepLinkedCardId, cardsByList])
+
+  function closeDeepLinkedCard() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('card')
+      return next
+    }, { replace: true })
   }
 
   function persistCardOrder(listId: string, cardIds: string[]) {
@@ -826,6 +853,20 @@ export default function Board() {
         onClose={() => setManageLabelsOpen(false)}
         boardId={boardId ?? ''}
       />
+
+      {deepLinkedCard && (
+        <CardDialog
+          open
+          onClose={closeDeepLinkedCard}
+          listId={deepLinkedCard.list_id}
+          boardId={boardId ?? ''}
+          numberLocale={numberLocale}
+          card={deepLinkedCard}
+          onUpdated={(card) => handleCardUpdated(card.list_id, card)}
+          onCopied={handleCardCreated}
+          onChecklistCopied={handleChecklistCopied}
+        />
+      )}
     </>
   )
 }
