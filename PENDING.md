@@ -2,6 +2,8 @@
 
 - Add original card title to extract checklist item
 - Add pending tasks overview (global)
+- Months appear in Catalan (os/ff config?) instead of preferred language in the app
+- Add time entry has to get the last end time and get it if less than hour
 - ✓ Add comment to Time tracker data model
 - ✓ Time Overlap with same minutes
 - ✓ Copy checklist to another card
