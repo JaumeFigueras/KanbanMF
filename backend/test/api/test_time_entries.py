@@ -436,3 +436,63 @@ async def test_time_entries_06(
     )
     assert r.status_code == 201
     assert r.json()["comment"] is None
+
+
+@pytest.mark.asyncio
+async def test_time_entries_07(
+    client, db_session_async, tracked_card: Card, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify the last-end lookup returns the latest end among the caller's
+    finished entries — ignoring a running entry and other users' entries —
+    and null when there is none.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session used to plant entries with chosen times.
+    tracked_card : Card
+        The card whose creator owns the entries.
+    auth_headers : dict[str, str]
+        Bearer token header for the card's owner.
+    """
+    def _entry(user_id, start: datetime, end: datetime | None) -> TimeEntry:
+        return TimeEntry(
+            user_id=user_id, started_at=start, ended_at=end,
+            board_name="Board", card_name="Card", labels=[],
+        )
+
+    # Nothing recorded yet.
+    r = await client.get("/api/v1/time-entries/last-end", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json() is None
+
+    # A running entry has no end to offer.
+    base = datetime(2026, 3, 1, 8, 0, tzinfo=timezone.utc)
+    db_session_async.add(_entry(tracked_card.creator_id, base + timedelta(days=5), None))
+    await db_session_async.commit()
+    r = await client.get("/api/v1/time-entries/last-end", headers=auth_headers)
+    assert r.json() is None
+
+    # The latest *end* wins, not the latest start: the long entry started
+    # first but finished last.
+    long_end = base + timedelta(hours=10)
+    other = User(email="other@example.com", display_name="Other User")
+    db_session_async.add(other)
+    await db_session_async.flush()
+    db_session_async.add_all([
+        _entry(tracked_card.creator_id, base, long_end),
+        _entry(tracked_card.creator_id, base + timedelta(hours=1), base + timedelta(hours=2)),
+        # Someone else's later entry is none of the caller's business.
+        _entry(other.id, base, base + timedelta(days=1)),
+    ])
+    await db_session_async.commit()
+    r = await client.get("/api/v1/time-entries/last-end", headers=auth_headers)
+    assert r.status_code == 200
+    assert datetime.fromisoformat(r.json()) == long_end
+
+    # Needs a signed-in user.
+    r = await client.get("/api/v1/time-entries/last-end")
+    assert r.status_code == 401

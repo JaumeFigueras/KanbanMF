@@ -64,11 +64,33 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
       // An hour ending now: the shape of a stretch of work being written up
       // just after it happened, and both ends are editable anyway.
       const now = dayjs().startOf('minute')
-      setStartAt(now.subtract(1, 'hour'))
+      const fallbackStart = now.subtract(1, 'hour')
+      setStartAt(fallbackStart)
       setEndAt(now)
       setBoardName('')
       setCardName('')
       setComment('')
+
+      // If the last task ended within that hour, start from its end instead,
+      // so the new entry follows it without a gap or an overlap. Looked up on
+      // the server because the page only holds the filtered month's entries.
+      let cancelled = false
+      apiFetch('/api/v1/time-entries/last-end')
+        .then((r) => (r.ok ? r.json() as Promise<string | null> : null))
+        .then((lastEnd) => {
+          if (cancelled || !lastEnd) return
+          const snapped = dayjs(lastEnd).startOf('minute')
+          // A future end (a manually entered entry) isn't a previous task.
+          if (snapped.isAfter(now) || now.diff(snapped, 'minute') > 60) return
+          // Only replace the default if the user hasn't changed it meanwhile.
+          setStartAt((current) => (current && current.isSame(fallbackStart) ? snapped : current))
+          // Ended this very minute: keep the range at least a minute long.
+          if (snapped.isSame(now)) {
+            setEndAt((current) => (current && current.isSame(now) ? now.add(1, 'minute') : current))
+          }
+        })
+        .catch(() => {})
+      return () => { cancelled = true }
     }
   }, [open, entry])
 

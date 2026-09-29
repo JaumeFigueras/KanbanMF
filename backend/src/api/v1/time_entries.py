@@ -97,6 +97,17 @@ async def _get_own_entry(entry_id: uuid.UUID, user: User, db: AsyncSession) -> T
     return entry
 
 
+async def _last_end(user: User, db: AsyncSession) -> datetime | None:
+    """The latest end time among the user's finished entries, if any."""
+    result = await db.execute(
+        select(TimeEntry.ended_at)
+        .where(TimeEntry.user_id == user.id, TimeEntry.ended_at.is_not(None))
+        .order_by(TimeEntry.ended_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def _start_time_for(user: User, db: AsyncSession) -> datetime:
     """When a task starting now should be recorded as having started.
 
@@ -107,13 +118,7 @@ async def _start_time_for(user: User, db: AsyncSession) -> datetime:
     start before it was created.
     """
     now = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(TimeEntry.ended_at)
-        .where(TimeEntry.user_id == user.id, TimeEntry.ended_at.is_not(None))
-        .order_by(TimeEntry.ended_at.desc())
-        .limit(1)
-    )
-    previous_end = result.scalar_one_or_none()
+    previous_end = await _last_end(user, db)
     if previous_end is not None and timedelta(0) <= now - previous_end <= _START_SNAP_WINDOW:
         return previous_end
     return now
@@ -185,6 +190,21 @@ async def list_time_entry_years(
         .distinct()
     )
     return sorted((int(y) for y in result.scalars().all()), reverse=True)
+
+
+@router.get("/last-end", response_model=datetime | None)
+async def get_last_time_entry_end(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> datetime | None:
+    """Return when the caller's most recently ended entry ended, or null.
+
+    Looked up across all of the caller's entries, whatever the page's
+    year/month filter shows, so the dialog for adding an entry by hand can
+    default its start to it. Deciding whether it's recent enough to use is
+    left to the frontend, which owns the rest of that default.
+    """
+    return await _last_end(current_user, db)
 
 
 @router.post("/start", response_model=TimeEntryRead, status_code=status.HTTP_201_CREATED)
