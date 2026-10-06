@@ -89,7 +89,9 @@ async def send_due_date_notifications() -> None:
 
         for settings_row in all_settings:
             board = await get_board(settings_row.board_id)
-            if board is None or board.is_deleted:
+            # The API keeps cards and notification settings off templates;
+            # skipping them here as well means the job never relies on that.
+            if board is None or board.is_deleted or board.is_template:
                 continue
 
             recipient = await get_user(settings_row.user_id)

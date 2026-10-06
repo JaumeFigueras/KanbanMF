@@ -4,6 +4,7 @@ CREATE TABLE ui_board_orders (
 	starred_ids UUID[] DEFAULT '{}' NOT NULL, 
 	owned_ids UUID[] DEFAULT '{}' NOT NULL, 
 	shared_ids UUID[] DEFAULT '{}' NOT NULL, 
+	template_ids UUID[] DEFAULT '{}' NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (user_id), 
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE

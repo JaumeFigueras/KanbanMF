@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user, get_db, reject_if_template
 from src.model.board import Board
 from src.model.board_notification_offset import BoardNotificationOffset
 from src.model.board_notification_settings import BoardNotificationSettings
@@ -85,7 +85,8 @@ async def get_board_notification_settings(
     Accessible to the owner and any shared member — each reads/writes only
     their own row, never another user's.
     """
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
+    reject_if_template(board, "Templates have no due dates to notify about")
     return await _read_settings(board_id, current_user.id, db)
 
 
@@ -106,7 +107,8 @@ async def update_board_notification_settings(
     EmailNotificationDialog), so this is a full replace rather than a partial
     patch: the offset-days list is dropped and re-inserted rather than diffed.
     """
-    await _get_accessible_board(board_id, current_user, db)
+    board = await _get_accessible_board(board_id, current_user, db)
+    reject_if_template(board, "Templates have no due dates to notify about")
 
     await db.execute(
         pg_insert(BoardNotificationSettings)

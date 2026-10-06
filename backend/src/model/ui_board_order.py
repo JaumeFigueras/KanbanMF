@@ -17,10 +17,12 @@ if TYPE_CHECKING:
 
 
 class UIBoardOrder(Base):
-    """Per-user UI ordering of boards across the three sections.
+    """Per-user UI ordering of boards across the four sections.
 
     One row per user; each array holds board UUIDs in display order.
-    All three sections are stored together so a single row covers the
+    template_ids covers owned and shared templates together, since both
+    live in the same section. All four sections are stored together so a
+    single row covers the
     full board list state for that user.
     """
 
@@ -47,6 +49,13 @@ class UIBoardOrder(Base):
     )
 
     shared_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=False,
+        default=list,
+        server_default="{}",
+    )
+
+    template_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(UUID(as_uuid=True)),
         nullable=False,
         default=list,

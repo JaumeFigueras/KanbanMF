@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.deps import get_client_id, get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db, reject_if_template
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
@@ -263,6 +263,7 @@ async def create_card(
 ) -> CardRead:
     """Create a card inside a list."""
     board = await _get_accessible_board(board_id, current_user, db)
+    reject_if_template(board, "Templates cannot hold cards")
     await _get_list(board_id, list_id, db)
 
     # The creator is always a member by default, regardless of what the
@@ -339,6 +340,7 @@ async def copy_card(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
 
     target_board = await _get_accessible_board(body.target_board_id, current_user, db)
+    reject_if_template(target_board, "Templates cannot hold cards")
     await _get_list(body.target_board_id, body.target_list_id, db)
 
     # The copying user is always a member of the copy, same as create_card.

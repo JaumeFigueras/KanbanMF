@@ -4,7 +4,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from src.schemas.card import CardRead
 
@@ -12,6 +12,11 @@ from src.schemas.card import CardRead
 class BoardCreate(BaseModel):
     name: str
     is_starred: bool = False
+    is_template: bool = False
+    # Template whose lists (and the creating user's own colors) are copied
+    # into the new board. Only for normal boards: a template isn't built from
+    # another template — duplicate it instead.
+    template_id: uuid.UUID | None = None
 
     @field_validator("name")
     @classmethod
@@ -20,6 +25,14 @@ class BoardCreate(BaseModel):
         if not v:
             raise ValueError("Board name cannot be blank.")
         return v
+
+    @model_validator(mode="after")
+    def template_flags_consistent(self) -> "BoardCreate":
+        if self.is_template and self.is_starred:
+            raise ValueError("A template cannot be starred.")
+        if self.is_template and self.template_id is not None:
+            raise ValueError("A template cannot be created from another template.")
+        return self
 
 
 class BoardRead(BaseModel):
@@ -31,6 +44,7 @@ class BoardRead(BaseModel):
     name: str
     is_archived: bool
     is_deleted: bool
+    is_template: bool
     is_starred: bool
     created_at: datetime
     updated_at: datetime
@@ -53,20 +67,41 @@ class BoardUpdate(BaseModel):
 
 
 class BoardsResponse(BaseModel):
+    """The boards page: normal boards split by ownership, plus every template.
+
+    templates holds owned and shared templates together, since both are shown
+    in the same section; owner_id tells them apart.
+    """
+
     owned: list[BoardRead]
     shared: list[BoardRead]
+    templates: list[BoardRead]
 
 
 class BoardOrderRead(BaseModel):
     starred_ids: list[uuid.UUID]
     owned_ids: list[uuid.UUID]
     shared_ids: list[uuid.UUID]
+    template_ids: list[uuid.UUID]
 
 
 class BoardOrderUpdate(BaseModel):
     starred_ids: list[uuid.UUID] | None = None
     owned_ids: list[uuid.UUID] | None = None
     shared_ids: list[uuid.UUID] | None = None
+    template_ids: list[uuid.UUID] | None = None
+
+
+class TemplateDuplicate(BaseModel):
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Template name cannot be blank.")
+        return v
 
 
 class BoardShareCreate(BaseModel):

@@ -27,6 +27,8 @@ class Board(Base):
 
     Deletion is soft: is_deleted=True hides the board without removing it from the DB.
     Archived boards are read-only. Starring is per-user via UserBoardStar.
+    A board with is_template=True is a template: it holds lists but no cards,
+    labels or stars, and its lists are copied into boards created from it.
     """
 
     __tablename__ = "boards"
@@ -63,6 +65,14 @@ class Board(Base):
         default=False,
         server_default="false",
         comment="Soft-delete flag. Deleted boards are hidden but retained in the DB.",
+    )
+
+    is_template: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Template boards hold only lists, which are copied into boards created from them.",
     )
 
     created_at: Mapped[datetime] = mapped_column(

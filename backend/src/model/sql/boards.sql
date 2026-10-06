@@ -5,6 +5,7 @@ CREATE TABLE boards (
 	name VARCHAR(255) NOT NULL, 
 	is_archived BOOLEAN DEFAULT 'false' NOT NULL, 
 	is_deleted BOOLEAN DEFAULT 'false' NOT NULL, 
+	is_template BOOLEAN DEFAULT 'false' NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (id), 

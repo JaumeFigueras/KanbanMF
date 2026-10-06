@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
 from src.core.security import decode_access_token
+from src.model.board import Board
 from src.model.user import User
 
 bearer_scheme = HTTPBearer()
@@ -55,3 +56,15 @@ async def get_client_id(x_client_id: str | None = Header(default=None)) -> str |
     originating tab can tell its own change apart from one made elsewhere.
     """
     return x_client_id
+
+
+def reject_if_template(board: Board, detail: str) -> None:
+    """Raise 400 when ``board`` is a template.
+
+    Templates hold only lists, so every route that would put a card, a label,
+    a star or notification settings on a board calls this first. Not a FastAPI
+    dependency: each router already loads the board through its own access
+    check, and this runs on the result.
+    """
+    if board.is_template:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

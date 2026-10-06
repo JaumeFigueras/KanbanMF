@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_client_id, get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db, reject_if_template
 # The overdue page draws the same card faces the board does, so it reuses the
 # card serialization helpers instead of growing a second copy of them here.
 from src.api.v1.cards import (
@@ -43,6 +43,7 @@ from src.schemas.board import (
     BoardsResponse,
     OverdueBoardRead,
     OverdueListRead,
+    TemplateDuplicate,
 )
 from src.schemas.person import PersonRead
 from src.schemas.ui_color import BoardColorsRead, ColorRead, ColorUpdate
@@ -78,6 +79,7 @@ def _to_read(
         name=board.name,
         is_archived=board.is_archived,
         is_deleted=board.is_deleted,
+        is_template=board.is_template,
         is_starred=board.id in starred,
         created_at=board.created_at,
         updated_at=board.updated_at,
@@ -94,7 +96,7 @@ async def _get_order(user_id: uuid.UUID, db: AsyncSession) -> UIBoardOrder | Non
 async def _remove_from_order(
     user_id: uuid.UUID, board_id: uuid.UUID, db: AsyncSession
 ) -> None:
-    """Remove a board ID from all three order arrays in one statement."""
+    """Remove a board ID from all four order arrays in one statement."""
     await db.execute(
         update(UIBoardOrder)
         .where(UIBoardOrder.user_id == user_id)
@@ -102,9 +104,107 @@ async def _remove_from_order(
             owned_ids=func.array_remove(UIBoardOrder.owned_ids, board_id),
             starred_ids=func.array_remove(UIBoardOrder.starred_ids, board_id),
             shared_ids=func.array_remove(UIBoardOrder.shared_ids, board_id),
+            template_ids=func.array_remove(UIBoardOrder.template_ids, board_id),
             updated_at=func.now(),
         )
     )
+
+
+async def _append_to_order(
+    user_id: uuid.UUID, section: str, board_id: uuid.UUID, db: AsyncSession
+) -> None:
+    """Append a board ID to one of the user's order arrays, creating the row if needed."""
+    column = getattr(UIBoardOrder, section)
+    await db.execute(
+        pg_insert(UIBoardOrder)
+        .values(user_id=user_id, **{section: [board_id]})
+        .on_conflict_do_update(
+            index_elements=["user_id"],
+            set_={section: func.array_append(column, board_id), "updated_at": func.now()},
+        )
+    )
+
+
+async def _read_as_owner(
+    board: Board, owner: User, starred: set[uuid.UUID], db: AsyncSession
+) -> BoardRead:
+    """Build the BoardRead for a board the given user owns, looking up their initials and avatar."""
+    pref_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == owner.id)
+    )
+    pref = pref_result.scalar_one_or_none()
+    owner_initials = (
+        pref.initials if (pref and pref.initials)
+        else _compute_initials(owner.display_name)
+    )
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == owner.id)
+    )
+    owner_has_avatar = avatar_result.scalar_one_or_none() is not None
+    return _to_read(board, starred, owner.display_name, owner_initials, owner_has_avatar)
+
+
+async def _copy_template_into(
+    template: Board, board: Board, user_id: uuid.UUID, db: AsyncSession
+) -> None:
+    """Copy a template's live lists, their order and user_id's own colors into board.
+
+    Archived and deleted lists stay behind. Colors are per user, so only the
+    colors user_id has set on the template (board and lists) are carried
+    over, and only as user_id's colors on the new board: anyone the board is
+    later shared with starts from the default colors, whatever they had set
+    on the template. The copy is a one-off — later edits to the template
+    don't reach boards already made from it.
+    """
+    lists_result = await db.execute(
+        select(BoardList)
+        .where(
+            BoardList.board_id == template.id,
+            BoardList.is_deleted.is_(False),
+            BoardList.is_archived.is_(False),
+        )
+        .order_by(BoardList.created_at.asc())
+    )
+    source_lists = list(lists_result.scalars().all())
+
+    # Same rule the board page uses: lists in the stored order first, then
+    # any the order row doesn't mention, oldest first.
+    order_result = await db.execute(
+        select(UIBoardListOrder.list_ids).where(UIBoardListOrder.board_id == template.id)
+    )
+    position = {lid: i for i, lid in enumerate(order_result.scalar_one_or_none() or [])}
+    source_lists.sort(key=lambda lst: position.get(lst.id, len(position)))
+
+    new_ids: dict[uuid.UUID, uuid.UUID] = {}
+    for source in source_lists:
+        new_list = BoardList(board_id=board.id, name=source.name)
+        db.add(new_list)
+        await db.flush()
+        new_ids[source.id] = new_list.id
+
+    if new_ids:
+        db.add(UIBoardListOrder(board_id=board.id, list_ids=list(new_ids.values())))
+
+        list_colors = await db.execute(
+            select(UIListColor.list_id, UIListColor.color).where(
+                UIListColor.user_id == user_id,
+                UIListColor.list_id.in_(new_ids.keys()),
+            )
+        )
+        db.add_all(
+            UIListColor(user_id=user_id, list_id=new_ids[list_id], color=color)
+            for list_id, color in list_colors.all()
+        )
+
+    board_color = await db.execute(
+        select(UIBoardColor.color).where(
+            UIBoardColor.user_id == user_id,
+            UIBoardColor.board_id == template.id,
+        )
+    )
+    color = board_color.scalar_one_or_none()
+    if color is not None:
+        db.add(UIBoardColor(user_id=user_id, board_id=board.id, color=color))
 
 
 @router.get("", response_model=BoardsResponse)
@@ -112,7 +212,7 @@ async def list_boards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardsResponse:
-    """Return all non-deleted boards for the current user."""
+    """Return all live (not archived, not deleted) boards and templates for the current user."""
     starred = await _starred_ids(current_user.id, db)
 
     owned_result = await db.execute(
@@ -121,6 +221,7 @@ async def list_boards(
             Board.owner_id == current_user.id,
             Board.is_deleted.is_(False),
             Board.is_archived.is_(False),
+            Board.is_template.is_(False),
         )
         .order_by(Board.created_at.desc())
     )
@@ -133,12 +234,31 @@ async def list_boards(
             BoardShare.user_id == current_user.id,
             Board.is_deleted.is_(False),
             Board.is_archived.is_(False),
+            Board.is_template.is_(False),
         )
         .order_by(Board.created_at.desc())
     )
     shared = shared_result.scalars().all()
 
-    owner_ids = {b.owner_id for b in list(owned) + list(shared)}
+    # Owned and shared templates share one section, so one query covers both.
+    templates_result = await db.execute(
+        select(Board)
+        .where(
+            or_(
+                Board.owner_id == current_user.id,
+                Board.id.in_(
+                    select(BoardShare.board_id).where(BoardShare.user_id == current_user.id)
+                ),
+            ),
+            Board.is_deleted.is_(False),
+            Board.is_archived.is_(False),
+            Board.is_template.is_(True),
+        )
+        .order_by(Board.created_at.desc())
+    )
+    templates = templates_result.scalars().all()
+
+    owner_ids = {b.owner_id for b in list(owned) + list(shared) + list(templates)}
     users_by_id: dict[uuid.UUID, User] = {}
     prefs_by_id: dict[uuid.UUID, UserPreferences] = {}
     avatar_ids: set[uuid.UUID] = set()
@@ -165,6 +285,7 @@ async def list_boards(
     return BoardsResponse(
         owned=[board_to_read(b) for b in owned],
         shared=[board_to_read(b) for b in shared],
+        templates=[board_to_read(b) for b in templates],
     )
 
 
@@ -174,57 +295,38 @@ async def create_board(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardRead:
-    """Create a new board and append it to the owner's board order."""
-    board = Board(owner_id=current_user.id, name=body.name)
+    """Create a new board (or template) and append it to the owner's board order.
+
+    With template_id, the template's lists are copied into the new board —
+    see :func:`_copy_template_into`.
+    """
+    template: Board | None = None
+    if body.template_id is not None:
+        template = await _check_board_access(body.template_id, current_user, db)
+        if not template.is_template:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Board is not a template")
+        if template.is_archived:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Template is archived")
+
+    board = Board(owner_id=current_user.id, name=body.name, is_template=body.is_template)
     db.add(board)
     await db.flush()
 
-    if body.is_starred:
-        db.add(UserBoardStar(user_id=current_user.id, board_id=board.id))
+    if template is not None:
+        await _copy_template_into(template, board, current_user.id, db)
 
-    # Append to owned_ids (and starred_ids if requested)
-    order_update: dict = {
-        "owned_ids": func.array_append(UIBoardOrder.owned_ids, board.id),
-        "updated_at": func.now(),
-    }
-    if body.is_starred:
-        order_update["starred_ids"] = func.array_append(UIBoardOrder.starred_ids, board.id)
-
-    await db.execute(
-        pg_insert(UIBoardOrder).values(
-            user_id=current_user.id,
-            starred_ids=[board.id] if body.is_starred else [],
-            owned_ids=[board.id],
-            shared_ids=[],
-        ).on_conflict_do_update(
-            index_elements=["user_id"],
-            set_=order_update,
-        )
-    )
+    if body.is_template:
+        await _append_to_order(current_user.id, "template_ids", board.id, db)
+    else:
+        if body.is_starred:
+            db.add(UserBoardStar(user_id=current_user.id, board_id=board.id))
+            await _append_to_order(current_user.id, "starred_ids", board.id, db)
+        await _append_to_order(current_user.id, "owned_ids", board.id, db)
 
     await db.commit()
     await db.refresh(board)
 
-    pref_result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
-    )
-    pref = pref_result.scalar_one_or_none()
-    owner_initials = (
-        pref.initials if (pref and pref.initials)
-        else _compute_initials(current_user.display_name)
-    )
-    avatar_result = await db.execute(
-        select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
-    )
-    owner_has_avatar = avatar_result.scalar_one_or_none() is not None
-
-    return _to_read(
-        board,
-        {board.id} if body.is_starred else set(),
-        current_user.display_name,
-        owner_initials,
-        owner_has_avatar,
-    )
+    return await _read_as_owner(board, current_user, {board.id} if body.is_starred else set(), db)
 
 
 @router.get("/archived", response_model=list[BoardRead])
@@ -232,7 +334,7 @@ async def list_archived_boards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[BoardRead]:
-    """Return owned archived (but not deleted) boards for the current user."""
+    """Return owned archived (but not deleted) boards and templates for the current user."""
     result = await db.execute(
         select(Board)
         .where(
@@ -276,7 +378,8 @@ async def list_overdue_boards(
     A card counts as overdue when its due date has passed and it has no end
     date — the same "still open, past due" rule the reminder e-mails use (see
     :mod:`src.core.notifications`). Archived and deleted boards, lists and
-    cards are all left out, as are boards and lists with nothing overdue.
+    cards are all left out, as are templates and boards and lists with
+    nothing overdue.
 
     Boards come back ordered by how many overdue cards they hold (most first),
     lists in the board's own list order, and cards oldest due date first. The
@@ -296,6 +399,7 @@ async def list_overdue_boards(
             or_(Board.owner_id == current_user.id, BoardShare.user_id.isnot(None)),
             Board.is_deleted.is_(False),
             Board.is_archived.is_(False),
+            Board.is_template.is_(False),
             BoardList.is_deleted.is_(False),
             BoardList.is_archived.is_(False),
             Card.is_deleted.is_(False),
@@ -409,11 +513,12 @@ async def get_board_order(
     """Return the stored board display order for the current user."""
     order = await _get_order(current_user.id, db)
     if order is None:
-        return BoardOrderRead(starred_ids=[], owned_ids=[], shared_ids=[])
+        return BoardOrderRead(starred_ids=[], owned_ids=[], shared_ids=[], template_ids=[])
     return BoardOrderRead(
         starred_ids=order.starred_ids,
         owned_ids=order.owned_ids,
         shared_ids=order.shared_ids,
+        template_ids=order.template_ids,
     )
 
 
@@ -429,10 +534,12 @@ async def update_board_order(
     current_starred = order.starred_ids if order else []
     current_owned = order.owned_ids if order else []
     current_shared = order.shared_ids if order else []
+    current_templates = order.template_ids if order else []
 
     new_starred = body.starred_ids if body.starred_ids is not None else current_starred
     new_owned = body.owned_ids if body.owned_ids is not None else current_owned
     new_shared = body.shared_ids if body.shared_ids is not None else current_shared
+    new_templates = body.template_ids if body.template_ids is not None else current_templates
 
     await db.execute(
         pg_insert(UIBoardOrder).values(
@@ -440,12 +547,14 @@ async def update_board_order(
             starred_ids=new_starred,
             owned_ids=new_owned,
             shared_ids=new_shared,
+            template_ids=new_templates,
         ).on_conflict_do_update(
             index_elements=["user_id"],
             set_={
                 "starred_ids": new_starred,
                 "owned_ids": new_owned,
                 "shared_ids": new_shared,
+                "template_ids": new_templates,
                 "updated_at": func.now(),
             },
         )
@@ -460,6 +569,7 @@ async def update_board_order(
         starred_ids=new_starred,
         owned_ids=new_owned,
         shared_ids=new_shared,
+        template_ids=new_templates,
     )
 
 
@@ -731,21 +841,9 @@ async def update_board(
             await _remove_from_order(current_user.id, board_id, db)
         elif not body.is_archived and was_archived:
             archive_event = "board_unarchived"
-            # Restoring: append back to owned_ids
-            await db.execute(
-                pg_insert(UIBoardOrder).values(
-                    user_id=current_user.id,
-                    starred_ids=[],
-                    owned_ids=[board_id],
-                    shared_ids=[],
-                ).on_conflict_do_update(
-                    index_elements=["user_id"],
-                    set_={
-                        "owned_ids": func.array_append(UIBoardOrder.owned_ids, board_id),
-                        "updated_at": func.now(),
-                    },
-                )
-            )
+            # Restoring: append back to the section the board belongs in
+            section = "template_ids" if board.is_template else "owned_ids"
+            await _append_to_order(current_user.id, section, board_id, db)
 
     await db.commit()
     await db.refresh(board)
@@ -780,6 +878,38 @@ async def update_board(
     return _to_read(board, starred, current_user.display_name, owner_initials, owner_has_avatar)
 
 
+@router.post("/{board_id}/duplicate", response_model=BoardRead, status_code=status.HTTP_201_CREATED)
+async def duplicate_template(
+    board_id: uuid.UUID,
+    body: TemplateDuplicate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardRead:
+    """Copy a template into a new template owned by the current user.
+
+    Open to the owner and to anyone the template is shared with. The copy gets
+    the template's live lists, their order and the caller's own colors (see
+    :func:`_copy_template_into`), but none of its shares: it starts private to
+    whoever duplicated it.
+    """
+    template = await _check_board_access(board_id, current_user, db)
+    if not template.is_template:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only templates can be duplicated")
+    if template.is_archived:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Template is archived")
+
+    duplicate = Board(owner_id=current_user.id, name=body.name, is_template=True)
+    db.add(duplicate)
+    await db.flush()
+    await _copy_template_into(template, duplicate, current_user.id, db)
+    await _append_to_order(current_user.id, "template_ids", duplicate.id, db)
+
+    await db.commit()
+    await db.refresh(duplicate)
+
+    return await _read_as_owner(duplicate, current_user, set(), db)
+
+
 @router.post("/{board_id}/star", status_code=status.HTTP_204_NO_CONTENT)
 async def star_board(
     board_id: uuid.UUID,
@@ -787,7 +917,8 @@ async def star_board(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Star a board. Idempotent — starring an already-starred board is a no-op."""
-    await _check_board_access(board_id, current_user, db)
+    board = await _check_board_access(board_id, current_user, db)
+    reject_if_template(board, "Templates cannot be starred")
 
     result = await db.execute(
         pg_insert(UserBoardStar)
@@ -797,17 +928,7 @@ async def star_board(
 
     if result.rowcount > 0:
         # Only update the order array when a new star was actually inserted.
-        await db.execute(
-            pg_insert(UIBoardOrder)
-            .values(user_id=current_user.id, starred_ids=[board_id], owned_ids=[], shared_ids=[])
-            .on_conflict_do_update(
-                index_elements=["user_id"],
-                set_={
-                    "starred_ids": func.array_append(UIBoardOrder.starred_ids, board_id),
-                    "updated_at": func.now(),
-                },
-            )
-        )
+        await _append_to_order(current_user.id, "starred_ids", board_id, db)
 
     await db.commit()
 
@@ -819,7 +940,8 @@ async def unstar_board(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove a star from a board. Idempotent."""
-    await _check_board_access(board_id, current_user, db)
+    board = await _check_board_access(board_id, current_user, db)
+    reject_if_template(board, "Templates cannot be starred")
 
     await db.execute(
         delete(UserBoardStar).where(

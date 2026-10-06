@@ -88,6 +88,7 @@ CREATE TABLE boards (
 	name VARCHAR(255) NOT NULL, 
 	is_archived BOOLEAN DEFAULT 'false' NOT NULL, 
 	is_deleted BOOLEAN DEFAULT 'false' NOT NULL, 
+	is_template BOOLEAN DEFAULT 'false' NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (id), 
@@ -130,14 +131,16 @@ GRANT SELECT on public.board_lists to kanbanmf_remoteuser;
 
 CREATE TABLE board_notification_settings (
 	board_id UUID NOT NULL, 
+	user_id UUID NOT NULL, 
 	is_enabled BOOLEAN DEFAULT 'false' NOT NULL, 
 	notify_hour SMALLINT DEFAULT '9' NOT NULL, 
 	overdue_repeat_after_days SMALLINT, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	PRIMARY KEY (board_id), 
+	PRIMARY KEY (board_id, user_id), 
 	CONSTRAINT ck_board_notification_settings_notify_hour_range CHECK (notify_hour >= 0 AND notify_hour <= 23), 
-	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE, 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
 ALTER TABLE public.board_notification_settings OWNER TO kanbanmf_user;
@@ -145,9 +148,10 @@ GRANT SELECT on public.board_notification_settings to kanbanmf_remoteuser;
 
 CREATE TABLE board_notification_offsets (
 	board_id UUID NOT NULL, 
+	user_id UUID NOT NULL, 
 	offset_days SMALLINT NOT NULL, 
-	PRIMARY KEY (board_id, offset_days), 
-	FOREIGN KEY(board_id) REFERENCES board_notification_settings (board_id) ON DELETE CASCADE
+	PRIMARY KEY (board_id, user_id, offset_days), 
+	FOREIGN KEY(board_id, user_id) REFERENCES board_notification_settings (board_id, user_id) ON DELETE CASCADE
 )
 WITH (OIDS = FALSE);
 ALTER TABLE public.board_notification_offsets OWNER TO kanbanmf_user;
@@ -170,6 +174,7 @@ CREATE TABLE ui_board_orders (
 	starred_ids UUID[] DEFAULT '{}' NOT NULL, 
 	owned_ids UUID[] DEFAULT '{}' NOT NULL, 
 	shared_ids UUID[] DEFAULT '{}' NOT NULL, 
+	template_ids UUID[] DEFAULT '{}' NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (user_id), 
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE

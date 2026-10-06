@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_current_user, get_db, reject_if_template
 from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.label import Label
@@ -74,7 +74,8 @@ async def create_label(
 ) -> LabelRead:
     """Create a label on the board, appended after any existing labels.
     Owner only."""
-    await _require_owner(board_id, current_user, db)
+    board = await _require_owner(board_id, current_user, db)
+    reject_if_template(board, "Templates cannot hold labels")
     count_result = await db.execute(
         select(func.count()).select_from(Label).where(Label.board_id == board_id)
     )
