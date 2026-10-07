@@ -280,7 +280,8 @@ async def test_board_templates_06(
 ) -> None:
     """
     Verify starring and unstarring a template are rejected with 400 and leave
-    it unstarred, while a normal board can still be starred.
+    it unstarred and out of starred_ids, while a normal board can still be
+    starred.
 
     Parameters
     ----------
@@ -315,6 +316,9 @@ async def test_board_templates_06(
     body = (await client.get("/api/v1/boards", headers=auth_headers)).json()
     assert body["templates"][0]["is_starred"] is False
     assert body["owned"][0]["is_starred"] is True
+
+    order = (await client.get("/api/v1/boards/order", headers=auth_headers)).json()
+    assert order["starred_ids"] == [board["id"]]
 
 
 @pytest.mark.asyncio

@@ -920,13 +920,18 @@ async def star_board(
     board = await _check_board_access(board_id, current_user, db)
     reject_if_template(board, "Templates cannot be starred")
 
+    # RETURNING yields a row only when the star is actually new (ON CONFLICT
+    # DO NOTHING returns nothing). Don't use result.rowcount for this: with
+    # the async psycopg driver it comes back as -1 either way, so the board
+    # was never appended to starred_ids.
     result = await db.execute(
         pg_insert(UserBoardStar)
         .values(user_id=current_user.id, board_id=board_id)
         .on_conflict_do_nothing()
+        .returning(UserBoardStar.board_id)
     )
 
-    if result.rowcount > 0:
+    if result.first() is not None:
         # Only update the order array when a new star was actually inserted.
         await _append_to_order(current_user.id, "starred_ids", board_id, db)
 

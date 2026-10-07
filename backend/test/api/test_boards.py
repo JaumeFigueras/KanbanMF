@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Tests for the /api/v1/boards/overdue endpoint."""
+"""Tests for the /api/v1/boards endpoints: the overdue page and starring."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -268,3 +268,57 @@ async def test_boards_04(
     newer_payload = payload["lists"][0]["cards"][1]
     assert [lbl["name"] for lbl in newer_payload["labels"]] == ["Urgent"]
     assert [p["display_name"] for p in newer_payload["assignees"]] == ["Test User"]
+
+
+@pytest.mark.asyncio
+async def test_boards_05(
+    client, db_session_async, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify starring keeps the Starred section's stored order in step with what
+    the user did: each new star is appended to starred_ids in the order the
+    boards were starred (not their creation order), starring twice doesn't
+    add a board twice, and unstarring then starring again moves it to the end.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session against the same test database, used to set the boards up.
+    test_user : User
+        Owner of both boards, and the user the requests are authenticated as.
+    auth_headers : dict[str, str]
+        Authorization header for that user.
+
+    Raises
+    ------
+    AssertionError
+        If starred_ids misses a newly starred board, holds one twice, or does
+        not follow the order of the star/unstar requests.
+    """
+    # "Older" is starred first, so the stored order must disagree with the
+    # newest-first order boards are listed in — the response can't pass by
+    # accident.
+    older = Board(owner_id=test_user.id, name="Older", created_at=datetime.now(timezone.utc) - timedelta(days=3))
+    newer = Board(owner_id=test_user.id, name="Newer")
+    db_session_async.add_all([older, newer])
+    await db_session_async.commit()
+
+    async def star(board: Board, method: str = "POST") -> None:
+        response = await client.request(method, f"/api/v1/boards/{board.id}/star", headers=auth_headers)
+        assert response.status_code == 204
+
+    async def starred_ids() -> list[str]:
+        return (await client.get("/api/v1/boards/order", headers=auth_headers)).json()["starred_ids"]
+
+    await star(older)
+    await star(newer)
+    assert await starred_ids() == [str(older.id), str(newer.id)]
+
+    await star(older)
+    assert await starred_ids() == [str(older.id), str(newer.id)]
+
+    await star(older, "DELETE")
+    await star(older)
+    assert await starred_ids() == [str(newer.id), str(older.id)]
