@@ -22,6 +22,10 @@ abilities to manage small and medium projects. The functionality that has been i
   their own notification hour and which days (before/after/on the due date, plus an optional daily repeat while
   overdue) trigger a reminder. Enabling notifications for yourself never opts anyone else in.
 - **Labels**: Labels are defined per board and can be attached to any card to categorize it.
+- **Templates**: A template is a special board that holds only lists (no cards or labels). Creating a new board
+  from a template copies its lists, in order, together with the board and list colors *you* chose on the
+  template — other users keep their own colors. Templates live in their own section of the boards page, and can
+  be edited like a board, shared, duplicated, archived and deleted.
 
 ## Tech stack
 

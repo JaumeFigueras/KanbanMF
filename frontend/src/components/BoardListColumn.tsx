@@ -44,6 +44,8 @@ interface Props {
   // Reports where a checklist copy landed, so the board can refetch that
   // list's cards — see Board.tsx's handleChecklistCopied.
   onChecklistCopied: (targetBoardId: string, targetListId: string) => void
+  // Lists on a template hold no cards, so adding/archiving cards is hidden.
+  isTemplate?: boolean
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real column's) or
   // respond to clicks. Mirrors CardItem's own dragOverlay prop.
@@ -65,6 +67,7 @@ export default function BoardListColumn({
   onCardArchived,
   onCardUpdated,
   onChecklistCopied,
+  isTemplate = false,
   dragOverlay = false,
 }: Props) {
   const { t } = useTranslation()
@@ -222,13 +225,15 @@ export default function BoardListColumn({
             >
               <OpenWith sx={{ fontSize: 22 }} />
             </IconButton>
-            <IconButton
-              size="small"
-              aria-label={t('board.addCard')}
-              onClick={dragOverlay ? undefined : () => setCardDialogOpen(true)}
-            >
-              <Add sx={{ fontSize: 22 }} />
-            </IconButton>
+            {!isTemplate && (
+              <IconButton
+                size="small"
+                aria-label={t('board.addCard')}
+                onClick={dragOverlay ? undefined : () => setCardDialogOpen(true)}
+              >
+                <Add sx={{ fontSize: 22 }} />
+              </IconButton>
+            )}
             <IconButton size="small" onClick={dragOverlay ? undefined : openMenu} aria-label={t('board.listMenu')}>
               <HamburgerIcon sx={{ fontSize: 22 }} />
             </IconButton>
@@ -285,9 +290,11 @@ export default function BoardListColumn({
       </Paper>
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
-        <MenuItem onClick={handleArchiveAllCards} disabled={cards.length === 0}>
-          {t('board.archiveAllCards')}
-        </MenuItem>
+        {!isTemplate && (
+          <MenuItem onClick={handleArchiveAllCards} disabled={cards.length === 0}>
+            {t('board.archiveAllCards')}
+          </MenuItem>
+        )}
         <MenuItem onClick={handleRename}>{t('board.renameList')}</MenuItem>
         <MenuItem onClick={handleChangeColor}>{t('board.changeListColor')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveList')}</MenuItem>

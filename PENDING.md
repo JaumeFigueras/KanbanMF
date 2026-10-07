@@ -37,5 +37,6 @@
 
 - ✓ Extract card from checklist item
 - E-mail digest
-- Templates
+- ✓ Board Templates
+- Card Templates
 - Recurring tasks

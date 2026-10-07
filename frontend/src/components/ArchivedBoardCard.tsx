@@ -4,6 +4,7 @@ import {
   Box,
   Card,
   CardContent,
+  Chip,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -95,9 +96,14 @@ export default function ArchivedBoardCard({ board, numberLocale, dateFormat, onR
         >
           {board.name}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {formattedDate}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            {formattedDate}
+          </Typography>
+          {board.is_template && (
+            <Chip label={t('boards.templateChip')} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
+          )}
+        </Box>
       </CardContent>
 
       <Menu
@@ -109,11 +115,11 @@ export default function ArchivedBoardCard({ board, numberLocale, dateFormat, onR
       >
         <MenuItem onClick={() => { setMenuAnchor(null); onRestore(board) }}>
           <ListItemIcon><Unarchive fontSize="small" /></ListItemIcon>
-          <ListItemText>{t('boards.restoreBoard')}</ListItemText>
+          <ListItemText>{t(board.is_template ? 'boards.restoreTemplate' : 'boards.restoreBoard')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => { setMenuAnchor(null); onDelete(board) }} sx={{ color: 'error.main' }}>
           <ListItemIcon><DeleteForever fontSize="small" color="error" /></ListItemIcon>
-          <ListItemText>{t('boards.deleteBoard')}</ListItemText>
+          <ListItemText>{t(board.is_template ? 'boards.deleteTemplate' : 'boards.deleteBoard')}</ListItemText>
         </MenuItem>
       </Menu>
     </Card>

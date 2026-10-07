@@ -30,6 +30,7 @@ import ArchiveBoardDialog from '../components/ArchiveBoardDialog'
 import DeleteBoardDialog from '../components/DeleteBoardDialog'
 import ShareBoardDialog from '../components/ShareBoardDialog'
 import EmailNotificationDialog from '../components/EmailNotificationDialog'
+import DuplicateTemplateDialog from '../components/DuplicateTemplateDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
@@ -40,9 +41,10 @@ interface AccordionState {
   starred: boolean
   myBoards: boolean
   sharedWithMe: boolean
+  templates: boolean
 }
 
-const DEFAULT_ACCORDION: AccordionState = { starred: true, myBoards: true, sharedWithMe: true }
+const DEFAULT_ACCORDION: AccordionState = { starred: true, myBoards: true, sharedWithMe: true, templates: true }
 
 function readAccordionState(): AccordionState {
   try {
@@ -60,9 +62,9 @@ const BOARD_GRID_SX = {
   pt: 1,
 }
 
-const EMPTY_ORDER: BoardOrderRead = { starred_ids: [], owned_ids: [], shared_ids: [] }
+const EMPTY_ORDER: BoardOrderRead = { starred_ids: [], owned_ids: [], shared_ids: [], template_ids: [] }
 
-type Section = 'starred' | 'owned' | 'shared'
+type Section = 'starred' | 'owned' | 'shared' | 'templates'
 
 export default function Boards() {
   const { t } = useTranslation()
@@ -75,8 +77,12 @@ export default function Boards() {
   const [dateFormat, setDateFormat] = useState<'numeric' | 'textual'>('numeric')
 
   // Boards
-  const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [] })
+  const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [], templates: [] })
   const [order, setOrder] = useState<BoardOrderRead>(EMPTY_ORDER)
+
+  // Owned and shared templates share one section, so which ones this user
+  // owns (and may rename/share/archive) is decided by owner_id, not section.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // This user's personal color per board, keyed by board id. Lifted up here
   // (rather than fetched inside BoardCard) because a starred board renders
@@ -85,18 +91,20 @@ export default function Boards() {
   const [boardColors, setBoardColors] = useState<Record<string, string | null>>({})
   const fetchedColorIdsRef = useRef(new Set<string>())
 
-  // Shared across all three DnD sections (Starred / My Boards / Shared)
+  // Shared across all four DnD sections (Starred / My Boards / Shared / Templates)
   // since a drag is only ever active in one at a time — drives the floating
   // <DragOverlay> clone each section renders.
   const [draggingBoardId, setDraggingBoardId] = useState<string | null>(null)
 
   // Board UI state
   const [createBoardOpen, setCreateBoardOpen] = useState(false)
+  const [createTemplateOpen, setCreateTemplateOpen] = useState(false)
   const [changeBoardNameOpen, setChangeBoardNameOpen] = useState(false)
   const [selectedBoard, setSelectedBoard] = useState<BoardRead | null>(null)
   const [shareBoardOpen, setShareBoardOpen] = useState(false)
   const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
+  const [duplicateTemplateOpen, setDuplicateTemplateOpen] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
   const [boardToDelete, setBoardToDelete] = useState<BoardRead | null>(null)
@@ -153,11 +161,18 @@ export default function Boards() {
     fetchBoards()
   }, [fetchBoards])
 
+  useEffect(() => {
+    apiFetch('/api/v1/users/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setCurrentUserId(data.id) })
+      .catch(() => {})
+  }, [])
+
   // Fetch this user's color for each board the first time it's seen; boards
   // already fetched are skipped so re-renders (e.g. a star toggle) don't
   // refetch colors that are already known.
   useEffect(() => {
-    const allIds = [...boards.owned, ...boards.shared].map(b => b.id)
+    const allIds = [...boards.owned, ...boards.shared, ...boards.templates].map(b => b.id)
     const idsToFetch = allIds.filter(id => !fetchedColorIdsRef.current.has(id))
     if (idsToFetch.length === 0) return
     idsToFetch.forEach(id => fetchedColorIdsRef.current.add(id))
@@ -197,6 +212,11 @@ export default function Boards() {
   // ── Board handlers ────────────────────────────────────────────────────────
 
   function handleBoardCreated(board: BoardRead) {
+    if (board.is_template) {
+      setBoards(prev => ({ ...prev, templates: [...prev.templates, board] }))
+      setOrder(prev => ({ ...prev, template_ids: [...prev.template_ids, board.id] }))
+      return
+    }
     setBoards(prev => ({ ...prev, owned: [...prev.owned, board] }))
     setOrder(prev => ({
       ...prev,
@@ -209,7 +229,7 @@ export default function Boards() {
     // Optimistic update
     const applyToggle = (list: BoardRead[], value: boolean) =>
       list.map(b => b.id === boardId ? { ...b, is_starred: value } : b)
-    setBoards(prev => ({ owned: applyToggle(prev.owned, starred), shared: applyToggle(prev.shared, starred) }))
+    setBoards(prev => ({ ...prev, owned: applyToggle(prev.owned, starred), shared: applyToggle(prev.shared, starred) }))
     setOrder(prev => ({
       ...prev,
       starred_ids: starred
@@ -223,7 +243,7 @@ export default function Boards() {
 
     if (!r.ok) {
       // Revert on failure
-      setBoards(prev => ({ owned: applyToggle(prev.owned, !starred), shared: applyToggle(prev.shared, !starred) }))
+      setBoards(prev => ({ ...prev, owned: applyToggle(prev.owned, !starred), shared: applyToggle(prev.shared, !starred) }))
       setOrder(prev => ({
         ...prev,
         starred_ids: starred
@@ -241,7 +261,7 @@ export default function Boards() {
   function handleBoardNameSaved(boardId: string, newName: string) {
     const update = (list: BoardRead[]) =>
       list.map(b => b.id === boardId ? { ...b, name: newName } : b)
-    setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared) }))
+    setBoards(prev => ({ owned: update(prev.owned), shared: update(prev.shared), templates: update(prev.templates) }))
   }
 
   function handleShareBoard(board: BoardRead) {
@@ -254,6 +274,11 @@ export default function Boards() {
     setEmailNotificationOpen(true)
   }
 
+  function handleDuplicateTemplate(board: BoardRead) {
+    setSelectedBoard(board)
+    setDuplicateTemplateOpen(true)
+  }
+
   function handleArchiveBoard(board: BoardRead) {
     setSelectedBoard(board)
     setArchiveBoardOpen(true)
@@ -261,14 +286,15 @@ export default function Boards() {
 
   function handleBoardArchived(boardId: string) {
     const remove = (list: BoardRead[]) => list.filter(b => b.id !== boardId)
-    setBoards(prev => ({ owned: remove(prev.owned), shared: remove(prev.shared) }))
+    setBoards(prev => ({ owned: remove(prev.owned), shared: remove(prev.shared), templates: remove(prev.templates) }))
     setOrder(prev => ({
       owned_ids: prev.owned_ids.filter(id => id !== boardId),
       starred_ids: prev.starred_ids.filter(id => id !== boardId),
       shared_ids: prev.shared_ids.filter(id => id !== boardId),
+      template_ids: prev.template_ids.filter(id => id !== boardId),
     }))
     if (showArchived) {
-      const archived = boards.owned.find(b => b.id === boardId)
+      const archived = [...boards.owned, ...boards.templates].find(b => b.id === boardId)
       if (archived) setArchivedBoards(prev => [{ ...archived, is_archived: true }, ...prev])
     }
   }
@@ -281,7 +307,8 @@ export default function Boards() {
     })
     if (r.ok) {
       setArchivedBoards(prev => prev.filter(b => b.id !== board.id))
-      setOrder(prev => ({ ...prev, owned_ids: [...prev.owned_ids, board.id] }))
+      const orderKey = board.is_template ? 'template_ids' : 'owned_ids'
+      setOrder(prev => ({ ...prev, [orderKey]: [...prev[orderKey], board.id] }))
       fetchBoards()
     }
   }
@@ -297,6 +324,7 @@ export default function Boards() {
       owned_ids: prev.owned_ids.filter(id => id !== boardId),
       starred_ids: prev.starred_ids.filter(id => id !== boardId),
       shared_ids: prev.shared_ids.filter(id => id !== boardId),
+      template_ids: prev.template_ids.filter(id => id !== boardId),
     }))
   }
 
@@ -329,11 +357,20 @@ export default function Boards() {
     [boards.shared, order.shared_ids],
   )
 
-  // The "Starred" section mixes owned and shared boards, so ownership has to
-  // be looked up per board rather than assumed from which section it's in.
+  const templateBoards = useMemo(
+    () => applySectionOrder(boards.templates, order.template_ids),
+    [boards.templates, order.template_ids],
+  )
+
+  // The "Starred" and "Templates" sections mix owned and shared boards, so
+  // ownership has to be looked up per board rather than assumed from which
+  // section it's in.
   const ownedBoardIds = useMemo(
-    () => new Set(boards.owned.map(b => b.id)),
-    [boards.owned],
+    () => new Set([
+      ...boards.owned.map(b => b.id),
+      ...boards.templates.filter(b => b.owner_id === currentUserId).map(b => b.id),
+    ]),
+    [boards.owned, boards.templates, currentUserId],
   )
 
   function handleBoardDragStart(event: DragStartEvent) {
@@ -345,8 +382,18 @@ export default function Boards() {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const sectionBoards = section === 'starred' ? starredBoards : section === 'owned' ? myBoards : sharedBoards
-    const orderKey = section === 'starred' ? 'starred_ids' : section === 'owned' ? 'owned_ids' : 'shared_ids'
+    const sectionBoards = {
+      starred: starredBoards,
+      owned: myBoards,
+      shared: sharedBoards,
+      templates: templateBoards,
+    }[section]
+    const orderKey = ({
+      starred: 'starred_ids',
+      owned: 'owned_ids',
+      shared: 'shared_ids',
+      templates: 'template_ids',
+    } as const)[section]
 
     const ids = sectionBoards.map(b => b.id)
     const oldIdx = ids.indexOf(active.id as string)
@@ -372,11 +419,12 @@ export default function Boards() {
     onShare: handleShareBoard,
     onArchive: handleArchiveBoard,
     onEmailNotification: handleEmailNotification,
+    onDuplicate: handleDuplicateTemplate,
     onColorChanged: handleColorChanged,
   }
 
   const draggingBoard = draggingBoardId
-    ? [...boards.owned, ...boards.shared].find(b => b.id === draggingBoardId) ?? null
+    ? [...boards.owned, ...boards.shared, ...boards.templates].find(b => b.id === draggingBoardId) ?? null
     : null
 
   return (
@@ -388,6 +436,15 @@ export default function Boards() {
       <CreateBoardDialog
         open={createBoardOpen}
         onClose={() => setCreateBoardOpen(false)}
+        onCreated={handleBoardCreated}
+        templates={templateBoards}
+        currentUserId={currentUserId}
+      />
+
+      <CreateBoardDialog
+        mode="template"
+        open={createTemplateOpen}
+        onClose={() => setCreateTemplateOpen(false)}
         onCreated={handleBoardCreated}
       />
 
@@ -408,6 +465,15 @@ export default function Boards() {
         open={emailNotificationOpen}
         onClose={() => setEmailNotificationOpen(false)}
         board={selectedBoard}
+      />
+
+      {/* The copy is a new template owned by this user, so it lands in the
+          Templates section exactly like a freshly created one. */}
+      <DuplicateTemplateDialog
+        open={duplicateTemplateOpen}
+        onClose={() => setDuplicateTemplateOpen(false)}
+        template={selectedBoard}
+        onDuplicated={handleBoardCreated}
       />
 
       <ArchiveBoardDialog
@@ -547,6 +613,58 @@ export default function Boards() {
                   <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
                     <Box sx={BOARD_GRID_SX}>
                       {sharedBoards.map(board => (
+                        <BoardCard
+                          key={board.id}
+                          id={board.id}
+                          board={board}
+                          isOwned={ownedBoardIds.has(board.id)}
+                          color={boardColors[board.id] ?? null}
+                          {...sharedCardProps}
+                        />
+                      ))}
+                    </Box>
+                  </SortableContext>
+                  <DragOverlay>
+                    {draggingBoard ? (
+                      <BoardCard
+                        id={draggingBoard.id}
+                        board={draggingBoard}
+                        isOwned={ownedBoardIds.has(draggingBoard.id)}
+                        color={boardColors[draggingBoard.id] ?? null}
+                        {...sharedCardProps}
+                        dragOverlay
+                      />
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+            }
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Templates — owned and shared together; never starred */}
+        <Accordion expanded={accordion.templates} onChange={() => toggleAccordion('templates')}>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              {t('boards.templates')} ({templateBoards.length})
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+              <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => setCreateTemplateOpen(true)}>
+                {t('boards.newTemplate')}
+              </Button>
+            </Box>
+            {templateBoards.length === 0
+              ? <Typography variant="body2" color="text.secondary">{t('boards.noTemplatesYet')}</Typography>
+              : <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleBoardDragStart}
+                  onDragEnd={e => handleSectionDragEnd(e, 'templates')}
+                >
+                  <SortableContext items={templateBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                    <Box sx={BOARD_GRID_SX}>
+                      {templateBoards.map(board => (
                         <BoardCard
                           key={board.id}
                           id={board.id}

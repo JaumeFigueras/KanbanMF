@@ -51,7 +51,7 @@ export default function DeleteBoardDialog({ open, onClose, board, onDeleted }: P
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ color: 'error.main' }}>{t('boards.deleteBoard')}</DialogTitle>
+      <DialogTitle sx={{ color: 'error.main' }}>{t(board?.is_template ? 'boards.deleteTemplate' : 'boards.deleteBoard')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <DialogContentText>

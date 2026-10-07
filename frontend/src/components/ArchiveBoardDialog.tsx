@@ -53,7 +53,7 @@ export default function ArchiveBoardDialog({ open, onClose, board, onArchived }:
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>{t('boards.archiveBoard')}</DialogTitle>
+      <DialogTitle>{t(board?.is_template ? 'boards.archiveTemplate' : 'boards.archiveBoard')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <DialogContentText>

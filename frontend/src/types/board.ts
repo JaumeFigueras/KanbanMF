@@ -7,14 +7,20 @@ export interface BoardRead {
   name: string
   is_archived: boolean
   is_deleted: boolean
+  // A template holds lists only; its lists are copied into boards created
+  // from it. Templates are never starred.
+  is_template: boolean
   is_starred: boolean
   created_at: string
   updated_at: string
 }
 
+// `templates` holds owned and shared templates together (one section on the
+// boards page); compare owner_id with the current user to tell them apart.
 export interface BoardsResponse {
   owned: BoardRead[]
   shared: BoardRead[]
+  templates: BoardRead[]
 }
 
 // The overdue-tasks page's payload (see the /boards/overdue endpoint): the
@@ -62,6 +68,7 @@ export interface BoardOrderRead {
   starred_ids: string[]
   owned_ids: string[]
   shared_ids: string[]
+  template_ids: string[]
 }
 
 export interface BoardNotificationSettingsRead {

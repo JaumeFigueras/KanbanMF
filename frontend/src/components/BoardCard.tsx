@@ -16,6 +16,7 @@ import {
 } from '@mui/material'
 import {
   Archive,
+  ContentCopy,
   DriveFileRenameOutline,
   Email,
   Menu as MenuIcon,
@@ -49,6 +50,8 @@ interface Props {
   onShare: (board: BoardRead) => void
   onArchive: (board: BoardRead) => void
   onEmailNotification: (board: BoardRead) => void
+  // Templates only. Open to shared users too: the copy is their own template.
+  onDuplicate: (board: BoardRead) => void
   onColorChanged: (boardId: string, color: string | null) => void
   // True only for the floating clone rendered inside <DragOverlay> — it must
   // not register its own drag (that would collide with the real card's) or
@@ -68,6 +71,7 @@ export default function BoardCard({
   onShare,
   onArchive,
   onEmailNotification,
+  onDuplicate,
   onColorChanged,
   dragOverlay = false,
 }: Props) {
@@ -153,17 +157,20 @@ export default function BoardCard({
               </IconButton>
             </Tooltip>
 
-            <Tooltip title={board.is_starred ? t('boards.unstar') : t('boards.star')}>
-              <IconButton
-                size="small"
-                onClick={dragOverlay ? undefined : () => onStarToggle(board.id, !board.is_starred)}
-                sx={{ color: board.is_starred ? 'primary.main' : 'text.disabled' }}
-              >
-                {board.is_starred
-                  ? <Star sx={{ fontSize: 18 }} />
-                  : <StarBorder sx={{ fontSize: 18 }} />}
-              </IconButton>
-            </Tooltip>
+            {/* Templates are never starred, and hold no cards to e-mail about. */}
+            {!board.is_template && (
+              <Tooltip title={board.is_starred ? t('boards.unstar') : t('boards.star')}>
+                <IconButton
+                  size="small"
+                  onClick={dragOverlay ? undefined : () => onStarToggle(board.id, !board.is_starred)}
+                  sx={{ color: board.is_starred ? 'primary.main' : 'text.disabled' }}
+                >
+                  {board.is_starred
+                    ? <Star sx={{ fontSize: 18 }} />
+                    : <StarBorder sx={{ fontSize: 18 }} />}
+                </IconButton>
+              </Tooltip>
+            )}
 
             <IconButton
               size="small"
@@ -228,14 +235,22 @@ export default function BoardCard({
             <ListItemText>{t('boards.shareBoard')}</ListItemText>
           </MenuItem>
         )}
-        <MenuItem onClick={() => { setMenuAnchor(null); onEmailNotification(board) }}>
-          <ListItemIcon><Email fontSize="small" /></ListItemIcon>
-          <ListItemText>{t('boards.emailNotification')}</ListItemText>
-        </MenuItem>
+        {board.is_template && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onDuplicate(board) }}>
+            <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.duplicateTemplate')}</ListItemText>
+          </MenuItem>
+        )}
+        {!board.is_template && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onEmailNotification(board) }}>
+            <ListItemIcon><Email fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('boards.emailNotification')}</ListItemText>
+          </MenuItem>
+        )}
         {isOwned && (
           <MenuItem onClick={() => { setMenuAnchor(null); onArchive(board) }}>
             <ListItemIcon><Archive fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('boards.archiveBoard')}</ListItemText>
+            <ListItemText>{t(board.is_template ? 'boards.archiveTemplate' : 'boards.archiveBoard')}</ListItemText>
           </MenuItem>
         )}
       </Menu>

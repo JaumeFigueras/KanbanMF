@@ -4,12 +4,14 @@ import {
   AppBar,
   Box,
   Button,
+  Chip,
   IconButton,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
   Toolbar,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { Add, Archive, Block, Check, Email, Label, Menu as MenuIcon, Sort as SortIcon } from '@mui/icons-material'
@@ -143,6 +145,10 @@ export default function Board() {
   }, [])
 
   const isOwner = board?.owner_id === currentUserId
+
+  // A template holds lists only — the API refuses cards, labels and
+  // notification settings on it — so their controls are hidden here.
+  const isTemplate = board?.is_template ?? false
 
   const fetchLists = useCallback(() => {
     if (!boardId) return
@@ -676,6 +682,11 @@ export default function Board() {
           <Typography variant="h6" sx={{ fontWeight: 700, mr: 2 }} noWrap>
             {board?.name ?? '…'}
           </Typography>
+          {isTemplate && (
+            <Tooltip title={t('board.templateHint')}>
+              <Chip label={t('board.templateChip')} size="small" color="primary" variant="outlined" sx={{ mr: 2 }} />
+            </Tooltip>
+          )}
           <Button
             variant="contained"
             color="primary"
@@ -685,27 +696,31 @@ export default function Board() {
           >
             {t('board.addList')}
           </Button>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<Label />}
-            size="small"
-            sx={{ ml: 1 }}
-            onClick={() => setManageLabelsOpen(true)}
-          >
-            {t('board.manageLabels')}
-          </Button>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<SortIcon />}
-            size="small"
-            sx={{ ml: 1 }}
-            onClick={openSortMenu}
-            aria-label={t('board.sortCards')}
-          >
-            {t('board.sortCards')}
-          </Button>
+          {!isTemplate && (
+            <>
+              <Button
+                variant="outlined"
+                color="inherit"
+                startIcon={<Label />}
+                size="small"
+                sx={{ ml: 1 }}
+                onClick={() => setManageLabelsOpen(true)}
+              >
+                {t('board.manageLabels')}
+              </Button>
+              <Button
+                variant="outlined"
+                color="inherit"
+                startIcon={<SortIcon />}
+                size="small"
+                sx={{ ml: 1 }}
+                onClick={openSortMenu}
+                aria-label={t('board.sortCards')}
+              >
+                {t('board.sortCards')}
+              </Button>
+            </>
+          )}
           <Button
             variant="outlined"
             color="error"
@@ -717,9 +732,13 @@ export default function Board() {
             {t('board.archive')}
           </Button>
           <Box sx={{ flexGrow: 1 }} />
-          <IconButton color="inherit" aria-label={t('board.boardMenu')} onClick={openBoardMenu}>
-            <MenuIcon />
-          </IconButton>
+          {/* The board menu only holds e-mail notifications, which a
+              template has nothing to send about. */}
+          {!isTemplate && (
+            <IconButton color="inherit" aria-label={t('board.boardMenu')} onClick={openBoardMenu}>
+              <MenuIcon />
+            </IconButton>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -798,6 +817,7 @@ export default function Board() {
                 onCardArchived={handleCardArchived}
                 onCardUpdated={handleCardUpdated}
                 onChecklistCopied={handleChecklistCopied}
+                isTemplate={isTemplate}
               />
             ))}
           </Box>
@@ -834,6 +854,7 @@ export default function Board() {
               onCardArchived={() => {}}
               onCardUpdated={() => {}}
               onChecklistCopied={() => {}}
+              isTemplate={isTemplate}
               dragOverlay
             />
           ) : null}
