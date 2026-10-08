@@ -8,6 +8,8 @@ from src.api.v1 import (
     boards,
     cards,
     checklists,
+    config,
+    invitations,
     labels,
     lists,
     time_entries,
@@ -19,8 +21,13 @@ from src.api.v1.auth import google, local
 router = APIRouter(prefix="/api/v1")
 
 router.include_router(ws.router, tags=["ws"])
+router.include_router(config.router, prefix="/config", tags=["config"])
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(boards.router, prefix="/boards", tags=["boards"])
+router.include_router(
+    invitations.router, prefix="/boards/{board_id}/invitations", tags=["invitations"]
+)
+router.include_router(invitations.public_router, prefix="/invitations", tags=["invitations"])
 router.include_router(lists.router, prefix="/boards/{board_id}/lists", tags=["lists"])
 router.include_router(labels.router, prefix="/boards/{board_id}/labels", tags=["labels"])
 router.include_router(

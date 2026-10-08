@@ -42,6 +42,15 @@ _conf = ConnectionConfig(
     VALIDATE_CERTS=True,
 )
 
+
+
+def email_enabled() -> bool:
+    """Whether outgoing e-mail is configured. SMTP is optional (see
+    backend/.env.example); with no host every send would fail, so features
+    that exist only to send an e-mail are switched off instead."""
+    return bool(settings.smtp_host.strip())
+
+
 _SUBJECTS: dict[str, str] = {
     "en": "Verify your KanbanMF email address",
     "ca": "Verifica la teva adreça de correu electrònic a KanbanMF",
@@ -175,6 +184,76 @@ async def send_due_date_reminder_email(
             phrase=phrase,
             due_date=due_at.strftime("%Y-%m-%d %H:%M %Z"),
             board_url=board_url,
+        ),
+        subtype=MessageType.plain,
+    )
+
+    await FastMail(_conf).send_message(message)
+
+
+_INVITE_SUBJECTS: dict[str, str] = {
+    "en": '{inviter_name} invited you to "{board_name}" on KanbanMF',
+    "ca": '{inviter_name} t\'ha convidat a "{board_name}" a KanbanMF',
+}
+
+_INVITE_BODIES: dict[str, str] = {
+    "en": """\
+Hello,
+
+{inviter_name} has invited you to collaborate on the board "{board_name}" on KanbanMF.
+
+Create your account with this e-mail address using the link below. Once you have
+verified your address, the board will be shared with you automatically:
+
+{signup_url}
+
+This invitation expires in {days} days.
+
+If you weren't expecting this invitation, you can safely ignore this email.
+
+Best regards,
+The KanbanMF Team
+""",
+    "ca": """\
+Hola,
+
+{inviter_name} t'ha convidat a col·laborar al tauler "{board_name}" de KanbanMF.
+
+Crea el teu compte amb aquesta adreça de correu electrònic fent servir l'enllaç de sota.
+Un cop hagis verificat l'adreça, el tauler es compartirà amb tu automàticament:
+
+{signup_url}
+
+Aquesta invitació caduca en {days} dies.
+
+Si no esperaves aquesta invitació, pots ignorar aquest correu.
+
+Salutacions,
+L'equip de KanbanMF
+""",
+}
+
+
+async def send_board_invitation_email(
+    email: str,
+    inviter_name: str,
+    board_name: str,
+    token: str,
+    expires_in_days: int,
+    language: str = "en",
+) -> None:
+    """Invite someone without an account to sign up and get a board shared with them."""
+    lang = language if language in _INVITE_BODIES else "en"
+    signup_url = f"{settings.frontend_url}/signup?invite={token}"
+
+    message = MessageSchema(
+        subject=_INVITE_SUBJECTS[lang].format(inviter_name=inviter_name, board_name=board_name),
+        recipients=[email],
+        body=_INVITE_BODIES[lang].format(
+            inviter_name=inviter_name,
+            board_name=board_name,
+            signup_url=signup_url,
+            days=expires_in_days,
         ),
         subtype=MessageType.plain,
     )

@@ -10,12 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db, get_refresh_token_from_cookie
 from src.core.email import send_verification_email
+from src.core.invitations import accept_pending_invitations
 from src.core.security import (
     create_access_token,
     generate_refresh_token,
     hash_password,
     verify_password,
 )
+from src.model.board_invitation import BoardInvitation
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
@@ -49,7 +51,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     """Create a new local account.
 
     Steps:
-    1. Reject duplicate email.
+    1. Reject duplicate email, and an invitation token for another address.
     2. Create User row (is_verified=False).
     3. Create UserIdentity(local) with hashed password and a verification token.
     4. Send verification email.
@@ -58,6 +60,22 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    if body.invitation_token is not None:
+        invitation_result = await db.execute(
+            select(BoardInvitation.email).where(
+                BoardInvitation.token == body.invitation_token,
+                BoardInvitation.expires_at > datetime.now(timezone.utc),
+            )
+        )
+        invited_email = invitation_result.scalar_one_or_none()
+        if invited_email is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired invitation")
+        if invited_email != body.email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The e-mail doesn't match the invitation",
+            )
 
     user = User(email=body.email, display_name=body.display_name, is_active=True, is_verified=False)
     db.add(user)
@@ -213,6 +231,7 @@ async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_
     1. Find the UserIdentity with the matching token.
     2. Check that the token has not expired.
     3. Set User.is_verified = True and clear the token fields.
+    4. Share every board the address has a pending invitation to.
     """
     result = await db.execute(
         select(UserIdentity).where(UserIdentity.verification_token == body.token)
@@ -233,3 +252,5 @@ async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_
     identity.verification_token_expiry = None
 
     await db.commit()
+
+    await accept_pending_invitations(db, user)
