@@ -13,6 +13,13 @@ abilities to manage small and medium projects. The functionality that has been i
 - **Boards**: Boards can be starred, archived, deleted and shared with other users. There can be an infinite number
   of boards. Boards can be personalized with a custom color, chosen independently by each user who has access to
   them (the owner's color choice doesn't affect what a shared user sees, and vice versa).
+- **Invitations**: A board can also be shared with someone who doesn't have an account yet. The owner enters their
+  e-mail address in the share dialog and picks the language of the invitation (English or Catalan); the invitee
+  gets a sign-up link, and the board is shared with them automatically once they verify that address (or sign in
+  with Google using it) — no further action from anyone. If the address already belongs to a user, the dialog says
+  so and offers to share with them directly. The share dialog lists current shares and pending invitations, which
+  can be cancelled and expire after 30 days. Inviting needs outgoing e-mail configured, and templates can only be
+  shared with existing users.
 - **Lists & Cards**: Boards are organized into lists, each holding any number of cards. Both lists and cards can be
   reordered by drag and drop, and cards can be dragged between lists. A card can have a description, start/due/end
   dates, checklists, labels, members and assignees, and its own custom color — again, per viewing user. Changes
@@ -25,7 +32,7 @@ abilities to manage small and medium projects. The functionality that has been i
 - **Templates**: A template is a special board that holds only lists (no cards or labels). Creating a new board
   from a template copies its lists, in order, together with the board and list colors *you* chose on the
   template — other users keep their own colors. Templates live in their own section of the boards page, and can
-  be edited like a board, shared, duplicated, archived and deleted.
+  be edited like a board, shared (with existing users), duplicated, archived and deleted.
 
 ## Tech stack
 

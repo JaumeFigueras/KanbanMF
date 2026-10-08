@@ -10,12 +10,13 @@
 - ✓ Order for cards with no due date when selected order is due date
 - ✓ Archive all cards of a list
 - ✓ Time tracker
-- Invite to a board
+- ✓ Invite to a board
 
 ## Functionality
 
 - ✓ Copy checklist to another card
 - Captcha
+- Case-insensitive e-mail on sign-up and sign-in (invitations already match case-insensitively)
 - ✓ DnD of Labels
 - ✓ Add boards in e-mail
 - ✓ Archive all cards of a list
