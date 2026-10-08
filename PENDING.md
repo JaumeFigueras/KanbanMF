@@ -10,6 +10,7 @@
 - ✓ Order for cards with no due date when selected order is due date
 - ✓ Archive all cards of a list
 - ✓ Time tracker
+- Invite to a board
 
 ## Functionality
 
