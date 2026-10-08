@@ -3,6 +3,7 @@
 
 from src.model.base import Base
 from src.model.board_share import BoardShare
+from src.model.board_invitation import BoardInvitation
 from src.model.user_board_star import UserBoardStar
 from src.model.board import Board
 from src.model.board_list import BoardList
@@ -36,7 +37,7 @@ __all__ = [
     "Checklist", "ChecklistItem",
     "Label",
     "UIBoardColor", "UIBoardListOrder", "UIBoardOrder", "UICardColor", "UIListCardOrder", "UIListColor",
-    "BoardShare", "UserBoardStar",
+    "BoardShare", "BoardInvitation", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
     "TimeEntry",
 ]

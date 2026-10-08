@@ -15,6 +15,7 @@ from src.model.board_share import BoardShare
 from src.model.user_board_star import UserBoardStar
 
 if TYPE_CHECKING:
+    from src.model.board_invitation import BoardInvitation
     from src.model.board_list import BoardList
     from src.model.board_notification_settings import BoardNotificationSettings
     from src.model.label import Label
@@ -97,6 +98,13 @@ class Board(Base):
 
     shares: Mapped[List["BoardShare"]] = relationship(
         "BoardShare",
+        back_populates="board",
+        cascade="all, delete-orphan",
+    )
+
+    # Pending shares with e-mail addresses that have no account yet.
+    invitations: Mapped[List["BoardInvitation"]] = relationship(
+        "BoardInvitation",
         back_populates="board",
         cascade="all, delete-orphan",
     )
