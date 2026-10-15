@@ -11,6 +11,7 @@
 - ✓ Archive all cards of a list
 - ✓ Time tracker
 - Invite to a board
+- Disable mails in weekends
 
 ## Functionality
 
