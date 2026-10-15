@@ -18,6 +18,7 @@
 --   board_notification_offsets      →  reference board_notification_settings
 --   board_notification_settings     →  reference boards
 --   board_lists                     →  reference boards
+--   board_invitations               →  reference boards + users
 --   board_shares, user_board_stars  →  reference boards + users
 --   boards                          →  reference users
 --   user_preferences                →  references users, uses dateformat type
@@ -43,6 +44,7 @@ DROP TABLE IF EXISTS ui_board_colors        CASCADE;
 DROP TABLE IF EXISTS board_notification_offsets  CASCADE;
 DROP TABLE IF EXISTS board_notification_settings CASCADE;
 DROP TABLE IF EXISTS board_lists            CASCADE;
+DROP TABLE IF EXISTS board_invitations      CASCADE;
 DROP TABLE IF EXISTS board_shares           CASCADE;
 DROP TABLE IF EXISTS user_board_stars       CASCADE;
 DROP TABLE IF EXISTS boards                 CASCADE;

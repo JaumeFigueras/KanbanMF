@@ -673,6 +673,27 @@ async def _check_board_access(
     return board
 
 
+async def _person_read(user: User, db: AsyncSession) -> PersonRead:
+    """Build the avatar/initials summary of a single user."""
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == user.id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    avatar_result = await db.execute(
+        select(UserAvatar.user_id).where(UserAvatar.user_id == user.id)
+    )
+    has_avatar = avatar_result.scalar_one_or_none() is not None
+
+    return PersonRead(
+        id=user.id,
+        display_name=user.display_name,
+        initials=(
+            prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name)
+        ),
+        has_avatar=has_avatar,
+    )
+
+
 @router.get("/{board_id}/members", response_model=list[PersonRead])
 async def list_board_members(
     board_id: uuid.UUID,
@@ -758,23 +779,7 @@ async def create_board_share(
         board_notification("board_shared", board_id, client_id),
     )
 
-    prefs_result = await db.execute(
-        select(UserPreferences).where(UserPreferences.user_id == target_user.id)
-    )
-    prefs = prefs_result.scalar_one_or_none()
-    avatar_result = await db.execute(
-        select(UserAvatar.user_id).where(UserAvatar.user_id == target_user.id)
-    )
-    has_avatar = avatar_result.scalar_one_or_none() is not None
-
-    return PersonRead(
-        id=target_user.id,
-        display_name=target_user.display_name,
-        initials=(
-            prefs.initials if prefs and prefs.initials else _compute_initials(target_user.display_name)
-        ),
-        has_avatar=has_avatar,
-    )
+    return await _person_read(target_user, db)
 
 
 @router.delete("/{board_id}/shares/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -27,6 +27,8 @@ export type BoardNotificationType =
   | 'card_moved'
   | 'card_order_changed'
   | 'card_archived'
+  // Sent only to the board owner, whose share dialog lists the invitations.
+  | 'board_invitations_changed'
 
 export interface BoardNotification {
   type: BoardNotificationType

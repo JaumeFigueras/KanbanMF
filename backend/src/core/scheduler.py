@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""In-process hourly scheduler for due-date e-mail notifications.
+"""In-process hourly scheduler for due-date e-mail notifications and for
+cleaning up expired board invitations.
 
 Runs inside the FastAPI process itself (wired into its lifespan in
 src.main) rather than as a separate cron job plus standalone script, so
@@ -16,6 +17,7 @@ it per tick — with a single replica (the case today) that's unnecessary.
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from src.core.invitations import delete_expired_invitations
 from src.core.notifications import send_due_date_notifications
 
 scheduler = AsyncIOScheduler()
@@ -28,6 +30,12 @@ def start_scheduler() -> None:
         send_due_date_notifications,
         trigger=CronTrigger(minute=0),
         id="due_date_notifications",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        delete_expired_invitations,
+        trigger=CronTrigger(minute=30),
+        id="expired_invitations_cleanup",
         replace_existing=True,
     )
     scheduler.start()

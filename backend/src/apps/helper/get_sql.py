@@ -56,6 +56,7 @@ from src.model.user_identity import UserIdentity, AuthProvider
 from src.model.user_session import UserSession
 from src.model.board import Board
 from src.model.board_share import BoardShare
+from src.model.board_invitation import BoardInvitation
 from src.model.board_list import BoardList
 from src.model.board_notification_settings import BoardNotificationSettings
 from src.model.board_notification_offset import BoardNotificationOffset
@@ -108,6 +109,7 @@ def main(e: Engine):  # pragma: no cover
         UserSession,
         Board,
         BoardShare,
+        BoardInvitation,
         BoardList,
         BoardNotificationSettings,
         BoardNotificationOffset,

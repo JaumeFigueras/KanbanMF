@@ -203,7 +203,8 @@ export default function Boards() {
   // is already up to date.
   useEffect(() => {
     return subscribeToNotifications((notification) => {
-      if (isOwnNotification(notification)) return
+      // Invitations change only the share dialog, never the board list.
+      if (isOwnNotification(notification) || notification.type === 'board_invitations_changed') return
       fetchBoards()
       if (showArchived) fetchArchivedBoards()
     })
@@ -459,6 +460,8 @@ export default function Boards() {
         open={shareBoardOpen}
         onClose={() => setShareBoardOpen(false)}
         board={selectedBoard}
+        numberLocale={numberLocale}
+        dateFormat={dateFormat}
       />
 
       <EmailNotificationDialog

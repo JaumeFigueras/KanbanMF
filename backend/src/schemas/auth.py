@@ -9,6 +9,10 @@ class RegisterRequest(BaseModel):
     display_name: str
     password: str
     language: str = "en"
+    # Token from a board invitation link (/signup?invite=...). Only checked
+    # against the e-mail being registered: the board itself is shared once
+    # that address is verified, whether or not the token was sent.
+    invitation_token: str | None = None
 
 
 class LoginRequest(BaseModel):

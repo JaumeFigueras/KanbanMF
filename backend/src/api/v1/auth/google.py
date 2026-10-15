@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
 from src.core.config import settings
+from src.core.invitations import accept_pending_invitations
 from src.core.security import generate_refresh_token, hash_password
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
@@ -53,7 +54,8 @@ async def google_callback(
     3. Look up or create the User row (matched on email).
     4. Look up or create a UserIdentity(google) with the provider tokens,
        and ensure a UserPreferences row exists (backfilled if missing).
-    5. Create a UserSession (refresh token rotation).
+    5. Create a UserSession (refresh token rotation), then share every
+       board the address has a pending invitation to.
     6. Set the refresh cookie and redirect to the frontend — the SPA's own
        startup check (apiFetch a protected endpoint, refresh via the cookie
        on 401) picks up the new session from there, same as a page reload.
@@ -144,6 +146,10 @@ async def google_callback(
     )
     db.add(session)
     await db.commit()
+
+    # --- 5b. Google has verified the address, so pending invitations to it
+    # can become shares straight away.
+    await accept_pending_invitations(db, user)
 
     # --- 6. Set cookie on the redirect itself — a returned Response
     # instance is passed through as-is, so cookies set on the injected
