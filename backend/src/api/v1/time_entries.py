@@ -234,6 +234,9 @@ async def start_time_entry(
         user_id=current_user.id,
         started_at=await _start_time_for(current_user, db),
         ended_at=None,
+        board_id=body.board_id,
+        list_id=body.list_id,
+        card_id=body.card_id,
         board_name=board_name,
         card_name=card_name,
         labels=labels,
@@ -282,6 +285,9 @@ async def create_time_entry(
         user_id=current_user.id,
         started_at=body.started_at,
         ended_at=body.ended_at,
+        board_id=body.board_id,
+        list_id=body.list_id,
+        card_id=body.card_id,
         board_name=board_name,
         card_name=card_name,
         labels=labels,
@@ -324,6 +330,7 @@ async def update_time_entry(
         entry.board_name, entry.card_name, entry.labels = await _card_snapshot(
             body.board_id, body.list_id, body.card_id, current_user, db
         )
+        entry.board_id, entry.list_id, entry.card_id = body.board_id, body.list_id, body.card_id
     if body.board_name is not None:
         entry.board_name = body.board_name
     if body.card_name is not None:

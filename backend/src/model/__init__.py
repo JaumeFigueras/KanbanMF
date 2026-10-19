@@ -29,6 +29,8 @@ from src.model.user_avatar import UserAvatar
 from src.model.user_session import UserSession
 from src.model.user_preferences import UserPreferences
 from src.model.time_entry import TimeEntry
+from src.model.time_tracker_board_usage import TimeTrackerBoardUsage
+from src.model.time_tracker_list_usage import TimeTrackerListUsage
 
 __all__ = [
     "Base", "Board", "BoardList",
@@ -39,5 +41,5 @@ __all__ = [
     "UIBoardColor", "UIBoardListOrder", "UIBoardOrder", "UICardColor", "UIListCardOrder", "UIListColor",
     "BoardShare", "BoardInvitation", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
-    "TimeEntry",
+    "TimeEntry", "TimeTrackerBoardUsage", "TimeTrackerListUsage",
 ]

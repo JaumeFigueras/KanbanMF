@@ -2,6 +2,8 @@
 -- Run this to wipe the schema before recreating it from the sql/ files.
 --
 -- Order rationale:
+--   time_tracker_*_usage            →  reference boards / board_lists + users
+--   time_entries                    →  reference users
 --   checklist_items                 →  reference checklists
 --   checklists                      →  reference cards
 --   card_due_notifications          →  reference cards + users
@@ -27,6 +29,9 @@
 --   users                           →  root table
 --   custom types                    →  must be dropped after all tables that use them
 
+DROP TABLE IF EXISTS time_tracker_board_usage CASCADE;
+DROP TABLE IF EXISTS time_tracker_list_usage  CASCADE;
+DROP TABLE IF EXISTS time_entries           CASCADE;
 DROP TABLE IF EXISTS checklist_items        CASCADE;
 DROP TABLE IF EXISTS checklists             CASCADE;
 DROP TABLE IF EXISTS card_due_notifications CASCADE;

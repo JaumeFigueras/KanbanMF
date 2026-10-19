@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""In-process hourly scheduler for due-date e-mail notifications and for
-cleaning up expired board invitations.
+"""In-process scheduler: hourly due-date e-mail notifications and cleanup
+of expired board invitations, plus the nightly (02:00) rebuild of the time
+tracker's usage ranking, which is also built once at startup if it's empty.
 
 Runs inside the FastAPI process itself (wired into its lifespan in
 src.main) rather than as a separate cron job plus standalone script, so
@@ -14,11 +15,14 @@ Postgres advisory lock (pg_try_advisory_lock) so only one replica executes
 it per tick — with a single replica (the case today) that's unnecessary.
 """
 
+from datetime import datetime
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from src.core.invitations import delete_expired_invitations
 from src.core.notifications import send_due_date_notifications
+from src.core.time_tracker_ranking import ensure_time_tracker_ranking, rebuild_time_tracker_ranking
 
 scheduler = AsyncIOScheduler()
 
@@ -36,6 +40,21 @@ def start_scheduler() -> None:
         delete_expired_invitations,
         trigger=CronTrigger(minute=30),
         id="expired_invitations_cleanup",
+        replace_existing=True,
+    )
+    # 02:00 in the server's local time — one ranking snapshot for all users.
+    scheduler.add_job(
+        rebuild_time_tracker_ranking,
+        trigger=CronTrigger(hour=2, minute=0),
+        id="time_tracker_ranking",
+        replace_existing=True,
+    )
+    # A one-off run as soon as the scheduler starts, in the background so a
+    # slow or failing database never holds up the app's startup.
+    scheduler.add_job(
+        ensure_time_tracker_ranking,
+        next_run_time=datetime.now(),
+        id="time_tracker_ranking_initial",
         replace_existing=True,
     )
     scheduler.start()

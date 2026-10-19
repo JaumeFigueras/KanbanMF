@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete as sqlalchemy_delete, select
+from sqlalchemy import delete as sqlalchemy_delete, select, update
 
 from src.model.board import Board
 from src.model.board_list import BoardList
@@ -496,3 +496,61 @@ async def test_time_entries_07(
     # Needs a signed-in user.
     r = await client.get("/api/v1/time-entries/last-end")
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_time_entries_08(
+    client, db_session_async, tracked_card: Card, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify /start, a manual create and a re-copying edit all record the
+    board, list and card ids the usage ranking is built from.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session used to read and clear the stored ids behind the API's back.
+    tracked_card : Card
+        The card being tracked.
+    auth_headers : dict[str, str]
+        Bearer token header for the card's owner.
+    """
+    board_id, list_id = await _ids(db_session_async, tracked_card)
+    body = _start_body(tracked_card, board_id, list_id)
+    expected = (board_id, list_id, tracked_card.id)
+
+    async def stored_ids(entry_id: str) -> tuple:
+        # A column query, so the result comes from the database rather than
+        # from an object this shared session may already hold.
+        result = await db_session_async.execute(
+            select(TimeEntry.board_id, TimeEntry.list_id, TimeEntry.card_id)
+            .where(TimeEntry.id == uuid.UUID(entry_id))
+        )
+        return tuple(result.one())
+
+    started = await client.post("/api/v1/time-entries/start", json=body, headers=auth_headers)
+    assert started.status_code == 201
+    assert await stored_ids(started.json()["id"]) == expected
+
+    start = datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc)
+    created = await client.post(
+        "/api/v1/time-entries",
+        json={**body, "started_at": start.isoformat(), "ended_at": (start + timedelta(hours=1)).isoformat()},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    entry_id = created.json()["id"]
+    assert await stored_ids(entry_id) == expected
+
+    # An entry from before the ids were recorded gets them on a re-copy.
+    await db_session_async.execute(
+        update(TimeEntry)
+        .where(TimeEntry.id == uuid.UUID(entry_id))
+        .values(board_id=None, list_id=None, card_id=None)
+    )
+    await db_session_async.commit()
+    patched = await client.patch(f"/api/v1/time-entries/{entry_id}", json=body, headers=auth_headers)
+    assert patched.status_code == 200
+    assert await stored_ids(entry_id) == expected

@@ -76,6 +76,8 @@ from src.model.ui_list_card_order import UIListCardOrder
 from src.model.ui_list_color import UIListColor
 from src.model.ui_card_color import UICardColor
 from src.model.time_entry import TimeEntry
+from src.model.time_tracker_board_usage import TimeTrackerBoardUsage
+from src.model.time_tracker_list_usage import TimeTrackerListUsage
 
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
@@ -129,6 +131,8 @@ def main(e: Engine):  # pragma: no cover
         Checklist,
         ChecklistItem,
         TimeEntry,
+        TimeTrackerBoardUsage,
+        TimeTrackerListUsage,
     ]
 
     files_created = []

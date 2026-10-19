@@ -398,6 +398,9 @@ CREATE TABLE time_entries (
 	user_id UUID NOT NULL, 
 	started_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	ended_at TIMESTAMP WITH TIME ZONE, 
+	board_id UUID, 
+	list_id UUID, 
+	card_id UUID, 
 	board_name VARCHAR(255) NOT NULL, 
 	card_name VARCHAR(255) NOT NULL, 
 	labels JSONB DEFAULT '[]' NOT NULL, 
@@ -410,7 +413,34 @@ CREATE TABLE time_entries (
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_time_entries_user_id ON time_entries (user_id);
-CREATE UNIQUE INDEX ux_time_entries_one_running_per_user ON time_entries (user_id) WHERE ended_at IS NULL;
+CREATE INDEX ix_time_entries_user_id_started_at ON time_entries (user_id, started_at);
 CREATE INDEX ix_time_entries_id ON time_entries (id);
+CREATE UNIQUE INDEX ux_time_entries_one_running_per_user ON time_entries (user_id) WHERE ended_at IS NULL;
 ALTER TABLE public.time_entries OWNER TO kanbanmf_user;
 GRANT SELECT on public.time_entries to kanbanmf_remoteuser;
+
+CREATE TABLE time_tracker_board_usage (
+	user_id UUID NOT NULL, 
+	board_id UUID NOT NULL, 
+	usage_count INTEGER NOT NULL, 
+	computed_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (user_id, board_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.time_tracker_board_usage OWNER TO kanbanmf_user;
+GRANT SELECT on public.time_tracker_board_usage to kanbanmf_remoteuser;
+
+CREATE TABLE time_tracker_list_usage (
+	user_id UUID NOT NULL, 
+	list_id UUID NOT NULL, 
+	usage_count INTEGER NOT NULL, 
+	computed_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (user_id, list_id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(list_id) REFERENCES board_lists (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.time_tracker_list_usage OWNER TO kanbanmf_user;
+GRANT SELECT on public.time_tracker_list_usage to kanbanmf_remoteuser;

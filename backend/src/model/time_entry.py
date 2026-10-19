@@ -22,7 +22,13 @@ class TimeEntry(Base):
     The board name, card name and labels are **copies** taken when the entry
     is created, not references: a card can afterwards be renamed, relabelled,
     archived or deleted, and the record of the time already spent on it must
-    not change with it. Nothing here points at a board or a card.
+    not change with it. Nothing here points at a board or a card: the
+    board_id, list_id and card_id columns record where the work happened,
+    but as plain values with no foreign key, so deleting the board, list or
+    card never touches the entry. They exist for statistics only — the
+    nightly usage ranking the time tracker orders its board and list
+    choices by (see src.core.time_tracker_ranking) — and may be NULL on
+    entries recorded before they were added.
 
     An entry with no ``ended_at`` is the one currently running. A partial
     unique index allows only one of those per user, so "already tracking"
@@ -49,6 +55,8 @@ class TimeEntry(Base):
             unique=True,
             postgresql_where=text("ended_at IS NULL"),
         ),
+        # The nightly usage ranking counts each user's recent entries.
+        Index("ix_time_entries_user_id_started_at", "user_id", "started_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -75,6 +83,24 @@ class TimeEntry(Base):
         DateTime(timezone=True),
         nullable=True,
         comment="NULL while the entry is still running.",
+    )
+
+    board_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Board the work was on, for usage statistics. Deliberately not a foreign key.",
+    )
+
+    list_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="List the card was in, for usage statistics. Deliberately not a foreign key.",
+    )
+
+    card_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        comment="Card the work was on, for usage statistics. Deliberately not a foreign key.",
     )
 
     board_name: Mapped[str] = mapped_column(
