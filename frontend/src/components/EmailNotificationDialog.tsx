@@ -55,10 +55,11 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   const [overdueRepeat, setOverdueRepeat] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // Reset to the board's current settings each time it's opened.
+  // Reset to the board's current settings each time it's opened. A leftover
+  // save error is cleared on close (handleClose) rather than here, so the
+  // effect only sets state from the fetch's callbacks.
   useEffect(() => {
     if (!open || !board) return
-    setError(null)
     apiFetch(`/api/v1/boards/${board.id}/notifications`)
       .then((r) => r.ok ? r.json() as Promise<BoardNotificationSettingsRead> : null)
       .then((settings) => {
@@ -80,6 +81,11 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
         setOverdueRepeat('')
       })
   }, [open, board])
+
+  function handleClose() {
+    setError(null)
+    onClose()
+  }
 
   async function persist(next: Settings) {
     if (!board) return
@@ -154,7 +160,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
       <DialogTitle>{t('boards.emailNotificationTitle')}</DialogTitle>
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -276,7 +282,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose}>{t('common.close')}</Button>
+        <Button onClick={handleClose}>{t('common.close')}</Button>
       </DialogActions>
     </Dialog>
   )
