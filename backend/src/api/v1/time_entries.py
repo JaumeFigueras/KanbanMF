@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import extract, select
+from sqlalchemy import and_, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,12 +15,15 @@ from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.time_entry import TimeEntry
+from src.model.time_tracker_board_usage import TimeTrackerBoardUsage
+from src.model.time_tracker_list_usage import TimeTrackerListUsage
 from src.model.user import User
 from src.schemas.time_entry import (
     TimeEntryCreate,
     TimeEntryRead,
     TimeEntryStart,
     TimeEntryUpdate,
+    TimeTrackerOption,
 )
 
 router = APIRouter()
@@ -33,19 +36,8 @@ router = APIRouter()
 _START_SNAP_WINDOW = timedelta(minutes=5)
 
 
-async def _card_snapshot(
-    board_id: uuid.UUID,
-    list_id: uuid.UUID,
-    card_id: uuid.UUID,
-    user: User,
-    db: AsyncSession,
-) -> tuple[str, str, list[dict[str, str]]]:
-    """Copy the board name, card name and labels off a card the user can see.
-
-    The copy is the whole point: what comes back is stored on the entry as
-    plain values, so the entry keeps describing the work even after the card
-    is renamed, relabelled, archived or deleted.
-    """
+async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSession) -> Board:
+    """Fetch a live board the user owns or has been shared, or raise 404/403."""
     result = await db.execute(
         select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
     )
@@ -61,6 +53,23 @@ async def _card_snapshot(
         )
         if share.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    return board
+
+
+async def _card_snapshot(
+    board_id: uuid.UUID,
+    list_id: uuid.UUID,
+    card_id: uuid.UUID,
+    user: User,
+    db: AsyncSession,
+) -> tuple[str, str, list[dict[str, str]]]:
+    """Copy the board name, card name and labels off a card the user can see.
+
+    The copy is the whole point: what comes back is stored on the entry as
+    plain values, so the entry keeps describing the work even after the card
+    is renamed, relabelled, archived or deleted.
+    """
+    board = await _get_accessible_board(board_id, user, db)
 
     result = await db.execute(
         select(Card)
@@ -205,6 +214,74 @@ async def get_last_time_entry_end(
     left to the frontend, which owns the rest of that default.
     """
     return await _last_end(current_user, db)
+
+
+@router.get("/boards", response_model=list[TimeTrackerOption])
+async def list_time_tracker_boards(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TimeTrackerOption]:
+    """Return the boards the caller can track time on, most used first.
+
+    The same boards the board page lists (owned and shared, neither archived,
+    deleted nor a template), ordered by the caller's usage count from the
+    nightly ranking (see :mod:`src.core.time_tracker_ranking`), then by name,
+    case-insensitively. A board with no ranking row counts as unused, so new
+    boards sort alphabetically after every board in use.
+    """
+    usage_count = func.coalesce(TimeTrackerBoardUsage.usage_count, 0).label("usage_count")
+    result = await db.execute(
+        select(Board.id, Board.name, usage_count)
+        .outerjoin(
+            TimeTrackerBoardUsage,
+            and_(
+                TimeTrackerBoardUsage.board_id == Board.id,
+                TimeTrackerBoardUsage.user_id == current_user.id,
+            ),
+        )
+        .where(
+            or_(
+                Board.owner_id == current_user.id,
+                Board.id.in_(
+                    select(BoardShare.board_id).where(BoardShare.user_id == current_user.id)
+                ),
+            ),
+            Board.is_deleted.is_(False),
+            Board.is_archived.is_(False),
+            Board.is_template.is_(False),
+        )
+        # The id only makes the order stable between boards named alike.
+        .order_by(usage_count.desc(), func.lower(Board.name), Board.id)
+    )
+    return [TimeTrackerOption.model_validate(row) for row in result.mappings()]
+
+
+@router.get("/boards/{board_id}/lists", response_model=list[TimeTrackerOption])
+async def list_time_tracker_lists(
+    board_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TimeTrackerOption]:
+    """Return a board's live lists, ordered like :func:`list_time_tracker_boards`."""
+    await _get_accessible_board(board_id, current_user, db)
+    usage_count = func.coalesce(TimeTrackerListUsage.usage_count, 0).label("usage_count")
+    result = await db.execute(
+        select(BoardList.id, BoardList.name, usage_count)
+        .outerjoin(
+            TimeTrackerListUsage,
+            and_(
+                TimeTrackerListUsage.list_id == BoardList.id,
+                TimeTrackerListUsage.user_id == current_user.id,
+            ),
+        )
+        .where(
+            BoardList.board_id == board_id,
+            BoardList.is_deleted.is_(False),
+            BoardList.is_archived.is_(False),
+        )
+        .order_by(usage_count.desc(), func.lower(BoardList.name), BoardList.id)
+    )
+    return [TimeTrackerOption.model_validate(row) for row in result.mappings()]
 
 
 @router.post("/start", response_model=TimeEntryRead, status_code=status.HTTP_201_CREATED)

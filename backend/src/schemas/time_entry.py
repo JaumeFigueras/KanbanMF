@@ -33,8 +33,8 @@ class TimeEntryLabel(BaseModel):
 class TimeEntryStart(BaseModel):
     """Body of the "start tracking this card" call.
 
-    The ids are only read to take the snapshot — nothing about them is
-    stored on the entry.
+    The ids are read to take the snapshot, and stored on the entry only for
+    the time tracker's usage ranking.
     """
 
     board_id: uuid.UUID
@@ -116,5 +116,20 @@ class TimeEntryRead(BaseModel):
     comment: str | None
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TimeTrackerOption(BaseModel):
+    """A board or list offered by the time tracker's card picker.
+
+    usage_count is how many of the caller's entries were on it over the
+    ranking window as of the last nightly rebuild (0 if none), which is what
+    the options are ordered by.
+    """
+
+    id: uuid.UUID
+    name: str
+    usage_count: int
 
     model_config = {"from_attributes": True}
