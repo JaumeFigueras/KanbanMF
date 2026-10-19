@@ -21,3 +21,12 @@ export interface TimeEntryRead {
   created_at: string
   updated_at: string
 }
+
+// A board or list offered by the time tracker's card picker. The API returns
+// them most used first (usage_count: the user's entries on it over the last
+// 90 days, as of the nightly ranking), then alphabetically.
+export interface TimeTrackerOption {
+  id: string
+  name: string
+  usage_count: number
+}

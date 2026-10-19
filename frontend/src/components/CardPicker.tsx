@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
-import type { BoardListRead, BoardRead, BoardsResponse, CardRead } from '../types/board'
+import type { CardRead } from '../types/board'
+import type { TimeTrackerOption } from '../types/timeTracker'
 import { apiFetch } from '../api/client'
 
 export interface CardSelection {
@@ -23,7 +24,9 @@ interface Props {
 
 // The board → list → card cascade shared by the time tracker's dialogs: each
 // dropdown reloads the one below it, and each keeps its current value when
-// that value is still among the new choices.
+// that value is still among the new choices. Boards and lists come from the
+// time tracker's own endpoints, most used first, so with nothing chosen yet
+// the first choice — the default — is the one the user tracks most.
 export default function CardPicker({
   active,
   disabled = false,
@@ -32,8 +35,8 @@ export default function CardPicker({
   onChange,
 }: Props) {
   const { t } = useTranslation()
-  const [boards, setBoards] = useState<BoardRead[]>([])
-  const [fetchedLists, setLists] = useState<BoardListRead[]>([])
+  const [boards, setBoards] = useState<TimeTrackerOption[]>([])
+  const [fetchedLists, setLists] = useState<TimeTrackerOption[]>([])
   const [fetchedCards, setCards] = useState<CardRead[]>([])
   const [boardId, setBoardId] = useState(initialBoardId)
   const [listId, setListId] = useState(initialListId)
@@ -50,12 +53,11 @@ export default function CardPicker({
 
   useEffect(() => {
     if (!active) return
-    apiFetch('/api/v1/boards')
-      .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(new Error()))
+    apiFetch('/api/v1/time-entries/boards')
+      .then(r => r.ok ? r.json() as Promise<TimeTrackerOption[]> : Promise.reject(new Error()))
       .then(data => {
-        const all = [...data.owned, ...data.shared]
-        setBoards(all)
-        setBoardId(prev => all.some(b => b.id === prev) ? prev : (all[0]?.id ?? ''))
+        setBoards(data)
+        setBoardId(prev => data.some(b => b.id === prev) ? prev : (data[0]?.id ?? ''))
       })
       .catch(() => setBoards([]))
   }, [active])
@@ -67,8 +69,8 @@ export default function CardPicker({
 
   useEffect(() => {
     if (!active || !boardId) return
-    apiFetch(`/api/v1/boards/${boardId}/lists`)
-      .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject(new Error()))
+    apiFetch(`/api/v1/time-entries/boards/${boardId}/lists`)
+      .then(r => r.ok ? r.json() as Promise<TimeTrackerOption[]> : Promise.reject(new Error()))
       .then(data => {
         setLists(data)
         setListId(prev => data.some(l => l.id === prev) ? prev : (data[0]?.id ?? ''))
