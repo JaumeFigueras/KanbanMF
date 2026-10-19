@@ -26,14 +26,21 @@ class BoardNotificationSettings(Base):
     A user enabling notifications on a board only ever affects themselves;
     it can never cause another user (e.g. an assignee who hasn't opted in)
     to be emailed. notify_hour is interpreted in this user's own timezone
-    (UserPreferences.timezone). Which days trigger a notification is stored
-    separately in BoardNotificationOffset.
+    (UserPreferences.timezone). Which days relative to a card's due date
+    trigger a notification is stored separately in BoardNotificationOffset;
+    notify_weekdays then restricts which days of the week anything is sent at
+    all — a reminder falling on an unselected weekday is skipped, not
+    postponed.
     """
 
     __tablename__ = "board_notification_settings"
 
     __table_args__ = (
         CheckConstraint("notify_hour >= 0 AND notify_hour <= 23", name="ck_board_notification_settings_notify_hour_range"),
+        CheckConstraint(
+            "notify_weekdays >= 1 AND notify_weekdays <= 127",
+            name="ck_board_notification_settings_notify_weekdays_range",
+        ),
     )
 
     board_id: Mapped[uuid.UUID] = mapped_column(
@@ -63,6 +70,15 @@ class BoardNotificationSettings(Base):
         default=9,
         server_default="9",
         comment="Hour of day (0-23) at which notifications are sent, in this user's own timezone.",
+    )
+
+    notify_weekdays: Mapped[int] = mapped_column(
+        SmallInteger,
+        nullable=False,
+        default=31,
+        server_default="31",
+        comment="Bitmask of ISO weekdays on which notifications may be sent, in this user's own timezone: "
+                "bit 0 = Monday ... bit 6 = Sunday. Defaults to Monday-Friday (31); 127 is every day.",
     )
 
     overdue_repeat_after_days: Mapped[Optional[int]] = mapped_column(

@@ -158,11 +158,13 @@ CREATE TABLE board_notification_settings (
 	user_id UUID NOT NULL, 
 	is_enabled BOOLEAN DEFAULT 'false' NOT NULL, 
 	notify_hour SMALLINT DEFAULT '9' NOT NULL, 
+	notify_weekdays SMALLINT DEFAULT '31' NOT NULL, 
 	overdue_repeat_after_days SMALLINT, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (board_id, user_id), 
 	CONSTRAINT ck_board_notification_settings_notify_hour_range CHECK (notify_hour >= 0 AND notify_hour <= 23), 
+	CONSTRAINT ck_board_notification_settings_notify_weekdays_range CHECK (notify_weekdays >= 1 AND notify_weekdays <= 127), 
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE, 
 	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
 )
