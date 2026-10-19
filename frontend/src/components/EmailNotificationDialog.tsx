@@ -17,12 +17,26 @@ import {
   Select,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
 import { Add } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import type { BoardNotificationSettingsRead, BoardRead } from '../types/board'
 import { apiFetch } from '../api/client'
+
+// ISO weekdays (1 = Monday ... 7 = Sunday), the backend's notify_weekdays format.
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7]
+const WORKDAYS = [1, 2, 3, 4, 5]
+
+interface Settings {
+  is_enabled: boolean
+  notify_hour: number
+  notify_weekdays: number[]
+  offset_days: number[]
+  overdue_repeat_after_days: number | null
+}
 
 interface Props {
   open: boolean
@@ -34,6 +48,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   const { t } = useTranslation()
   const [isEnabled, setIsEnabled] = useState(false)
   const [notifyHour, setNotifyHour] = useState(9)
+  const [notifyWeekdays, setNotifyWeekdays] = useState<number[]>(WORKDAYS)
   const [offsetDays, setOffsetDays] = useState<number[]>([])
   const [newOffset, setNewOffset] = useState('')
   const [overdueRepeatEnabled, setOverdueRepeatEnabled] = useState(false)
@@ -49,6 +64,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
       .then((settings) => {
         setIsEnabled(settings?.is_enabled ?? false)
         setNotifyHour(settings?.notify_hour ?? 9)
+        setNotifyWeekdays(settings?.notify_weekdays ?? WORKDAYS)
         setOffsetDays(settings?.offset_days ?? [])
         setOverdueRepeatEnabled(settings?.overdue_repeat_after_days != null)
         setOverdueRepeat(
@@ -58,18 +74,14 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
       .catch(() => {
         setIsEnabled(false)
         setNotifyHour(9)
+        setNotifyWeekdays(WORKDAYS)
         setOffsetDays([])
         setOverdueRepeatEnabled(false)
         setOverdueRepeat('')
       })
   }, [open, board])
 
-  async function persist(next: {
-    is_enabled: boolean
-    notify_hour: number
-    offset_days: number[]
-    overdue_repeat_after_days: number | null
-  }) {
+  async function persist(next: Settings) {
     if (!board) return
     setError(null)
     try {
@@ -84,15 +96,11 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
     }
   }
 
-  function currentSettings(overrides: Partial<{
-    is_enabled: boolean
-    notify_hour: number
-    offset_days: number[]
-    overdue_repeat_after_days: number | null
-  }> = {}) {
+  function currentSettings(overrides: Partial<Settings> = {}): Settings {
     return {
       is_enabled: isEnabled,
       notify_hour: notifyHour,
+      notify_weekdays: notifyWeekdays,
       offset_days: offsetDays,
       overdue_repeat_after_days: overdueRepeatEnabled && overdueRepeat.trim() ? Number(overdueRepeat) : null,
       ...overrides,
@@ -107,6 +115,15 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   function handleHourChange(hour: number) {
     setNotifyHour(hour)
     persist(currentSettings({ notify_hour: hour }))
+  }
+
+  function handleWeekdaysChange(next: number[]) {
+    // At least one day must stay selected — turning notifications off is
+    // what the checkbox above is for (the backend rejects an empty list).
+    if (next.length === 0) return
+    const sorted = [...next].sort((a, b) => a - b)
+    setNotifyWeekdays(sorted)
+    persist(currentSettings({ notify_weekdays: sorted }))
   }
 
   function handleAddOffset() {
@@ -170,6 +187,34 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
                 ))}
               </Select>
             </FormControl>
+
+            <Box>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                {t('boards.notifyWeekdays')}
+              </Typography>
+              <ToggleButtonGroup
+                value={notifyWeekdays}
+                onChange={(_, next: number[]) => handleWeekdaysChange(next)}
+                size="small"
+                color="primary"
+                fullWidth
+              >
+                {WEEKDAYS.map((d) => (
+                  <ToggleButton
+                    key={d}
+                    value={d}
+                    aria-label={t(`boards.weekdayLong.${d}`)}
+                    disabled={notifyWeekdays.length === 1 && notifyWeekdays[0] === d}
+                    sx={{ px: 0 }}
+                  >
+                    {t(`boards.weekdayShort.${d}`)}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                {t('boards.notifyWeekdaysHint')}
+              </Typography>
+            </Box>
 
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>

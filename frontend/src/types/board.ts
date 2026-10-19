@@ -75,6 +75,7 @@ export interface BoardNotificationSettingsRead {
   board_id: string
   is_enabled: boolean
   notify_hour: number
+  notify_weekdays: number[]
   offset_days: number[]
   overdue_repeat_after_days: number | null
 }
