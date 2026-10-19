@@ -11,7 +11,7 @@
 - ✓ Archive all cards of a list
 - ✓ Time tracker
 - ✓ Invite to a board
-- Disable mails in weekends
+- ✓ Disable mails in weekends
 
 ## Functionality
 
@@ -42,3 +42,4 @@
 - ✓ Board Templates
 - Card Templates
 - Recurring tasks
+- ✓ Usage order in Time Tracker
