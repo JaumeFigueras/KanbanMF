@@ -1,11 +1,5 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
-
-interface ThemeToggleCtx {
-  dark: boolean
-  toggleDark: () => void
-}
-
-const ThemeToggleContext = createContext<ThemeToggleCtx>({ dark: false, toggleDark: () => {} })
+import { useState, type ReactNode } from 'react'
+import { ThemeToggleContext } from './useThemeToggle'
 
 export function ThemeToggleProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
@@ -23,5 +17,3 @@ export function ThemeToggleProvider({ children }: { children: ReactNode }) {
     </ThemeToggleContext.Provider>
   )
 }
-
-export const useThemeToggle = () => useContext(ThemeToggleContext)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Button,
@@ -33,13 +33,17 @@ export default function ChangeDisplayNameDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setDisplayName(currentDisplayName)
       setInitials(currentInitials ?? '')
       setError(null)
     }
-  }, [open, currentDisplayName, currentInitials])
+  }
 
   function validate(): string | null {
     if (!displayName.trim()) return t('boards.displayNameRequired')

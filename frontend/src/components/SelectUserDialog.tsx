@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Box,
   Button,
@@ -27,9 +27,13 @@ export default function SelectUserDialog({ open, onClose, title, candidates, sel
   const { t } = useTranslation()
   const [checked, setChecked] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) setChecked(new Set(selectedIds))
-  }, [open, selectedIds])
+  }
 
   function toggle(id: string) {
     setChecked((prev) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Button,
@@ -39,13 +39,17 @@ export default function EditLabelDialog({ open, onClose, label, saving, error, o
   const [color, setColor] = useState('')
   const [nameError, setNameError] = useState(false)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setName(label?.name ?? '')
       setColor(label?.color ?? DEFAULT_LABEL_COLOR)
       setNameError(false)
     }
-  }, [open, label])
+  }
 
   function handleSave() {
     const trimmed = name.trim()

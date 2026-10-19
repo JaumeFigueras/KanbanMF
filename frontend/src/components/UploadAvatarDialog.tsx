@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
@@ -34,31 +34,30 @@ export default function UploadAvatarDialog({
 }: Props) {
   const { t } = useTranslation()
   const [file, setFile] = useState<File | null>(null)
-  // preview is either the currentAvatarUrl (not owned by us) or a blob URL we created
-  const [preview, setPreview] = useState<string | null>(null)
-  const ownedPreviewRef = useRef<string | null>(null)
+  // Blob URL for the picked file, which this dialog owns (unlike
+  // currentAvatarUrl). The preview shows it if set, else the current avatar.
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const preview = filePreview ?? currentAvatarUrl
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setFile(null)
+      setFilePreview(null)
       setError(null)
-      // Revoke any previously created blob URL before resetting
-      if (ownedPreviewRef.current) {
-        URL.revokeObjectURL(ownedPreviewRef.current)
-        ownedPreviewRef.current = null
-      }
-      setPreview(currentAvatarUrl)
     }
-  }, [open, currentAvatarUrl])
+  }
 
-  // Revoke owned blob URL on unmount
+  // Revoke each blob URL once it's replaced, cleared or the dialog unmounts.
   useEffect(() => {
-    return () => {
-      if (ownedPreviewRef.current) URL.revokeObjectURL(ownedPreviewRef.current)
-    }
-  }, [])
+    if (!filePreview) return
+    return () => URL.revokeObjectURL(filePreview)
+  }, [filePreview])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null
@@ -75,11 +74,8 @@ export default function UploadAvatarDialog({
       return
     }
 
-    if (ownedPreviewRef.current) URL.revokeObjectURL(ownedPreviewRef.current)
-    const url = URL.createObjectURL(selected)
-    ownedPreviewRef.current = url
     setFile(selected)
-    setPreview(url)
+    setFilePreview(URL.createObjectURL(selected))
   }
 
   async function handleSave() {

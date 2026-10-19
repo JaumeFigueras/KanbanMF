@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Autocomplete,
@@ -64,7 +64,11 @@ export default function LanguageLocalizationDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setLangCode(BACKEND_TO_I18N[currentLanguageLocale] ?? 'en')
       setNumberLocale(
@@ -74,7 +78,7 @@ export default function LanguageLocalizationDialog({
       setTimezone(currentTimezone || getBrowserTimezone())
       setError(null)
     }
-  }, [open, currentLanguageLocale, currentNumberLocale, currentDateFormat, currentTimezone])
+  }
 
   async function handleSave() {
     setSaving(true)

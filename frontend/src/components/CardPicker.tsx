@@ -33,8 +33,8 @@ export default function CardPicker({
 }: Props) {
   const { t } = useTranslation()
   const [boards, setBoards] = useState<BoardRead[]>([])
-  const [lists, setLists] = useState<BoardListRead[]>([])
-  const [cards, setCards] = useState<CardRead[]>([])
+  const [fetchedLists, setLists] = useState<BoardListRead[]>([])
+  const [fetchedCards, setCards] = useState<CardRead[]>([])
   const [boardId, setBoardId] = useState(initialBoardId)
   const [listId, setListId] = useState(initialListId)
   const [cardId, setCardId] = useState('')
@@ -60,11 +60,13 @@ export default function CardPicker({
       .catch(() => setBoards([]))
   }, [active])
 
+  // Without a board (or list) there's nothing to choose from, whatever was
+  // fetched for the previous one.
+  const lists = active && boardId ? fetchedLists : []
+  const cards = active && boardId && listId ? fetchedCards : []
+
   useEffect(() => {
-    if (!active || !boardId) {
-      setLists([])
-      return
-    }
+    if (!active || !boardId) return
     apiFetch(`/api/v1/boards/${boardId}/lists`)
       .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject(new Error()))
       .then(data => {
@@ -75,10 +77,7 @@ export default function CardPicker({
   }, [active, boardId])
 
   useEffect(() => {
-    if (!active || !boardId || !listId) {
-      setCards([])
-      return
-    }
+    if (!active || !boardId || !listId) return
     apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards`)
       .then(r => r.ok ? r.json() as Promise<CardRead[]> : Promise.reject(new Error()))
       .then(data => {

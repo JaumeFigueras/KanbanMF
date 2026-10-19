@@ -4,7 +4,7 @@ import { LightMode, DarkMode, Translate } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES, type LanguageCode } from '../i18n'
 import LanguageSelector from './LanguageSelector'
-import { useThemeToggle } from '../context/ThemeToggleContext'
+import { useThemeToggle } from '../context/useThemeToggle'
 
 export default function AuthControls() {
   const { dark, toggleDark } = useThemeToggle()

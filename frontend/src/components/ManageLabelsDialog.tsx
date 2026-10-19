@@ -121,11 +121,20 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   const jsonHeaders = { 'Content-Type': 'application/json' }
   const API = `/api/v1/boards/${boardId}/labels`
 
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setFormOpen(false)
+      setEditingLabel(null)
+      setError(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
-    setFormOpen(false)
-    setEditingLabel(null)
-    setError(null)
     apiFetch(API)
       .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
       .then(setLabels)

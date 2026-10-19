@@ -26,8 +26,8 @@ import {
 } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
-import { useAuth } from '../context/AuthContext'
-import { useThemeToggle } from '../context/ThemeToggleContext'
+import { useAuth } from '../context/useAuth'
+import { useThemeToggle } from '../context/useThemeToggle'
 import { apiFetch } from '../api/client'
 import { getBrowserTimezone } from '../utils/locale'
 import ChangeDisplayNameDialog from './ChangeDisplayNameDialog'
@@ -74,21 +74,23 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged }: Props) 
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
   const [langLocOpen, setLangLocOpen] = useState(false)
 
-  const fetchAvatar = useCallback(async () => {
-    try {
-      const r = await apiFetch('/api/v1/users/me/avatar')
-      if (r.ok) {
-        const blob = await r.blob()
+  // A promise chain rather than an async function: every setState then sits
+  // in a callback, which lets the lint rule against setting state directly
+  // inside an effect see that the effect below doesn't.
+  const fetchAvatar = useCallback(() => {
+    apiFetch('/api/v1/users/me/avatar')
+      .then((r) => r.ok ? r.blob() : null)
+      .then((blob) => {
+        if (!blob) {
+          setAvatarUrl(null)
+          return
+        }
         const url = URL.createObjectURL(blob)
         if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
         avatarUrlRef.current = url
         setAvatarUrl(url)
-      } else {
-        setAvatarUrl(null)
-      }
-    } catch {
-      setAvatarUrl(null)
-    }
+      })
+      .catch(() => setAvatarUrl(null))
   }, [])
 
   useEffect(() => {

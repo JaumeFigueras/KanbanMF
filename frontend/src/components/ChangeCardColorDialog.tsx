@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Box,
@@ -29,12 +29,16 @@ export default function ChangeCardColorDialog({ open, onClose, boardId, listId, 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setColor(currentColor ?? DEFAULT_COLOR)
       setError(null)
     }
-  }, [open, currentColor])
+  }
 
   async function handleSave() {
     setSaving(true)

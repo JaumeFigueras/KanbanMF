@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import i18n from '../i18n'
 import { apiFetch, onAccessTokenChange, setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
+import { AuthContext } from './useAuth'
 
 // Relative on purpose — see the comment on API_BASE in api/client.ts.
 const API = ''
@@ -15,20 +16,6 @@ const LOCALE_TO_I18N: Record<string, string> = {
 function applyLanguage(locale: string) {
   i18n.changeLanguage(LOCALE_TO_I18N[locale] ?? 'en')
 }
-
-interface AuthCtx {
-  accessToken: string | null
-  loading: boolean
-  login: (token: string) => void
-  logout: () => Promise<void>
-}
-
-const AuthContext = createContext<AuthCtx>({
-  accessToken: null,
-  loading: true,
-  login: () => {},
-  logout: async () => {},
-})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
@@ -87,5 +74,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   )
 }
-
-export const useAuth = () => useContext(AuthContext)

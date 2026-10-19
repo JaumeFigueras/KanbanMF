@@ -65,17 +65,26 @@ export default function CopyCardDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(cardName)
+      setNameError(false)
+      setTargetBoardId(boardId)
+      setError(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
-    setName(cardName)
-    setNameError(false)
-    setTargetBoardId(boardId)
-    setError(null)
     apiFetch('/api/v1/boards')
       .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(`HTTP ${r.status}`))
       .then(data => setBoards([...data.owned, ...data.shared]))
       .catch(err => setError(String(err)))
-  }, [open, boardId, cardName])
+  }, [open])
 
   useEffect(() => {
     if (!open || !targetBoardId) return

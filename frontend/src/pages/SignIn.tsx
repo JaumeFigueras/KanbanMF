@@ -17,7 +17,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
 import AuthControls from '../components/AuthControls'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 
 export default function SignIn() {
   const { t } = useTranslation()

@@ -57,22 +57,31 @@ export default function CopyChecklistDialog({
   const [targetBoardId, setTargetBoardId] = useState(boardId)
   const [lists, setLists] = useState<BoardListRead[]>([])
   const [targetListId, setTargetListId] = useState(listId)
-  const [cards, setCards] = useState<CardRead[]>([])
+  const [fetchedCards, setCards] = useState<CardRead[]>([])
   const [targetCardId, setTargetCardId] = useState(cardId ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(checklist?.name ?? '')
+      setNameError(false)
+      setTargetBoardId(boardId)
+      setError(null)
+    }
+  }
+
   useEffect(() => {
     if (!open) return
-    setName(checklist?.name ?? '')
-    setNameError(false)
-    setTargetBoardId(boardId)
-    setError(null)
     apiFetch('/api/v1/boards')
       .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(`HTTP ${r.status}`))
       .then(data => setBoards([...data.owned, ...data.shared]))
       .catch(err => setError(String(err)))
-  }, [open, boardId, checklist])
+  }, [open])
 
   useEffect(() => {
     if (!open || !targetBoardId) return
@@ -89,11 +98,12 @@ export default function CopyChecklistDialog({
       .catch(err => setError(String(err)))
   }, [open, targetBoardId])
 
+  // Without a target list there's nothing to choose from, whatever was
+  // fetched for the previous one.
+  const cards = open && targetBoardId && targetListId ? fetchedCards : []
+
   useEffect(() => {
-    if (!open || !targetBoardId || !targetListId) {
-      setCards([])
-      return
-    }
+    if (!open || !targetBoardId || !targetListId) return
     apiFetch(`/api/v1/boards/${targetBoardId}/lists/${targetListId}/cards`)
       .then(r => r.ok ? r.json() as Promise<CardRead[]> : Promise.reject(`HTTP ${r.status}`))
       .then(data => {

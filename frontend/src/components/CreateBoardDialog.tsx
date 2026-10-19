@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -60,7 +60,11 @@ export default function CreateBoardDialog({
   // latest one may land, so a slow earlier response can't overwrite it.
   const previewRequestRef = useRef(0)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setName('')
       setStarred(false)
@@ -68,7 +72,7 @@ export default function CreateBoardDialog({
       setPreview(null)
       setError(null)
     }
-  }, [open])
+  }
 
   // The preview shows the lists exactly as the new board will get them: the
   // template's live lists in its stored order, in *this* user's own colors

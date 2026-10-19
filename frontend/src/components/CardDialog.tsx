@@ -334,7 +334,13 @@ export default function CardDialog({
 
   const creator = card?.creator ?? null
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens, and whenever the card it
+  // shows is replaced while open (e.g. refetched after a change in another
+  // tab), so initialChecklists always matches what the server has. Done while
+  // rendering rather than in an effect, so no frame shows stale values.
+  const [shown, setShown] = useState({ open: false, card })
+  if (open !== shown.open || card !== shown.card) {
+    setShown({ open, card })
     if (open) {
       setName(card?.name ?? '')
       setDescription(card?.description ?? '')
@@ -353,7 +359,7 @@ export default function CardDialog({
       setInitialChecklists(loadedChecklists)
       setError(null)
     }
-  }, [open, card])
+  }
 
   function handleAddChecklist() {
     setEditingChecklist(null)

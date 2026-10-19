@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Box,
@@ -76,14 +76,18 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
   const [newItemText, setNewItemText] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setName(checklist?.name ?? '')
       setItems(checklist?.items ?? [])
       setNewItemText('')
       setError(null)
     }
-  }, [open, checklist])
+  }
 
   function handleAddItem() {
     const trimmed = newItemText.trim()

@@ -10,14 +10,12 @@ type State = 'pending' | 'success' | 'invalid' | 'expired' | 'error'
 export default function VerifyEmail() {
   const { t } = useTranslation()
   const [params] = useSearchParams()
-  const [state, setState] = useState<State>('pending')
+  const token = params.get('token')
+  // A link without a token is invalid from the start; no request to wait for.
+  const [state, setState] = useState<State>(token ? 'pending' : 'invalid')
 
   useEffect(() => {
-    const token = params.get('token')
-    if (!token) {
-      setState('invalid')
-      return
-    }
+    if (!token) return
 
     fetch('/api/v1/auth/local/verify-email', {
       method: 'POST',
@@ -37,7 +35,7 @@ export default function VerifyEmail() {
         }
       })
       .catch(() => setState('error'))
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token])
 
   return (
     <Box

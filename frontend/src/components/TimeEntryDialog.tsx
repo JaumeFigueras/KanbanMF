@@ -49,50 +49,65 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setRecopy(false)
-    setSelection(EMPTY)
-    if (entry) {
-      setStartAt(dayjs(entry.started_at))
-      setEndAt(entry.ended_at ? dayjs(entry.ended_at) : null)
-      setBoardName(entry.board_name)
-      setCardName(entry.card_name)
-      setComment(entry.comment ?? '')
-    } else {
-      // An hour ending now: the shape of a stretch of work being written up
-      // just after it happened, and both ends are editable anyway.
-      const now = dayjs().startOf('minute')
-      const fallbackStart = now.subtract(1, 'hour')
-      setStartAt(fallbackStart)
-      setEndAt(now)
-      setBoardName('')
-      setCardName('')
-      setComment('')
+  // When a new entry's form was last reset: its default range is the hour
+  // ending then, and the last-end lookup below compares against it.
+  const [newEntryNow, setNewEntryNow] = useState<Dayjs | null>(null)
 
-      // If the last task ended within that hour, start from its end instead,
-      // so the new entry follows it without a gap or an overlap. Looked up on
-      // the server because the page only holds the filtered month's entries.
-      let cancelled = false
-      apiFetch('/api/v1/time-entries/last-end')
-        .then((r) => (r.ok ? r.json() as Promise<string | null> : null))
-        .then((lastEnd) => {
-          if (cancelled || !lastEnd) return
-          const snapped = dayjs(lastEnd).startOf('minute')
-          // A future end (a manually entered entry) isn't a previous task.
-          if (snapped.isAfter(now) || now.diff(snapped, 'minute') > 60) return
-          // Only replace the default if the user hasn't changed it meanwhile.
-          setStartAt((current) => (current && current.isSame(fallbackStart) ? snapped : current))
-          // Ended this very minute: keep the range at least a minute long.
-          if (snapped.isSame(now)) {
-            setEndAt((current) => (current && current.isSame(now) ? now.add(1, 'minute') : current))
-          }
-        })
-        .catch(() => {})
-      return () => { cancelled = true }
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setError(null)
+      setRecopy(false)
+      setSelection(EMPTY)
+      if (entry) {
+        setNewEntryNow(null)
+        setStartAt(dayjs(entry.started_at))
+        setEndAt(entry.ended_at ? dayjs(entry.ended_at) : null)
+        setBoardName(entry.board_name)
+        setCardName(entry.card_name)
+        setComment(entry.comment ?? '')
+      } else {
+        // An hour ending now: the shape of a stretch of work being written up
+        // just after it happened, and both ends are editable anyway.
+        const now = dayjs().startOf('minute')
+        setNewEntryNow(now)
+        setStartAt(now.subtract(1, 'hour'))
+        setEndAt(now)
+        setBoardName('')
+        setCardName('')
+        setComment('')
+      }
     }
-  }, [open, entry])
+  }
+
+  // If the last task ended within that hour, start from its end instead,
+  // so the new entry follows it without a gap or an overlap. Looked up on
+  // the server because the page only holds the filtered month's entries.
+  useEffect(() => {
+    if (!open || entry || !newEntryNow) return
+    const now = newEntryNow
+    const fallbackStart = now.subtract(1, 'hour')
+    let cancelled = false
+    apiFetch('/api/v1/time-entries/last-end')
+      .then((r) => (r.ok ? r.json() as Promise<string | null> : null))
+      .then((lastEnd) => {
+        if (cancelled || !lastEnd) return
+        const snapped = dayjs(lastEnd).startOf('minute')
+        // A future end (a manually entered entry) isn't a previous task.
+        if (snapped.isAfter(now) || now.diff(snapped, 'minute') > 60) return
+        // Only replace the default if the user hasn't changed it meanwhile.
+        setStartAt((current) => (current && current.isSame(fallbackStart) ? snapped : current))
+        // Ended this very minute: keep the range at least a minute long.
+        if (snapped.isSame(now)) {
+          setEndAt((current) => (current && current.isSame(now) ? now.add(1, 'minute') : current))
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [open, entry, newEntryNow])
 
   // The pickers only go down to the minute, so that's the precision the user
   // is actually choosing: seconds inherited from a live-tracked entry would

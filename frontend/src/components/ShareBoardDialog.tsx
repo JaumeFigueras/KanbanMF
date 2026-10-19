@@ -79,28 +79,42 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
       .then((members) => setSharedPeople(members.filter((m) => m.id !== board.owner_id)))
       .catch(() => setSharedPeople([]))
-    if (board.is_template) {
-      setInvitations([])
-      return
-    }
+    // Templates have no invitations, and the list isn't rendered for them.
+    if (board.is_template) return
     apiFetch(`/api/v1/boards/${board.id}/invitations`)
       .then((r) => r.ok ? r.json() as Promise<BoardInvitationRead[]> : [])
       .then(setInvitations)
       .catch(() => setInvitations([]))
   }, [board])
 
-  // Reset to the board's current shares and invitations each time it's opened.
+  // Clears the search box, or starts a (debounced, see below) search for
+  // what was typed — `searching` covers the debounce wait too.
+  function handleSearchTermChange(value: string) {
+    setSearchTerm(value)
+    setSearching(value.trim() !== '')
+    if (!value.trim()) setSearchResults([])
+  }
+
+  // Reset the form each time the dialog opens. Done while rendering rather
+  // than in an effect, so the first frame already shows the fresh values.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      handleSearchTermChange('')
+      setError(null)
+      setInviteEmail('')
+      setInviteLanguage(LANGUAGES.some((l) => l.code === i18n.language) ? i18n.language : 'en')
+      setInviteFeedback(null)
+    }
+  }
+
+  // Load the board's current shares and invitations each time it's opened.
   useEffect(() => {
     if (!open || !board) return
-    setSearchTerm('')
-    setSearchResults([])
-    setError(null)
-    setInviteEmail('')
-    setInviteLanguage(LANGUAGES.some((l) => l.code === i18n.language) ? i18n.language : 'en')
-    setInviteFeedback(null)
     loadShares()
     fetchAppConfig().then((config) => setEmailEnabled(config.email_enabled))
-  }, [open, board, loadShares, i18n.language])
+  }, [open, board, loadShares])
 
   // An invitation accepted (it becomes a share) or changed from another tab.
   useEffect(() => {
@@ -119,12 +133,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
 
   useEffect(() => {
     const term = searchTerm.trim()
-    if (!term) {
-      setSearchResults([])
-      setSearching(false)
-      return
-    }
-    setSearching(true)
+    if (!term) return
     const handle = setTimeout(() => {
       apiFetch(`/api/v1/users/search?q=${encodeURIComponent(term)}`)
         .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
@@ -143,8 +152,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   // Returns whether the share was made, so the one-click share can clear its prompt.
   async function handleSelect(person: PersonSummary | null): Promise<boolean> {
     if (!person || !board) return false
-    setSearchTerm('')
-    setSearchResults([])
+    handleSearchTermChange('')
     setError(null)
     setAdding(true)
     try {
@@ -354,7 +362,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
             loading={searching || adding}
             disabled={adding}
             inputValue={searchTerm}
-            onInputChange={(_, value) => setSearchTerm(value)}
+            onInputChange={(_, value) => handleSearchTermChange(value)}
             onChange={(_, value) => handleSelect(value)}
             value={null}
             noOptionsText={searchTerm.trim() ? t('boards.noUsersFound') : t('boards.searchUserPlaceholder')}

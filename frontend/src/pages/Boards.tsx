@@ -124,17 +124,18 @@ export default function Boards() {
     setDateFormat(fmt)
   }, [])
 
-  const fetchBoards = useCallback(async () => {
-    try {
-      const [boardsRes, orderRes] = await Promise.all([
-        apiFetch('/api/v1/boards'),
-        apiFetch('/api/v1/boards/order'),
-      ])
-      if (boardsRes.ok) setBoards(await boardsRes.json())
-      if (orderRes.ok) setOrder(await orderRes.json())
-    } catch {
-      // non-fatal
-    }
+  // A promise chain rather than an async function: every setState then sits
+  // in a callback, which lets the lint rule against setting state directly
+  // inside an effect see that the effect calling this doesn't.
+  const fetchBoards = useCallback(() => {
+    Promise.all([apiFetch('/api/v1/boards'), apiFetch('/api/v1/boards/order')])
+      .then(async ([boardsRes, orderRes]) => {
+        if (boardsRes.ok) setBoards(await boardsRes.json())
+        if (orderRes.ok) setOrder(await orderRes.json())
+      })
+      .catch(() => {
+        // non-fatal
+      })
   }, [])
 
   const fetchArchivedBoards = useCallback(async () => {
