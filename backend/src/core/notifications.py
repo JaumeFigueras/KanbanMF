@@ -19,7 +19,7 @@ from src.core.email import send_due_date_reminder_email
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_notification_offset import BoardNotificationOffset
-from src.model.board_notification_settings import BoardNotificationSettings
+from src.model.board_notification_settings import BoardNotificationSettings, mask_to_weekdays
 from src.model.card import Card
 from src.model.card_assignee import CardAssignee
 from src.model.card_due_notification import CardDueNotification
@@ -40,7 +40,7 @@ async def send_due_date_notifications() -> None:
     """Scan every enabled (board, user) notification setting and e-mail that
     user about their own assigned cards whose due-date offset or
     overdue-repeat threshold matches today, at their own locally-configured
-    notify_hour.
+    notify_hour — and only if today is one of their notify_weekdays.
 
     Settings are per-user: BoardNotificationSettings.user_id is both who the
     setting belongs to AND the only person it can ever cause an e-mail to be
@@ -106,6 +106,12 @@ async def send_due_date_notifications() -> None:
             # user's own timezone, so only proceed once their local clock
             # actually reaches the configured hour.
             if local_now.hour != settings_row.notify_hour:
+                continue
+
+            # Likewise for the weekday: on a day the user hasn't selected,
+            # nothing is sent. Reminders that fall on it are skipped, not
+            # postponed to the next allowed day.
+            if local_now.isoweekday() not in mask_to_weekdays(settings_row.notify_weekdays):
                 continue
 
             offsets_result = await db.execute(

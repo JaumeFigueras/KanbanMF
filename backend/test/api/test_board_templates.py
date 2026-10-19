@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.core import notifications
 from src.model.board import Board
 from src.model.board_list import BoardList
-from src.model.board_notification_settings import BoardNotificationSettings
+from src.model.board_notification_settings import ALL_WEEKDAYS_MASK, BoardNotificationSettings
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.card_assignee import CardAssignee
@@ -427,7 +427,13 @@ async def test_board_templates_08(
     assert response.status_code == 400
     response = await client.put(
         f"{base}/notifications",
-        json={"is_enabled": True, "notify_hour": 9, "offset_days": [1], "overdue_repeat_after_days": None},
+        json={
+            "is_enabled": True,
+            "notify_hour": 9,
+            "notify_weekdays": [1, 2, 3, 4, 5],
+            "offset_days": [1],
+            "overdue_repeat_after_days": None,
+        },
         headers=auth_headers,
     )
     assert response.status_code == 400
@@ -532,6 +538,8 @@ async def test_board_templates_10(
             user_id=test_user.id,
             is_enabled=True,
             notify_hour=hour,
+            # Every day, so the test doesn't depend on what weekday it runs.
+            notify_weekdays=ALL_WEEKDAYS_MASK,
             overdue_repeat_after_days=0,
         ))
     await db_session_async.commit()

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Tests for the BoardNotificationSettings ORM model, covering the notify_weekdays default and constraint."""
+"""Tests for the BoardNotificationSettings ORM model, covering the notify_weekdays default, constraint and
+bitmask helpers."""
 
 import pytest
 from sqlalchemy import text
@@ -9,7 +10,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.model.board import Board
-from src.model.board_notification_settings import BoardNotificationSettings
+from src.model.board_notification_settings import (
+    ALL_WEEKDAYS_MASK,
+    WORKDAYS_MASK,
+    BoardNotificationSettings,
+    mask_to_weekdays,
+    weekdays_to_mask,
+)
 from src.model.user import User
 
 
@@ -142,3 +149,32 @@ def test_board_notification_settings_04(db_session: Session, weekdays: int) -> N
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# 05 – Weekday list <-> bitmask helpers round-trip
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "weekdays, mask",
+    [([1, 2, 3, 4, 5], WORKDAYS_MASK), (list(range(1, 8)), ALL_WEEKDAYS_MASK), ([1], 1), ([7], 64), ([1, 6, 7], 97)],
+)
+def test_board_notification_settings_05(weekdays: list[int], mask: int) -> None:
+    """
+    Verify weekdays_to_mask and mask_to_weekdays convert between ISO weekday
+    lists and notify_weekdays bitmasks in both directions.
+
+    Parameters
+    ----------
+    weekdays : list[int]
+        Sorted ISO weekdays (1 = Monday ... 7 = Sunday).
+    mask : int
+        The matching bitmask.
+
+    Raises
+    ------
+    AssertionError
+        If either conversion gives a different result.
+    """
+    assert weekdays_to_mask(weekdays) == mask
+    assert mask_to_weekdays(mask) == weekdays

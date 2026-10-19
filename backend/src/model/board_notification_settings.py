@@ -3,7 +3,7 @@
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Iterable, List, Optional
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, SmallInteger
 from sqlalchemy.dialects.postgresql import UUID
@@ -16,6 +16,23 @@ if TYPE_CHECKING:
     from src.model.board import Board
     from src.model.board_notification_offset import BoardNotificationOffset
     from src.model.user import User
+
+# notify_weekdays bitmasks: bit (isoweekday - 1) set means that day is allowed.
+WORKDAYS_MASK = 0b0011111  # Monday-Friday
+ALL_WEEKDAYS_MASK = 0b1111111  # Monday-Sunday
+
+
+def weekdays_to_mask(weekdays: Iterable[int]) -> int:
+    """Pack ISO weekday numbers (1 = Monday ... 7 = Sunday) into a notify_weekdays bitmask."""
+    mask = 0
+    for day in weekdays:
+        mask |= 1 << (day - 1)
+    return mask
+
+
+def mask_to_weekdays(mask: int) -> list[int]:
+    """Unpack a notify_weekdays bitmask into sorted ISO weekday numbers (1 = Monday ... 7 = Sunday)."""
+    return [day for day in range(1, 8) if mask & (1 << (day - 1))]
 
 
 class BoardNotificationSettings(Base):
@@ -75,8 +92,8 @@ class BoardNotificationSettings(Base):
     notify_weekdays: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
-        default=31,
-        server_default="31",
+        default=WORKDAYS_MASK,
+        server_default=str(WORKDAYS_MASK),
         comment="Bitmask of ISO weekdays on which notifications may be sent, in this user's own timezone: "
                 "bit 0 = Monday ... bit 6 = Sunday. Defaults to Monday-Friday (31); 127 is every day.",
     )

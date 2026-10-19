@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_current_user, get_db, reject_if_template
 from src.model.board import Board
 from src.model.board_notification_offset import BoardNotificationOffset
-from src.model.board_notification_settings import BoardNotificationSettings
+from src.model.board_notification_settings import (
+    WORKDAYS_MASK,
+    BoardNotificationSettings,
+    mask_to_weekdays,
+    weekdays_to_mask,
+)
 from src.model.board_share import BoardShare
 from src.model.user import User
 from src.schemas.board_notification import BoardNotificationSettingsRead, BoardNotificationSettingsUpdate
@@ -39,7 +44,11 @@ async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSessio
 
 
 async def _read_settings(board_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> BoardNotificationSettingsRead:
-    """Return the calling user's own settings for this board, or sensible defaults if they haven't saved any yet."""
+    """Return the calling user's own settings for this board, or sensible defaults if they haven't saved any yet.
+
+    The defaults pre-select Monday-Friday, so a user setting notifications up
+    for the first time starts from workdays only.
+    """
     result = await db.execute(
         select(BoardNotificationSettings).where(
             BoardNotificationSettings.board_id == board_id,
@@ -52,6 +61,7 @@ async def _read_settings(board_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSessi
             board_id=board_id,
             is_enabled=False,
             notify_hour=9,
+            notify_weekdays=mask_to_weekdays(WORKDAYS_MASK),
             offset_days=[],
             overdue_repeat_after_days=None,
         )
@@ -69,6 +79,7 @@ async def _read_settings(board_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSessi
         board_id=settings.board_id,
         is_enabled=settings.is_enabled,
         notify_hour=settings.notify_hour,
+        notify_weekdays=mask_to_weekdays(settings.notify_weekdays),
         offset_days=list(offsets_result.scalars().all()),
         overdue_repeat_after_days=settings.overdue_repeat_after_days,
     )
@@ -109,6 +120,7 @@ async def update_board_notification_settings(
     """
     board = await _get_accessible_board(board_id, current_user, db)
     reject_if_template(board, "Templates have no due dates to notify about")
+    notify_weekdays = weekdays_to_mask(body.notify_weekdays)
 
     await db.execute(
         pg_insert(BoardNotificationSettings)
@@ -117,6 +129,7 @@ async def update_board_notification_settings(
             user_id=current_user.id,
             is_enabled=body.is_enabled,
             notify_hour=body.notify_hour,
+            notify_weekdays=notify_weekdays,
             overdue_repeat_after_days=body.overdue_repeat_after_days,
         )
         .on_conflict_do_update(
@@ -124,6 +137,7 @@ async def update_board_notification_settings(
             set_={
                 "is_enabled": body.is_enabled,
                 "notify_hour": body.notify_hour,
+                "notify_weekdays": notify_weekdays,
                 "overdue_repeat_after_days": body.overdue_repeat_after_days,
                 "updated_at": func.now(),
             },
