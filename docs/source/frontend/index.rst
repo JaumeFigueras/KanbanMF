@@ -8,7 +8,8 @@ for all data, and listens on a WebSocket for changes made elsewhere. It holds
 no business rules of its own beyond what the interface needs; the backend
 decides what is allowed.
 
-As with the backend, :doc:`stack` explains how it fits together and
+:doc:`../architecture` shows where it sits in a deployment. As with the
+backend, :doc:`stack` explains how it fits together and
 :doc:`code/index` describes what each part contains.
 
 .. toctree::

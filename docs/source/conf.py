@@ -193,6 +193,23 @@ html_theme_options = {
 
 html_show_sourcelink = True
 
+# -- Options for LaTeX / PDF output ------------------------------------------
+# Read the Docs builds a PDF of each language (.readthedocs.yaml, formats) with
+# pdflatex, Sphinx's default engine for English and Catalan. Its utf8 input
+# handles accents, curly quotes, dashes and guillemets, but not U+2630 (☰),
+# which the manual uses for the menu buttons: map it to a three-bar ≡ rather
+# than let the PDF build stop on it. The \ifdefined guard keeps a xelatex or
+# lualatex build, which has no \DeclareUnicodeCharacter, working.
+
+latex_elements = {
+    "papersize": "a4paper",
+    "preamble": r"""
+\ifdefined\DeclareUnicodeCharacter
+  \DeclareUnicodeCharacter{2630}{\ensuremath{\equiv}}
+\fi
+""",
+}
+
 # -- Internationalisation ----------------------------------------------------
 # English is the source language. Translations live as gettext catalogues in
 # docs/locale/<lang>/LC_MESSAGES/, one .po file per document

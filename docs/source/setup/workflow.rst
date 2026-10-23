@@ -130,6 +130,51 @@ What goes where:
 - ``README.md`` and ``SETUP.md`` are included into these pages rather than
   copied; edit them in place.
 
+Publishing on Read the Docs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``.readthedocs.yaml`` describes the build: Python 3.13, the backend's
+requirements (autodoc imports the backend), Graphviz from apt for the
+diagrams, warnings as errors, and an HTML zip and a PDF besides the site.
+
+Each language is a **separate Read the Docs project** built from the same
+repository and the same ``.readthedocs.yaml``; Read the Docs builds a project
+with ``-D language=<its language>``. To set it up, in the Read the Docs
+dashboard:
+
+1. Import the repository as the main project (for example ``kanbanmf``), with
+   its language set to **English**.
+2. Import the same repository again as a second project (for example
+   ``kanbanmf-ca``), with its language set to **Catalan**.
+3. In the main project, under *Settings → Translations*, add ``kanbanmf-ca``.
+
+The Catalan project is then served under the main project's domain, at
+``/ca/latest/`` next to ``/en/latest/``, and Read the Docs' own menu offers
+both languages on every page. The local switcher in
+``_templates/layout.html`` is only drawn by ``make docs``, so it never doubles
+up with that menu.
+
+Check that a push rebuilds both projects. If the Catalan one doesn't, connect
+it to the repository the same way as the main one (its *Integrations*
+settings), or it will only rebuild when triggered by hand.
+
+The PDF
+~~~~~~~
+
+Read the Docs builds each language's PDF with ``pdflatex``. ``conf.py`` sets
+A4 paper and maps the ☰ menu icon, which ``pdflatex`` can't typeset, to ≡. To
+build a PDF locally you need TeX, which isn't otherwise part of the setup:
+
+.. code-block:: bash
+
+   sudo apt install latexmk texlive-latex-recommended texlive-latex-extra \
+                    texlive-fonts-recommended texlive-lang-european
+   cd docs
+   make latexpdf SPHINXBUILD=../.venv/bin/sphinx-build                    # English
+   make latexpdf SPHINXBUILD=../.venv/bin/sphinx-build O="-D language=ca" # Catalan
+
+The PDF is ``docs/build/latex/kanbanmf.pdf``.
+
 Screenshots
 ~~~~~~~~~~~
 

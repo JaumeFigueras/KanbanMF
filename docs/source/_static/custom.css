@@ -31,3 +31,47 @@
 .docs-languages a {
     color: #fcfcfc;
 }
+
+/* Landing page (index.rst): a large screenshot under the introduction, then
+   one block per feature, text and screenshot side by side, alternating
+   sides. On narrow screens each block stacks, text first. */
+.rst-content figure.hero img {
+    border: 1px solid #e1e4e5;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.rst-content .feature {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2em;
+    align-items: center;
+    margin: 2.5em 0;
+}
+.rst-content .feature.reverse .feature-text {
+    order: 2;
+}
+.rst-content .feature .rubric {
+    font-size: 125%;
+    margin-top: 0;
+}
+.rst-content .feature figure {
+    margin: 0;
+}
+.rst-content .feature-image {
+    text-align: center;
+}
+.rst-content .feature-image img {
+    max-height: 440px;
+    width: auto;
+    border: 1px solid #e1e4e5;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+@media (max-width: 768px) {
+    .rst-content .feature {
+        grid-template-columns: 1fr;
+    }
+    .rst-content .feature.reverse .feature-text {
+        order: 0;
+    }
+}

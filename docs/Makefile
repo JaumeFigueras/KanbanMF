@@ -23,13 +23,17 @@ help:
 
 .PHONY: help Makefile site po
 
+# Warnings are errors here (-W), as on Read the Docs (fail_on_warning in
+# .readthedocs.yaml); --keep-going reports all of them before failing.
+STRICT        = -W --keep-going
+
 # Every language, side by side in $(BUILDDIR)/site/<lang>/ with a language
 # switcher, and a root index.html that sends you to English. Each language
 # keeps its own doctrees so switching between them doesn't force a full
 # rebuild.
 site:
 	@for lang in $(LANGUAGES); do \
-		$(SPHINXBUILD) -b html -d "$(BUILDDIR)/doctrees/$$lang" \
+		$(SPHINXBUILD) -b html -d "$(BUILDDIR)/doctrees/$$lang" $(STRICT) \
 			-D language=$$lang -A docs_switcher=1 $(SPHINXOPTS) $(O) \
 			"$(SOURCEDIR)" "$(BUILDDIR)/site/$$lang" || exit 1; \
 	done
@@ -42,7 +46,7 @@ site:
 # arrive marked fuzzy with the old translation as a starting point. Only the
 # catalogues in PO_SCOPE are carried over.
 po:
-	@$(SPHINXBUILD) -b gettext -d "$(BUILDDIR)/doctrees/gettext" $(SPHINXOPTS) $(O) \
+	@$(SPHINXBUILD) -b gettext -d "$(BUILDDIR)/doctrees/gettext" $(STRICT) $(SPHINXOPTS) $(O) \
 		"$(SOURCEDIR)" "$(BUILDDIR)/gettext"
 	@rm -rf "$(BUILDDIR)/gettext-scope" && mkdir -p "$(BUILDDIR)/gettext-scope"
 	@cd "$(BUILDDIR)/gettext" && cp -r --parents $(PO_SCOPE) ../gettext-scope/

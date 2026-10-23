@@ -46,6 +46,20 @@
   doesn't check access, so they keep getting due-date e-mails about a board they can no longer open. Skip
   recipients who are neither owner nor shared in `core/notifications.py`, and/or drop them from the board's
   cards when the share is deleted.
+- Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
+  can be signed in to an attacker's account. Generate a random state, keep it in a short-lived cookie, and check
+  it in the callback.
+- `/auth/local/refresh` runs bcrypt against every active session of every user to find the matching one, so each
+  refresh gets slower as sessions accumulate. Store a lookup key (e.g. a session id in the cookie, or a SHA-256 of
+  the token) and bcrypt-check only that row.
+- A due-date reminder that fails to send is never retried: the comment in `core/notifications.py` says the next
+  hourly tick retries it, but the job only processes a setting when the local hour equals `notify_hour`.
+- `frontend/package.json` lists `@anthropic-ai/claude-code` under `dependencies`, so every `npm install`,
+  production included, downloads it. Remove it (or move it to `devDependencies`).
+- `make deploy` doesn't run `pip install -r backend/requirements.txt` or `npm install`, so an update that adds a
+  dependency breaks the deploy.
+- The database comment on `user_preferences.user_id` says "Deleting the user also deletes the avatar" (copied from
+  `UserAvatar`). Fix the model's `comment`, add a migration and regenerate `src/model/sql/`.
 
 ## FUTURE
 

@@ -13,8 +13,8 @@ build:
 
 sphinx:
   configuration: docs/source/conf.py
-  # Flip to true once the build is warning-free in CI to keep it that way.
-  fail_on_warning: false
+  # The build is warning-free; keep it that way (make docs uses -W too).
+  fail_on_warning: true
 
 python:
   install:
