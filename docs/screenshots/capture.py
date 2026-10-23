@@ -209,6 +209,16 @@ def board_tile_menu(s: Shooter) -> None:
 
 
 @shot
+def color_picker(s: Shooter) -> None:
+    s.goto("/boards")
+    s.open_tile_menu(s.text["main"])
+    s.menu_item("boards.changeBoardColor").click()
+    s.settle()
+    s.save("color-picker", s.dialog())
+    s.escape()
+
+
+@shot
 def create_board(s: Shooter) -> None:
     s.goto("/boards")
     s.button("boards.createNewBoard").click()

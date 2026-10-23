@@ -76,7 +76,8 @@ Each tile has a menu (☰) at its top right.
 
 :guilabel:`Change Color`
    Pick the board's colour, or :guilabel:`Reset to default`. The colour tints
-   the tile and the board itself, and is only what *you* see.
+   the tile and the board itself, and is only what *you* see (see
+   :ref:`manual-colours`).
 
 :guilabel:`Share`
    Share the board with other people — see :doc:`sharing`. Owner only.
@@ -156,7 +157,7 @@ the list menu (☰).
 
 :guilabel:`Change Color`
    The list's colour, again only for you. New cards you add to a coloured
-   list take its colour.
+   list take its colour (see :ref:`manual-colours`).
 
 :guilabel:`Archive List`
    Hide the list, with all its cards, from the board.

@@ -14,7 +14,7 @@
 - ✓ Disable mails in weekends
 - Search
 - User manual
-  - Explain how colours work for boards, lists and cards: per user, what each one tints, list colour inherited
+  - ✓ Explain how colours work for boards, lists and cards: per user, what each one tints, list colour inherited
     by new cards, board/list colours copied from a template, reset to default
 
 ## Functionality

@@ -125,7 +125,8 @@ The card menu
    Open the card dialog.
 
 :guilabel:`Change Color`
-   Tint the card. As with boards and lists, the colour is only what you see.
+   Tint the card. As with boards and lists, the colour is only what you see
+   (see :ref:`manual-colours`).
 
 :guilabel:`Copy Card`
    Make a copy, in any list of any board you have access to.
