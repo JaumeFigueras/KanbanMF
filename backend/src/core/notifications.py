@@ -20,6 +20,7 @@ from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_notification_offset import BoardNotificationOffset
 from src.model.board_notification_settings import BoardNotificationSettings, mask_to_weekdays
+from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.card_assignee import CardAssignee
 from src.model.card_due_notification import CardDueNotification
@@ -87,15 +88,32 @@ async def send_due_date_notifications() -> None:
                 users_cache[user_id] = result.scalar_one_or_none()
             return users_cache[user_id]
 
+        async def has_access(board, user_id):
+            if board.owner_id == user_id:
+                return True
+            result = await db.execute(
+                select(BoardShare.user_id).where(
+                    BoardShare.board_id == board.id,
+                    BoardShare.user_id == user_id,
+                )
+            )
+            return result.scalar_one_or_none() is not None
+
         for settings_row in all_settings:
             board = await get_board(settings_row.board_id)
             # The API keeps cards and notification settings off templates;
             # skipping them here as well means the job never relies on that.
-            if board is None or board.is_deleted or board.is_template:
+            if board is None or board.is_deleted or board.is_archived or board.is_template:
                 continue
 
             recipient = await get_user(settings_row.user_id)
             if recipient is None:
+                continue
+
+            # Removing someone from a board deletes their settings for it, so
+            # this only guards against a row left behind: never e-mail about
+            # a board the recipient can no longer open.
+            if not await has_access(board, recipient.id):
                 continue
 
             prefs = await get_prefs(settings_row.user_id)
@@ -123,13 +141,17 @@ async def send_due_date_notifications() -> None:
             offsets = set(offsets_result.scalars().all())
 
             # Only cards on this board where settings_row.user_id is
-            # themselves an assignee — never any other assignee on the card.
+            # themselves an assignee — never any other assignee on the card —
+            # and only live ones: a card on an archived or deleted list is as
+            # gone from the board as an archived card.
             cards_result = await db.execute(
                 select(Card)
                 .join(BoardList, Card.list_id == BoardList.id)
                 .join(CardAssignee, CardAssignee.card_id == Card.id)
                 .where(
                     BoardList.board_id == settings_row.board_id,
+                    BoardList.is_archived.is_(False),
+                    BoardList.is_deleted.is_(False),
                     CardAssignee.user_id == settings_row.user_id,
                     Card.is_archived.is_(False),
                     Card.is_deleted.is_(False),

@@ -50,7 +50,10 @@ Only cards on that board that:
 - have you as an **assignee** — being a member is not enough;
 - have a due date and **no end date** — once a card has an end date it is
   finished and the reminders stop;
-- are not archived.
+- are not archived, and are not on an archived list or an archived board.
+
+You are only reminded about boards you can open: when the owner removes you
+from a board, your reminders for it are switched off.
 
 Each e-mail is about one card. Its subject names the card and the board and
 says how the card stands — due in a number of days, due today, or a number

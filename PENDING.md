@@ -13,7 +13,7 @@
 - ✓ Invite to a board
 - ✓ Disable mails in weekends
 - Search
-- User manual
+- ✓ User manual
   - ✓ Explain how colours work for boards, lists and cards: per user, what each one tints, list colour inherited
     by new cards, board/list colours copied from a template, reset to default
 
@@ -42,10 +42,10 @@
 - ✓ Upload avatar does not change the initials on the board page
 - ✓ When changed to light theme the colors of the list and cards are not kept
 - ✓ When copying a card the Title is not used as starting point 
-- Removing a user from a shared board leaves them as member/assignee of its cards, and the hourly reminder job
-  doesn't check access, so they keep getting due-date e-mails about a board they can no longer open. Skip
-  recipients who are neither owner nor shared in `core/notifications.py`, and/or drop them from the board's
-  cards when the share is deleted.
+- ✓ Removing a user from a shared board leaves them as member/assignee of its cards, and the hourly reminder job
+  doesn't check access, so they keep getting due-date e-mails about a board they can no longer open. Their cards
+  are now archived and replaced by copies with the remover in their place (`core/card_replacement.py`), and the
+  job skips archived lists/boards and recipients without access.
 - ✓ Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
   can be signed in to an attacker's account. Generate a random state, keep it in a short-lived cookie, and check
   it in the callback.

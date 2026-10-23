@@ -112,6 +112,13 @@ class BoardShareCreate(BaseModel):
     user_id: uuid.UUID
 
 
+class BoardShareImpact(BaseModel):
+    """What removing someone from a board will do: how many of its cards
+    they are on, which will be archived and replaced by copies without them."""
+
+    card_count: int
+
+
 class OverdueListRead(BaseModel):
     """One list on the overdue-tasks page, carrying only its overdue cards.
 

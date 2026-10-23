@@ -153,6 +153,9 @@ export interface CardRead {
   members: PersonSummary[]
   assignees: PersonSummary[]
   checklists: ChecklistRead[]
+  // Set on an archived card that was replaced by a copy when someone on it
+  // was removed from the board; such a card can't be restored.
+  replaced_by_id: string | null
   created_at: string
   updated_at: string
 }

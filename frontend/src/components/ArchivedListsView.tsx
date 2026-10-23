@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Card,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -25,6 +26,7 @@ import { apiFetch } from '../api/client'
 import type { BoardListRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import CardFace from './CardFace'
+import CopyCardDialog from './CopyCardDialog'
 
 interface Props {
   boardId: string
@@ -34,6 +36,8 @@ interface Props {
   dateFormat: DateFormat
   isOwner: boolean
   onReturn: () => void
+  // Leaves the archive view and opens a card on the board.
+  onOpenCard: (cardId: string) => void
 }
 
 interface ListColumn {
@@ -47,6 +51,13 @@ type ItemTarget =
   | { type: 'list'; id: string; listId: string; name: string }
   | { type: 'card'; id: string; listId: string; name: string }
 
+// Why the backend refused to restore a card (409 from cards.py's
+// _check_restorable): it was replaced when someone on it was removed from
+// the board, or it holds people who have left the board since it was archived.
+type RestoreBlock =
+  | { kind: 'replaced'; replacedById: string | null }
+  | { kind: 'formerPeople'; names: string[]; card: ItemTarget }
+
 export default function ArchivedListsView({
   boardId,
   boardName,
@@ -55,6 +66,7 @@ export default function ArchivedListsView({
   dateFormat,
   isOwner,
   onReturn,
+  onOpenCard,
 }: Props) {
   const { t } = useTranslation()
   const [archivedLists, setArchivedLists] = useState<BoardListRead[]>([])
@@ -63,6 +75,8 @@ export default function ArchivedListsView({
   const [menuTarget, setMenuTarget] = useState<ItemTarget | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ItemTarget | null>(null)
   const [deleteError, setDeleteError] = useState(false)
+  const [restoreBlock, setRestoreBlock] = useState<RestoreBlock | null>(null)
+  const [copyTarget, setCopyTarget] = useState<ItemTarget | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -136,6 +150,13 @@ export default function ArchivedListsView({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_archived: false }),
     })
+    if (r.status === 409) {
+      const detail = (await r.json()).detail
+      setRestoreBlock(detail.code === 'card_replaced'
+        ? { kind: 'replaced', replacedById: detail.replaced_by_id }
+        : { kind: 'formerPeople', names: detail.names, card: target })
+      return
+    }
     if (!r.ok) return
 
     if (target.type === 'list') {
@@ -236,6 +257,53 @@ export default function ArchivedListsView({
         </DialogActions>
       </Dialog>
 
+      <Dialog open={Boolean(restoreBlock)} onClose={() => setRestoreBlock(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          {t(restoreBlock?.kind === 'replaced' ? 'board.cardReplacedTitle' : 'board.formerPeopleTitle')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {restoreBlock?.kind === 'replaced'
+              ? t('board.cardReplacedMessage')
+              : t('board.formerPeopleMessage', { names: restoreBlock?.names.join(', ') ?? '' })}
+          </DialogContentText>
+          {restoreBlock?.kind === 'replaced' && !restoreBlock.replacedById && (
+            <DialogContentText sx={{ mt: 1.5 }}>{t('board.cardReplacedGone')}</DialogContentText>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRestoreBlock(null)}>{t('common.close')}</Button>
+          {restoreBlock?.kind === 'replaced' && restoreBlock.replacedById && (
+            <Button variant="contained" onClick={() => onOpenCard(restoreBlock.replacedById ?? '')}>
+              {t('board.openCurrentCard')}
+            </Button>
+          )}
+          {restoreBlock?.kind === 'formerPeople' && (
+            <Button
+              variant="contained"
+              onClick={() => {
+                setCopyTarget(restoreBlock.card)
+                setRestoreBlock(null)
+              }}
+            >
+              {t('board.copyCard')}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {copyTarget && (
+        <CopyCardDialog
+          open
+          onClose={() => setCopyTarget(null)}
+          boardId={boardId}
+          listId={copyTarget.listId}
+          cardId={copyTarget.id}
+          cardName={copyTarget.name}
+          onCopied={() => setCopyTarget(null)}
+        />
+      )}
+
       {columns.length === 0 ? (
         <Box sx={{ p: 3 }}>
           <Typography variant="body2" color="text.secondary">{t('board.noArchivedLists')}</Typography>
@@ -300,15 +368,22 @@ export default function ArchivedListsView({
                         // own — restoring/deleting the list covers all of
                         // them together. Only a card archived individually
                         // (its list still active) gets its own menu.
-                        headerActions={column.archived ? undefined : (
-                          <IconButton
-                            size="small"
-                            aria-label={t('board.cardMenu')}
-                            onClick={(e) => openMenu(e, { type: 'card', id: card.id, listId: column.listId, name: card.name })}
-                          >
-                            <HamburgerIcon sx={{ fontSize: 22 }} />
-                          </IconButton>
-                        )}
+                        headerActions={
+                          <>
+                            {card.replaced_by_id && (
+                              <Chip label={t('board.replaced')} size="small" variant="outlined" sx={{ mr: 0.5 }} />
+                            )}
+                            {!column.archived && (
+                              <IconButton
+                                size="small"
+                                aria-label={t('board.cardMenu')}
+                                onClick={(e) => openMenu(e, { type: 'card', id: card.id, listId: column.listId, name: card.name })}
+                              >
+                                <HamburgerIcon sx={{ fontSize: 22 }} />
+                              </IconButton>
+                            )}
+                          </>
+                        }
                       />
                     </Card>
                   ))

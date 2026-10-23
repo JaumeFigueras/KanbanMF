@@ -31,6 +31,9 @@ class Card(Base):
 
     Deletion and archiving are soft-flags; the API filters them at query time.
     creator_id is nullable so that cards survive if the creator account is deleted.
+    replaced_by_id marks an archived card that was replaced by a copy when
+    someone on it lost access to the board (see src.core.card_replacement);
+    such a card can't be restored.
     """
 
     __tablename__ = "cards"
@@ -54,6 +57,13 @@ class Card(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+
+    replaced_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cards.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="The card that replaced this archived one when someone on it lost access to the board.",
     )
 
     name: Mapped[str] = mapped_column(

@@ -3,6 +3,7 @@ CREATE TABLE cards (
 	id UUID NOT NULL, 
 	list_id UUID NOT NULL, 
 	creator_id UUID, 
+	replaced_by_id UUID, 
 	name VARCHAR(255) NOT NULL, 
 	description TEXT, 
 	is_archived BOOLEAN DEFAULT 'false' NOT NULL, 
@@ -14,7 +15,8 @@ CREATE TABLE cards (
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (id), 
 	FOREIGN KEY(list_id) REFERENCES board_lists (id) ON DELETE CASCADE, 
-	FOREIGN KEY(creator_id) REFERENCES users (id) ON DELETE SET NULL
+	FOREIGN KEY(creator_id) REFERENCES users (id) ON DELETE SET NULL, 
+	FOREIGN KEY(replaced_by_id) REFERENCES cards (id) ON DELETE SET NULL
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_cards_id ON cards (id);

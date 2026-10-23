@@ -252,6 +252,25 @@ def share_dialog(s: Shooter) -> None:
     s.escape()
 
 
+def open_remove_confirm(s: Shooter) -> None:
+    """Open the main board's share dialog and click the colleague's avatar."""
+    s.goto("/boards")
+    s.open_tile_menu(s.text["main"])
+    s.menu_item("boards.shareBoard").click()
+    s.settle()
+    s.dialog().locator(f'[aria-label="{USERS[s.lang][1][1]}"]').click()
+    s.settle()
+
+
+@shot
+def share_remove(s: Shooter) -> None:
+    open_remove_confirm(s)
+    s.save("share-remove", s.dialog())
+    s.button("common.cancel", s.dialog()).click()
+    s.settle(300)
+    s.escape()
+
+
 @shot
 def notifications(s: Shooter) -> None:
     s.goto("/boards")
@@ -453,6 +472,29 @@ def board_dark(s: Shooter) -> None:
         s.goto("/boards")
         open_user_menu(s)
         s.menu_item("boards.changeToLight").click()
+
+
+# -- Last, because it changes the demo data -----------------------------------
+# Removing the colleague replaces every card they are on; the next run of
+# make screenshots seeds the board again.
+
+
+@shot
+def card_replaced(s: Shooter) -> None:
+    open_remove_confirm(s)
+    s.button("boards.remove", s.dialog()).click()
+    s.settle()
+    s.escape()
+    s.open_board()
+    s.button("board.archive").click()
+    s.settle(900)
+    replaced = s.page.locator(".MuiCard-root", has=s.page.get_by_text(s.t("board.replaced"), exact=True)).first
+    s.labelled("board.cardMenu", replaced).click()
+    s.settle(300)
+    s.menu_item("board.restore").click()
+    s.settle()
+    s.save("card-replaced", s.dialog())
+    s.escape()
 
 
 def main() -> None:

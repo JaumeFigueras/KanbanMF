@@ -58,6 +58,9 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   const [searchResults, setSearchResults] = useState<PersonSummary[]>([])
   const [searching, setSearching] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<PersonSummary | null>(null)
+  // How many cards removing removeTarget will archive and replace; null
+  // while it loads, or if it couldn't be fetched.
+  const [removeCardCount, setRemoveCardCount] = useState<number | null>(null)
   const [cancelTarget, setCancelTarget] = useState<BoardInvitationRead | null>(null)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(false)
@@ -130,6 +133,16 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       }
     })
   }, [open, board, loadShares])
+
+  useEffect(() => {
+    if (!removeTarget || !board) return
+    let cancelled = false
+    apiFetch(`/api/v1/boards/${board.id}/shares/${removeTarget.id}/impact`)
+      .then((r) => r.ok ? r.json() as Promise<{ card_count: number }> : null)
+      .then((impact) => { if (!cancelled) setRemoveCardCount(impact?.card_count ?? null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [removeTarget, board])
 
   useEffect(() => {
     const term = searchTerm.trim()
@@ -229,7 +242,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       )
       if (!r.ok) throw new Error()
       setSharedPeople((prev) => prev.filter((p) => p.id !== removeTarget.id))
-      setRemoveTarget(null)
+      closeRemoveConfirm()
     } catch {
       setRemoveError(t('common.saveError'))
     } finally {
@@ -259,6 +272,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
 
   function closeRemoveConfirm() {
     setRemoveTarget(null)
+    setRemoveCardCount(null)
     setRemoveError(null)
   }
 
@@ -481,6 +495,11 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
           <Typography variant="body2">
             {t('boards.removeShareConfirmMessage', { name: removeTarget?.display_name ?? '' })}
           </Typography>
+          {Boolean(removeCardCount) && (
+            <Typography variant="body2" sx={{ mt: 1.5 }}>
+              {t('boards.removeShareCards', { count: removeCardCount ?? 0 })}
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={closeRemoveConfirm} color="inherit" disabled={removing}>

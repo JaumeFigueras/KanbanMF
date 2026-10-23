@@ -622,6 +622,17 @@ export default function Board() {
     )
   }
 
+  // Restoring/deleting in the archive view can change what the board looks
+  // like (a restored list needs to reappear, a deleted card's stale cache
+  // needs to go) — force a full refetch instead of showing whatever was
+  // cached before.
+  function returnFromArchive() {
+    setShowArchive(false)
+    fetchLists()
+    setCardsByList({})
+    setOrderByList({})
+  }
+
   if (showArchive) {
     return (
       <>
@@ -638,15 +649,14 @@ export default function Board() {
           numberLocale={numberLocale}
           dateFormat={dateFormat}
           isOwner={isOwner}
-          onReturn={() => {
-            // Restoring/deleting in the archive view can change what the
-            // board looks like (a restored list needs to reappear, a
-            // deleted card's stale cache needs to go) — force a full
-            // refetch instead of showing whatever was cached before.
-            setShowArchive(false)
-            fetchLists()
-            setCardsByList({})
-            setOrderByList({})
+          onReturn={returnFromArchive}
+          onOpenCard={(cardId) => {
+            returnFromArchive()
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev)
+              next.set('card', cardId)
+              return next
+            })
           }}
         />
       </>

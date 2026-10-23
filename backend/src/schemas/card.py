@@ -75,6 +75,9 @@ class CardRead(BaseModel):
     members: list[PersonRead]
     assignees: list[PersonRead]
     checklists: list[ChecklistRead]
+    # Set on an archived card that was replaced by a copy when someone on it
+    # lost access to the board; such a card can't be restored.
+    replaced_by_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

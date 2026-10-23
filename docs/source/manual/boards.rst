@@ -206,3 +206,28 @@ are still on the board.
 Use a list's or a card's menu (☰) to :guilabel:`Restore` it to the board.
 The board's owner can also delete it permanently from the same menu; that
 can't be undone. :guilabel:`Return to Board` takes you back.
+
+Cards and people who left the board
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When someone is removed from a board, the cards they are on are archived and
+replaced by copies without them (see :doc:`sharing`). In the archive, those
+originals are marked :guilabel:`Replaced`, and they can never be restored:
+the copy is already on the board. Trying to restore one explains why, and
+:guilabel:`Open the current card` takes you to the copy.
+
+.. figure:: img/card-replaced.png
+   :alt: The dialog that explains a card was replaced, with a button to open
+         the current card.
+
+   A replaced card can't be restored.
+
+An archived card can also hold someone who was removed while it was
+archived. It can't be restored as it is either; the dialog names the people
+who left, and :guilabel:`Copy Card` makes a copy without them instead. If
+they are given access to the board again, the card can be restored.
+
+Restoring an archived list works differently, since it brings back all its
+cards at once: the list is restored, and any of its cards that holds people
+who left the board is replaced as described above, with you taking their
+place.

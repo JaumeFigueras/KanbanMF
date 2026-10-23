@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_client_id, get_current_user, get_db
+from src.core.card_replacement import replace_cards_with_former_people
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
@@ -204,6 +205,11 @@ async def update_board_list(
             # can't clobber a card that had already been archived on its own.
         elif not body.is_archived and was_archived:
             events.append("list_unarchived")
+            # People may have left the board while the list was archived:
+            # its cards that hold any of them are replaced, the restoring
+            # user taking their place (see src.core.card_replacement).
+            if await replace_cards_with_former_people(board, list_id, current_user, db):
+                events.append("card_created")
             # Restoring: append back to the board's list order.
             await db.execute(
                 pg_insert(UIBoardListOrder).values(
@@ -224,7 +230,11 @@ async def update_board_list(
     if events:
         recipients = await board_recipients(board_id, board.owner_id, db)
         for event in events:
-            await manager.notify_many(recipients, board_notification(event, board_id, client_id))
+            # Card events name the list whose cards to refetch.
+            event_list_id = list_id if event.startswith("card_") else None
+            await manager.notify_many(
+                recipients, board_notification(event, board_id, client_id, list_id=event_list_id)
+            )
 
     return BoardListRead.model_validate(board_list)
 

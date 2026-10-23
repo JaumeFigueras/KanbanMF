@@ -197,6 +197,19 @@ Boards, lists, cards
    ``CardMember``, ``CardAssignee`` and ``CardLabel`` are plain association
    tables.
 
+   No live card holds someone without access to its board. Removing a share
+   runs :mod:`src.core.card_replacement` in the same transaction: each live
+   card the person is a member or assignee of is archived untouched, as
+   history, and a copy without them — the owner in their place, everyone's
+   colours and the card's position copied — takes its place. The archived
+   original's ``replaced_by_id`` points to the copy, and the restore route
+   refuses such a card for good (``409``, code ``card_replaced``). An
+   archived card holding someone who has left is refused too (code
+   ``former_people``) until they are back, but can be copied, since the copy
+   route only keeps people on the target board. Restoring an archived list
+   replaces its cards the same way, with whoever restores it in the
+   leavers' place.
+
 Per-user personalisation
    Colours (``UIBoardColor``, ``UIListColor``, ``UICardColor``) and the order
    of the boards page (``UIBoardOrder``) are stored per user, so the owner's
@@ -310,7 +323,9 @@ and settings. Each opens its own database session.
    * - Due-date reminders (:mod:`src.core.notifications`)
      - every hour, on the hour
      - For every enabled setting whose hour it is in its owner's time zone,
-       on an allowed weekday: e-mail them about the cards they are an
+       on an allowed weekday: e-mail them about the live cards (not
+       archived, nor on an archived or deleted list or an archived board)
+       of a board they can open that they are an
        assignee of, with no end date, whose due date matches a reminder day
        or the overdue repeat. ``CardDueNotification`` makes it safe to run
        twice: at most one e-mail per card, recipient and day. A send that

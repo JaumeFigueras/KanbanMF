@@ -80,12 +80,33 @@ differently, and neither of them changes what the other sees.
 Removing someone
 ----------------
 
-In the share dialog, click the person's avatar under :guilabel:`Shared with`
-and confirm. They lose access straight away, and the board disappears from
-their overview.
+In the share dialog, click the person's avatar under :guilabel:`Shared with`.
+The confirmation tells you how many of the board's cards they are on.
 
-They are not taken off the cards they were a member or assignee of: those
-cards still show them.
+.. figure:: img/share-remove.png
+   :alt: The confirmation to remove someone from a board, saying how many
+         cards they are on and what will happen to them.
+
+   Removing someone who is on seven cards.
+
+When you confirm, they lose access straight away, the board disappears from
+their overview, and their e-mail reminders for it are switched off. Then, so
+that the board holds no one who can't open it, each card they are a member
+or assignee of is **replaced**:
+
+- the card is archived exactly as it was, people included, to keep its
+  history;
+- a copy takes its place, in the same list and position, with the same
+  name, description, dates, labels and checklists, and with everyone's
+  colours. On the copy, **you take their place** as member or assignee, and
+  you are its creator.
+
+Only cards still on the board are replaced: archived cards, and the cards of
+an archived list, keep the person. See :ref:`manual-archive` for what happens
+when you try to restore one of them.
+
+A card on which they only appear as the creator is not replaced, and still
+shows them as its creator.
 
 Working at the same time
 ------------------------

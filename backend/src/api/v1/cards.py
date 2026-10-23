@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.deps import get_client_id, get_current_user, get_db, reject_if_template
+from src.core.card_replacement import board_user_ids, former_people
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
@@ -186,6 +187,7 @@ def _card_to_read(card: Card, people_by_id: dict[uuid.UUID, PersonRead]) -> Card
         members=[people_by_id[u.id] for u in card.members if u.id in people_by_id],
         assignees=[people_by_id[u.id] for u in card.assignees if u.id in people_by_id],
         checklists=[ChecklistRead.model_validate(cl) for cl in card.checklists],
+        replaced_by_id=card.replaced_by_id,
         created_at=card.created_at,
         updated_at=card.updated_at,
     )
@@ -413,6 +415,41 @@ async def copy_card(
     return _card_to_read(new_card, people_by_id)
 
 
+async def _check_restorable(card: Card, board: Board, db: AsyncSession) -> None:
+    """Refuse to restore an archived card that was replaced, or that holds
+    people who no longer have access to the board.
+
+    Both answer 409 with a ``code`` the frontend explains: ``card_replaced``
+    carries the replacement (when it's still on the board, so it can be
+    opened), ``former_people`` the names of the people who left. The second
+    can still be copied: the copy leaves those people out.
+    """
+    if card.replaced_by_id is not None:
+        replacement_result = await db.execute(
+            select(Card.list_id).where(
+                Card.id == card.replaced_by_id,
+                Card.is_archived.is_(False),
+                Card.is_deleted.is_(False),
+            )
+        )
+        replacement_list_id = replacement_result.scalar_one_or_none()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "card_replaced",
+                "replaced_by_id": str(card.replaced_by_id) if replacement_list_id else None,
+                "replaced_by_list_id": str(replacement_list_id) if replacement_list_id else None,
+            },
+        )
+
+    gone = former_people(card, await board_user_ids(board, db))
+    if gone:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "former_people", "names": [u.display_name for u in gone]},
+        )
+
+
 @router.patch("/{card_id}", response_model=CardRead)
 async def update_card(
     board_id: uuid.UUID,
@@ -453,6 +490,9 @@ async def update_card(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Start date cannot be after end date.",
         )
+
+    if body.is_archived is False and card.is_archived:
+        await _check_restorable(card, board, db)
 
     if body.name is not None:
         card.name = body.name

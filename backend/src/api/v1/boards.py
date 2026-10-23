@@ -23,10 +23,12 @@ from src.api.v1.cards import (
     _card_to_read,
     _people_by_id,
 )
+from src.core.card_replacement import count_cards_of, replace_cards_of
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.board_list import BoardList
+from src.model.board_notification_settings import BoardNotificationSettings
 from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.ui_board_color import UIBoardColor
@@ -44,6 +46,7 @@ from src.schemas.board import (
     BoardOrderUpdate,
     BoardRead,
     BoardShareCreate,
+    BoardShareImpact,
     BoardUpdate,
     BoardsResponse,
     OverdueBoardRead,
@@ -795,28 +798,71 @@ async def delete_board_share(
     db: AsyncSession = Depends(get_db),
     client_id: str | None = Depends(get_client_id),
 ) -> None:
-    """Revoke a user's shared access to the board. Only the board owner may do this."""
-    board = await _check_board_access(board_id, current_user, db)
-    if board.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can modify sharing")
+    """Revoke a user's shared access to the board. Only the board owner may do this.
 
-    result = await db.execute(
-        select(BoardShare).where(
-            BoardShare.board_id == board_id,
-            BoardShare.user_id == user_id,
-        )
-    )
-    share = result.scalar_one_or_none()
-    if share is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board is not shared with this user")
+    Every live card the user is a member or assignee of is archived and
+    replaced by a copy with the owner in their place (see
+    src.core.card_replacement), and the user's e-mail reminders for the board
+    are switched off — all in the same transaction as the share itself.
+    """
+    board = await _check_board_access(board_id, current_user, db)
+    share = await _get_share_as_owner(board, user_id, current_user, db)
 
     await db.delete(share)
+    changed_list_ids = await replace_cards_of(board_id, user_id, current_user, db)
+    await db.execute(
+        delete(BoardNotificationSettings).where(
+            BoardNotificationSettings.board_id == board_id,
+            BoardNotificationSettings.user_id == user_id,
+        )
+    )
     await db.commit()
 
     await manager.notify_many(
         {current_user.id, user_id},
         board_notification("board_unshared", board_id, client_id),
     )
+    if changed_list_ids:
+        # No origin client: the owner's own open copy of the board must
+        # refetch too, since the share dialog doesn't touch its cards.
+        recipients = await board_recipients(board_id, board.owner_id, db)
+        for list_id in changed_list_ids:
+            await manager.notify_many(
+                recipients, board_notification("card_created", board_id, None, list_id=list_id)
+            )
+
+
+@router.get("/{board_id}/shares/{user_id}/impact", response_model=BoardShareImpact)
+async def get_board_share_impact(
+    board_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BoardShareImpact:
+    """How many cards removing the user would archive and replace, for the
+    confirmation message. Only the board owner may ask."""
+    board = await _check_board_access(board_id, current_user, db)
+    await _get_share_as_owner(board, user_id, current_user, db)
+    return BoardShareImpact(card_count=await count_cards_of(board_id, user_id, db))
+
+
+async def _get_share_as_owner(
+    board: Board, user_id: uuid.UUID, current_user: User, db: AsyncSession
+) -> BoardShare:
+    """Return the board's share with the user; only the owner may manage shares."""
+    if board.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can modify sharing")
+
+    result = await db.execute(
+        select(BoardShare).where(
+            BoardShare.board_id == board.id,
+            BoardShare.user_id == user_id,
+        )
+    )
+    share = result.scalar_one_or_none()
+    if share is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board is not shared with this user")
+    return share
 
 
 @router.patch("/{board_id}", response_model=BoardRead)
