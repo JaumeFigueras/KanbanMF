@@ -1,0 +1,54 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "User manual"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "**Section overview.** Planned contents:"
+msgstr ""
+
+msgid "Who this section is for: people using KanbanMF, not people developing it."
+msgstr ""
+
+msgid ""
+"The vocabulary the rest of the manual uses: board, template, list, card, "
+"checklist, label, member, assignee, time entry."
+msgstr ""
+
+msgid ""
+"A screenshot-led tour of the main screens: the boards overview, a single "
+"board, the overdue tasks page and the time tracker."
+msgstr ""
+
+msgid ""
+"The top bar: the user menu (profile, preferences, theme, sign out) and "
+"the timer icon that opens the time tracker."
+msgstr ""
+
+msgid ""
+"Screenshots are worth the effort here. They will be captured "
+"automatically from a seeded demo database, once per language, into "
+"``manual/img/``."
+msgstr ""
+

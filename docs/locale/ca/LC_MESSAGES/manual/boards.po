@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Boards and lists"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid ""
+"The boards overview and its sections: Starred, My Boards, Shared with me "
+"and Templates. Each section can be collapsed, and the choice is "
+"remembered."
+msgstr ""
+
+msgid ""
+"Creating a board, empty or from a template (with a preview of the lists "
+"the template will create — see :doc:`templates`)."
+msgstr ""
+
+msgid ""
+"The menu on a board's tile in the overview: renaming, changing the colour"
+" (or resetting it to the default), starring, sharing (see :doc:`sharing`)"
+" and e-mail notifications (see :doc:`notifications`)."
+msgstr ""
+
+msgid ""
+"Reordering boards on the overview by drag and drop; the order, the "
+"colours and the stars are yours alone."
+msgstr ""
+
+msgid ""
+"Archiving a board, the \"Show Archived Boards\" view, restoring a board, "
+"and deleting one permanently — only possible from the archive."
+msgstr ""
+
+msgid ""
+"Inside a board, the board menu: adding a list, managing labels, sorting "
+"the cards (custom order, due date, A-Z, Z-A — remembered per board, in "
+"this browser), e-mail notifications, and the archive."
+msgstr ""
+
+msgid ""
+"Lists: adding, renaming, recolouring and reordering them by drag and "
+"drop. The list menu: archiving every card in the list at once, archiving "
+"the list."
+msgstr ""
+
+msgid ""
+"The \"Archived Lists & Cards\" view: restoring or permanently deleting an"
+" archived list or card."
+msgstr ""
+

@@ -1,6 +1,7 @@
 # KanbanMF — top-level convenience targets.
 #
-#   make docs            build the HTML documentation into docs/build/html
+#   make docs            build the HTML documentation, every language, into docs/build/site
+#   make docs-po         refresh the docs' translation catalogues (docs/locale/)
 #   make run backend     run the API dev server (auto-reloads)
 #   make run frontend    run the Vite dev server (HMR)
 #   make deploy          update a production checkout: pull, migrate, restart, build
@@ -14,13 +15,16 @@ VENV := $(CURDIR)/.venv/bin
 # one here and let the no-op rule below swallow it.
 TARGET := $(word 2,$(MAKECMDGOALS))
 
-.PHONY: help docs run backend frontend deploy
+.PHONY: help docs docs-po run backend frontend deploy
 
 help:
-	@sed -n '3,6p' $(MAKEFILE_LIST) | sed 's/^# \?//'
+	@sed -n '3,7p' $(MAKEFILE_LIST) | sed 's/^# \?//'
 
 docs:
-	$(MAKE) -C docs html SPHINXBUILD="$(VENV)/sphinx-build"
+	$(MAKE) -C docs site SPHINXBUILD="$(VENV)/sphinx-build"
+
+docs-po:
+	$(MAKE) -C docs po SPHINXBUILD="$(VENV)/sphinx-build" SPHINXINTL="$(VENV)/sphinx-intl"
 
 run:
 ifeq ($(TARGET),backend)

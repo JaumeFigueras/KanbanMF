@@ -1,0 +1,99 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Contents"
+msgstr ""
+
+msgid "Kanban MF documentation"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "**Landing page — what the project is.** Planned contents:"
+msgstr ""
+
+msgid ""
+"What KanbanMF is and who it is for; what \"Minimalist and Fast\" means in"
+" practice and which trade-offs follow from it."
+msgstr ""
+
+msgid ""
+"The feature set at a glance: boards, templates, lists, cards, checklists,"
+" labels, sharing and invitations, per-user colour/order preferences, due-"
+"date e-mail reminders, the overdue tasks page, the time tracker, real-"
+"time updates."
+msgstr ""
+
+msgid ""
+"Where to go next: :doc:`setup/index` to run it, :doc:`manual/index` to "
+"use it, :doc:`backend/index` / :doc:`frontend/index` to work on it."
+msgstr ""
+
+msgid "Licence and repository pointers."
+msgstr ""
+
+msgid "Source material: ``README.md`` at the repository root."
+msgstr ""
+
+msgid "The stack"
+msgstr ""
+
+msgid "**Landing page — the stack, in one screen.** Planned contents:"
+msgstr ""
+
+msgid ""
+"Backend: Python / FastAPI / SQLAlchemy 2.0 async / PostgreSQL / Alembic /"
+" APScheduler / WebSockets."
+msgstr ""
+
+msgid ""
+"Frontend: React 19 / TypeScript / Vite / Material UI / react-router / "
+"react-i18next / dnd-kit / dayjs."
+msgstr ""
+
+msgid ""
+"Deployment shape: single origin behind Apache, systemd units, PostgreSQL "
+"cluster."
+msgstr ""
+
+msgid ""
+"How the two halves talk to each other (REST + the notify-and-refetch "
+"WebSocket channel), and why there is no separate worker process."
+msgstr ""
+
+msgid ""
+"Keep this to an overview — the detail belongs in :doc:`backend/stack` and"
+" :doc:`frontend/stack`."
+msgstr ""
+
+msgid "Indices and tables"
+msgstr ""
+
+msgid ":ref:`genindex`"
+msgstr ""
+
+msgid ":ref:`modindex`"
+msgstr ""
+
+msgid ":ref:`search`"
+msgstr ""
+

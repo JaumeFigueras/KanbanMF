@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Personal preferences"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid "The \"Language and Localization\" dialog:"
+msgstr ""
+
+msgid "Display language: English or Catalan."
+msgstr ""
+
+msgid "Dates and times format (the locale), with a live example."
+msgstr ""
+
+msgid "Time zone, used for due dates and the reminder hour."
+msgstr ""
+
+msgid "Date display on cards: numeric or textual."
+msgstr ""
+
+msgid "Light and dark theme — remembered per browser, not per account."
+msgstr ""
+
+msgid "Board, list and card colours — and, again, that these are per user."
+msgstr ""
+

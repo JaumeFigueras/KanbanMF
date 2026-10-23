@@ -1,0 +1,58 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Accounts and signing in"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid ""
+"Signing up with a display name, an e-mail address and a password; the "
+"verification e-mail, and that signing in is refused until the address is "
+"verified."
+msgstr ""
+
+msgid ""
+"Signing up from an invitation link: the sign-up page says who invited you"
+" to which board, and the board appears under \"Shared with me\" once the "
+"address is verified. What an expired or cancelled invitation link shows."
+msgstr ""
+
+msgid ""
+"Signing in with Google: no verification step, and when the same address "
+"already has a local account, both ways of signing in lead to the same "
+"account."
+msgstr ""
+
+msgid ""
+"The user menu: changing the display name and initials (up to three "
+"letters or digits; blank means \"derived from the display name\"), "
+"changing the password, uploading or removing an avatar (JPEG, PNG, WebP "
+"or GIF, at most 100 KB)."
+msgstr ""
+
+msgid "Staying signed in across devices and tabs, and signing out."
+msgstr ""
+

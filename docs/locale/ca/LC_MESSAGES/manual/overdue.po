@@ -1,0 +1,50 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Overdue tasks"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid ""
+"Opening the overdue tasks page from the boards overview (\"Show Overdue "
+"Tasks\")."
+msgstr ""
+
+msgid ""
+"What it lists: every card past its due date and with no end date, on "
+"every board you can see (templates and anything archived left out). The "
+"same rule decides which cards get reminder e-mails."
+msgstr ""
+
+msgid ""
+"How it is laid out: grouped by board, most overdue cards first; the "
+"board's lists in their usual order; oldest due date first; your own "
+"colours, and the same card faces as on the board."
+msgstr ""
+
+msgid "Opening a card from there, and getting back to the boards."
+msgstr ""
+

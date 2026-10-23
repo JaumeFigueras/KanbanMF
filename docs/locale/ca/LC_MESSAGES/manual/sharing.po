@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Sharing a board"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid ""
+"Sharing a board with someone who already has an account: searching by "
+"name or e-mail address in the share dialog, and what they can do once "
+"shared."
+msgstr ""
+
+msgid ""
+"Inviting someone who has no account yet: their e-mail address, the "
+"language of the invitation e-mail, and what happens when they sign up "
+"(see :doc:`accounts`). What the dialog says when the address already "
+"belongs to a user. Invitations need the server to be able to send e-mail."
+msgstr ""
+
+msgid ""
+"Pending invitations: listing them, cancelling one, and their 30-day "
+"expiry."
+msgstr ""
+
+msgid ""
+"Which settings are per user rather than shared — colours, ordering and "
+"stars are yours alone, so two people can see the same board arranged "
+"differently."
+msgstr ""
+
+msgid ""
+"Removing someone's access (owner only), and what happens to the cards "
+"they are a member or assignee of."
+msgstr ""
+
+msgid ""
+"Seeing other people's changes as they happen (the live update behaviour),"
+" and what to expect when two people edit at once."
+msgstr ""
+

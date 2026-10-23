@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2026, Jaume Figueras
+# This file is distributed under the same license as the Kanban MF package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Kanban MF 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ca\n"
+"Language-Team: ca <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Due-date notifications"
+msgstr ""
+
+msgid "Todo"
+msgstr ""
+
+msgid "Planned contents:"
+msgstr ""
+
+msgid ""
+"Turning e-mail reminders on for a board, from the board menu — the opt-in"
+" is per user and per board, so nobody is subscribed on your behalf."
+msgstr ""
+
+msgid "Which cards are covered: the ones you are an assignee of."
+msgstr ""
+
+msgid "The notification hour, in your own time zone (see :doc:`preferences`)."
+msgstr ""
+
+msgid ""
+"The days relative to the due date that trigger a reminder (for example "
+"``-3, -1, 0, 1``), and the optional daily repeat once a card is more than"
+" a given number of days overdue."
+msgstr ""
+
+msgid ""
+"The weekdays e-mails may be sent on; a reminder falling on any other day "
+"is skipped, not postponed."
+msgstr ""
+
+msgid ""
+"What a reminder e-mail contains, and why you only ever get one per card "
+"per offset."
+msgstr ""
+
+msgid "Why nothing arrives when the deployment has no SMTP configured."
+msgstr ""
+

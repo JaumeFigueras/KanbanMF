@@ -176,3 +176,32 @@ html_theme_options = {
 }
 
 html_show_sourcelink = True
+
+# -- Internationalisation ----------------------------------------------------
+# English is the source language. Translations live as gettext catalogues in
+# docs/locale/<lang>/LC_MESSAGES/, one .po file per document
+# (gettext_compact = False), and a build in another language is just
+# `-D language=<lang>`. Anything not translated yet falls back to English.
+#
+# Only the user manual and the landing page are translated; the developer
+# pages and the generated API reference stay in English. That scope is decided
+# by which catalogues `make docs-po` (root Makefile) creates, not here.
+#
+# Images follow the same rule: `.. figure:: img/board.png` resolves to
+# img/board.ca.png in a Catalan build when that file exists, and to
+# img/board.png otherwise.
+
+language = "en"
+locale_dirs = ["../locale/"]
+gettext_compact = False
+# No "#: file:line" comments in the catalogues — they change on every edit
+# above a paragraph and would bury the real changes in .po diffs.
+gettext_location = False
+figure_language_filename = "{path}{basename}.{language}{ext}"
+
+# The languages the docs are built in, in switcher order. The switcher itself
+# (_templates/layout.html) is only drawn when the build passes
+# `-A docs_switcher=1`, which `make docs` does: it relies on the languages
+# sitting side by side in build/site/<lang>/. A plain `make html` (one
+# language) and Read the Docs (which draws its own language menu) don't.
+html_context = {"docs_languages": {"en": "English", "ca": "Català"}}
