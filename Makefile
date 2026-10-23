@@ -2,6 +2,7 @@
 #
 #   make docs            build the HTML documentation, every language, into docs/build/site
 #   make docs-po         refresh the docs' translation catalogues (docs/locale/)
+#   make screenshots     reseed the demo data and retake the manual's screenshots
 #   make run backend     run the API dev server (auto-reloads)
 #   make run frontend    run the Vite dev server (HMR)
 #   make deploy          update a production checkout: pull, migrate, restart, build
@@ -15,16 +16,27 @@ VENV := $(CURDIR)/.venv/bin
 # one here and let the no-op rule below swallow it.
 TARGET := $(word 2,$(MAKECMDGOALS))
 
-.PHONY: help docs docs-po run backend frontend deploy
+.PHONY: help docs docs-po screenshots run backend frontend deploy
 
 help:
-	@sed -n '3,7p' $(MAKEFILE_LIST) | sed 's/^# \?//'
+	@sed -n '3,8p' $(MAKEFILE_LIST) | sed 's/^# \?//'
 
 docs:
 	$(MAKE) -C docs site SPHINXBUILD="$(VENV)/sphinx-build"
 
 docs-po:
 	$(MAKE) -C docs po SPHINXBUILD="$(VENV)/sphinx-build" SPHINXINTL="$(VENV)/sphinx-intl"
+
+# Needs both dev servers running (make run backend / make run frontend). Each
+# language's demo users and their boards are deleted and rebuilt first; nothing
+# else in the database is touched. See docs/screenshots/seed.py.
+SCREENSHOT_LANGUAGES := en ca
+
+screenshots:
+	@for lang in $(SCREENSHOT_LANGUAGES); do \
+		$(VENV)/python docs/screenshots/seed.py --lang $$lang && \
+		$(VENV)/python docs/screenshots/capture.py --lang $$lang || exit 1; \
+	done
 
 run:
 ifeq ($(TARGET),backend)

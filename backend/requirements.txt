@@ -9,6 +9,9 @@ linkify-it-py>=2.0.3
 # Translations of the docs: extracts the .pot catalogues into per-language .po
 # files under docs/locale/ (see `make docs-po` in the root Makefile).
 sphinx-intl>=2.4.0
+# The user manual's screenshots (docs/screenshots/, `make screenshots`). Needs
+# its browser once per machine: .venv/bin/playwright install chromium
+playwright>=1.64.1
 Pygments>=2.20.0
 
 # Testing dependencies
