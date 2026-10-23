@@ -69,3 +69,4 @@
 - Card Templates
 - Recurring tasks
 - ✓ Usage order in Time Tracker
+- Delete account
