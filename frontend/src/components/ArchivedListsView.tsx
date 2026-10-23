@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AppBar,
   Alert,
@@ -35,6 +35,9 @@ interface Props {
   numberLocale: string
   dateFormat: DateFormat
   isOwner: boolean
+  // A card to point out when the view opens: the search result the user
+  // clicked. Scrolled into view and outlined for a few seconds.
+  highlightCardId?: string | null
   onReturn: () => void
   // Leaves the archive view and opens a card on the board.
   onOpenCard: (cardId: string) => void
@@ -46,6 +49,9 @@ interface ListColumn {
   archived: boolean
   cards: CardRead[]
 }
+
+// How long a highlighted card stays outlined.
+const HIGHLIGHT_MS = 4000
 
 type ItemTarget =
   | { type: 'list'; id: string; listId: string; name: string }
@@ -65,6 +71,7 @@ export default function ArchivedListsView({
   numberLocale,
   dateFormat,
   isOwner,
+  highlightCardId,
   onReturn,
   onOpenCard,
 }: Props) {
@@ -77,6 +84,8 @@ export default function ArchivedListsView({
   const [deleteError, setDeleteError] = useState(false)
   const [restoreBlock, setRestoreBlock] = useState<RestoreBlock | null>(null)
   const [copyTarget, setCopyTarget] = useState<ItemTarget | null>(null)
+  const [highlighted, setHighlighted] = useState(highlightCardId ?? null)
+  const highlightRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -91,6 +100,16 @@ export default function ArchivedListsView({
       })
       .catch(() => {})
   }, [boardId])
+
+  // Once the highlighted card is on screen, bring it into view, and let the
+  // outline fade after a few seconds.
+  const highlightShown = archivedCards.some(c => c.id === highlighted)
+  useEffect(() => {
+    if (!highlightShown) return
+    highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const handle = setTimeout(() => setHighlighted(null), HIGHLIGHT_MS)
+    return () => clearTimeout(handle)
+  }, [highlightShown])
 
   // One 330px column per list — archived lists first (red header), then any
   // list whose own cards were archived individually while it stayed active
@@ -359,7 +378,17 @@ export default function ArchivedListsView({
                   <Typography variant="body2" color="text.secondary">{t('board.noCardsInList')}</Typography>
                 ) : (
                   column.cards.map(card => (
-                    <Card key={card.id} variant="outlined" sx={{ mb: 1 }}>
+                    <Card
+                      key={card.id}
+                      variant="outlined"
+                      ref={card.id === highlighted ? highlightRef : undefined}
+                      sx={{
+                        mb: 1,
+                        transition: 'outline-color 0.6s',
+                        outline: '3px solid',
+                        outlineColor: card.id === highlighted ? 'primary.main' : 'transparent',
+                      }}
+                    >
                       <CardFace
                         card={card}
                         numberLocale={numberLocale}

@@ -27,3 +27,7 @@ $do$;
 
 ALTER DATABASE test OWNER TO kanbanmf_user;
 SET SESSION AUTHORIZATION kanbanmf_user;
+
+-- Accent-insensitive card search (src.api.v1.search). A trusted extension
+-- since PostgreSQL 13, so the database owner can create it.
+CREATE EXTENSION IF NOT EXISTS unaccent;

@@ -29,7 +29,8 @@ Boards are grouped in sections:
    Starting points for new boards — see :doc:`templates`.
 
 Click a section's title to fold it away; KanbanMF remembers which sections
-you folded, in this browser. At the bottom of the page,
+you folded, in this browser. The box in the top bar searches every board
+(see :doc:`search`). At the bottom of the page,
 :guilabel:`Show Archived Boards` lists the boards you archived and
 :guilabel:`Show Overdue Tasks` opens the :doc:`overdue tasks <overdue>` page.
 
@@ -134,7 +135,8 @@ The bar under the board's name holds:
    The board's archived lists and cards — see :ref:`manual-archive`.
 
 The menu (☰) at the right of the bar has your :guilabel:`E-Mail notification`
-settings for the board.
+settings for the board, and the box in the top bar searches the board (see
+:doc:`search`).
 
 Lists
 ~~~~~
@@ -205,7 +207,8 @@ are still on the board.
 
 Use a list's or a card's menu (☰) to :guilabel:`Restore` it to the board.
 The board's owner can also delete it permanently from the same menu; that
-can't be undone. :guilabel:`Return to Board` takes you back.
+can't be undone. :guilabel:`Return to Board` takes you back. While the
+archive is open, the box in the top bar searches it (see :doc:`search`).
 
 Cards and people who left the board
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -41,6 +41,7 @@ from src.model.user_avatar import UserAvatar
 from src.model.user_board_star import UserBoardStar
 from src.model.user_preferences import UserPreferences
 from src.schemas.board import (
+    BoardCardsRead,
     BoardCreate,
     BoardOrderRead,
     BoardOrderUpdate,
@@ -49,8 +50,8 @@ from src.schemas.board import (
     BoardShareImpact,
     BoardUpdate,
     BoardsResponse,
+    ListCardsRead,
     OverdueBoardRead,
-    OverdueListRead,
     TemplateDuplicate,
 )
 from src.schemas.person import PersonRead
@@ -418,13 +419,34 @@ async def list_overdue_boards(
         )
         .order_by(Card.due_at)
     )
-    rows = result.all()
+    grouped = await group_cards_by_board(list(result.all()), current_user, db)
+    boards = [
+        OverdueBoardRead(
+            **board.model_dump(),
+            overdue_count=sum(len(lst.cards) for lst in board.lists),
+        )
+        for board in grouped
+    ]
+    boards.sort(key=lambda b: (-b.overdue_count, b.board_name))
+    return boards
+
+
+async def group_cards_by_board(
+    rows: list[tuple[Card, BoardList]], current_user: User, db: AsyncSession
+) -> list[BoardCardsRead]:
+    """Group (card, list) rows by board and list, the way the overdue-tasks and
+    search pages show them.
+
+    Cards keep the order of ``rows`` within their list, and lists follow the
+    board's own list order. The viewer's personal board/list/card colors ride
+    along so the page can paint the columns exactly as the board itself does.
+    Cards must come with :func:`src.api.v1.cards._card_load_options` loaded.
+    """
     if not rows:
         return []
 
-    # board id -> list id -> its overdue cards, both dicts kept in insertion
-    # order: the rows arrive due-date ascending, so each list's cards already
-    # come out oldest first.
+    # board id -> list id -> its cards, both dicts kept in insertion order,
+    # so each list's cards come out in the order of the rows.
     by_board: dict[uuid.UUID, dict[uuid.UUID, list[Card]]] = {}
     lists_by_id: dict[uuid.UUID, BoardList] = {}
     for card, board_list in rows:
@@ -475,18 +497,18 @@ async def list_overdue_boards(
     )
     list_order = {row.board_id: row.list_ids for row in order_result.all()}
 
-    boards: list[OverdueBoardRead] = []
+    boards: list[BoardCardsRead] = []
     for board_id, cards_by_list in by_board.items():
         # Follow the board's own list order; a list missing from it (older
-        # board, or a row never written) falls in after the ordered ones.
+        # board, an archived list, or a row never written) falls in after
+        # the ordered ones.
         ordered_ids = [lid for lid in list_order.get(board_id, []) if lid in cards_by_list]
         ordered_ids += [lid for lid in cards_by_list if lid not in ordered_ids]
 
         boards.append(
-            OverdueBoardRead(
+            BoardCardsRead(
                 board_id=board_id,
                 board_name=board_names.get(board_id, ""),
-                overdue_count=sum(len(c) for c in cards_by_list.values()),
                 color=board_colors.get(board_id),
                 card_colors={
                     str(card.id): card_colors[card.id]
@@ -495,7 +517,7 @@ async def list_overdue_boards(
                     if card.id in card_colors
                 },
                 lists=[
-                    OverdueListRead(
+                    ListCardsRead(
                         list_id=list_id,
                         list_name=lists_by_id[list_id].name,
                         color=list_colors.get(list_id),
@@ -505,8 +527,6 @@ async def list_overdue_boards(
                 ],
             )
         )
-
-    boards.sort(key=lambda b: (-b.overdue_count, b.board_name))
     return boards
 
 

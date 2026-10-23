@@ -29,6 +29,15 @@ createdb -p 5445 -E UTF8 -O kanbanmf_user kanbanmf_db
 exit
 ```
 
+The search uses PostgreSQL's `unaccent` extension (it comes with PostgreSQL; nothing to install). The migrations
+create it, and since PostgreSQL 13 the database owner — `kanbanmf_user` above — is allowed to, so with this setup
+there's nothing to do. With PostgreSQL 12 or older, or a database the application's user doesn't own, create it
+once as `postgres` before running the migrations:
+
+```bash
+sudo -u postgres psql -p 5445 -d kanbanmf_db -c "CREATE EXTENSION IF NOT EXISTS unaccent;"
+```
+
 #### Create the python virtual environment
 
 ```bash

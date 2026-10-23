@@ -54,6 +54,9 @@ wraps every route in ``AuthProvider``. The routes are:
    * - ``/overdue``
      - ``OverdueTasks``
      - ``ProtectedRoute``
+   * - ``/search``
+     - ``SearchResults``
+     - ``ProtectedRoute``
    * - ``/signin``, ``/signup``
      - ``SignIn``, ``SignUp``
      - ``PublicRoute``

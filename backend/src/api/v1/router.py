@@ -14,6 +14,7 @@ from src.api.v1 import (
     invitations,
     labels,
     lists,
+    search,
     time_entries,
     users,
     ws,
@@ -42,6 +43,7 @@ router.include_router(
     prefix="/boards/{board_id}/lists/{list_id}/cards/{card_id}/checklists",
     tags=["checklists"],
 )
+router.include_router(search.router, prefix="/search", tags=["search"])
 router.include_router(time_entries.router, prefix="/time-entries", tags=["time-entries"])
 router.include_router(local.router, prefix="/auth/local", tags=["auth:local"])
 router.include_router(google.router, prefix="/auth/google", tags=["auth:google"])

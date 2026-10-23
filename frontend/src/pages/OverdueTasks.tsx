@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../api/client'
 import { subscribeToNotifications } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
-import OverdueListColumn from '../components/OverdueListColumn'
+import CardListColumn from '../components/CardListColumn'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 import type { DateFormat } from '../utils/locale'
@@ -108,7 +108,7 @@ export default function OverdueTasks() {
                 }}
               >
                 {board.lists.map((list) => (
-                  <OverdueListColumn
+                  <CardListColumn
                     key={list.list_id}
                     list={list}
                     numberLocale={numberLocale}

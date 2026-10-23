@@ -119,8 +119,9 @@ class BoardShareImpact(BaseModel):
     card_count: int
 
 
-class OverdueListRead(BaseModel):
-    """One list on the overdue-tasks page, carrying only its overdue cards.
+class ListCardsRead(BaseModel):
+    """One list on a page that gathers cards from many boards (overdue tasks,
+    search results), carrying only the cards that page is about.
 
     color is the viewer's personal color for the list (None when they haven't
     set one), so the page can paint the column exactly as the board does.
@@ -132,17 +133,51 @@ class OverdueListRead(BaseModel):
     cards: list[CardRead]
 
 
-class OverdueBoardRead(BaseModel):
-    """One board on the overdue-tasks page: its overdue cards, grouped by list.
+class BoardCardsRead(BaseModel):
+    """One board on such a page: its cards, grouped by list.
 
-    Only lists with at least one overdue card are included. color and
+    Only lists with at least one of the cards are included. color and
     card_colors are the viewer's own board/card colors, keyed by card id —
     same shape as :class:`src.schemas.ui_color.BoardColorsRead`.
     """
 
     board_id: uuid.UUID
     board_name: str
-    overdue_count: int
     color: str | None
     card_colors: dict[str, str]
-    lists: list[OverdueListRead]
+    lists: list[ListCardsRead]
+
+
+class OverdueBoardRead(BoardCardsRead):
+    """One board on the overdue-tasks page."""
+
+    overdue_count: int
+
+
+class SearchBoardRead(BoardCardsRead):
+    """One board in the search results.
+
+    matched_in says, per card id, which of the searched fields matched:
+    ``name``, ``description``, ``checklist`` or ``label``.
+    """
+
+    match_count: int
+    matched_in: dict[str, list[str]]
+
+
+class SearchBoardMatch(BaseModel):
+    """A board whose name matches the search."""
+
+    board_id: uuid.UUID
+    board_name: str
+    color: str | None
+
+
+class SearchResults(BaseModel):
+    """The answer to a search: the matching cards, grouped by board and list,
+    and the boards whose name matches. truncated is set when more cards
+    matched than the limit returned."""
+
+    boards: list[SearchBoardRead]
+    matching_boards: list[SearchBoardMatch]
+    truncated: bool

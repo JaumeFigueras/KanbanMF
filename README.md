@@ -31,6 +31,10 @@ abilities to manage small and medium projects. The functionality that has been i
   their own notification hour, which days (before/after/on the due date, plus an optional daily repeat while
   overdue) trigger a reminder, and which weekdays e-mails may be sent on (e.g. none at weekends). Enabling notifications for yourself never opts anyone else in.
 - **Labels**: Labels are defined per board and can be attached to any card to categorize it.
+- **Search**: A search box in the top bar finds cards by their name, description, checklists and labels,
+  ignoring case and accents — across every board from the boards page, or within the open board. The board's
+  archive and the archived boards have searches of their own. Results open on a page laid out like the overdue
+  tasks page, and boards whose name matches are listed too.
 - **Overdue tasks**: A single page, reached from the boards page, gathers every overdue card (past its due date
   and with no end date) from every board the user can see, grouped by board and list.
 - **Time tracker**: A private log of the time each user spends on cards, reached from the timer icon in the top
@@ -63,7 +67,11 @@ production-style deployment (systemd, Apache, a dedicated PostgreSQL cluster, et
 
 - Python 3.11+
 - Node.js 20+ and npm
-- A PostgreSQL database you can connect to (see `SETUP.md` for creating a dedicated cluster)
+- A PostgreSQL database you can connect to (see `SETUP.md` for creating a dedicated cluster), version 13 or
+  newer, with the database owned by the user in `DATABASE_URL`. The search needs PostgreSQL's `unaccent`
+  extension, which ships with PostgreSQL; `alembic upgrade head` creates it, which the database owner may do
+  since version 13. Otherwise, create it once as the `postgres` user:
+  `psql -p <port> -d <database> -c "CREATE EXTENSION IF NOT EXISTS unaccent;"`
 
 ### Backend
 

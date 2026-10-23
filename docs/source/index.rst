@@ -147,6 +147,28 @@ What you can do
 
    .. container:: feature-text
 
+      .. rubric:: Find any card
+
+      Type a few words in the search box to find the cards that hold them —
+      in their names, descriptions, checklists or labels, whatever the
+      capitals or accents. Search every board at once or just the one you
+      have open, and each result says where it matched.
+
+      Archived cards have searches of their own, in a board's archive and
+      among your archived boards, so they never get in the way.
+
+      :doc:`More about searching <manual/search>`
+
+   .. container:: feature-image
+
+      .. figure:: manual/img/search.png
+         :alt: The search results, with matching cards grouped by board and
+               list.
+
+.. container:: feature reverse
+
+   .. container:: feature-text
+
       .. rubric:: Track your time
 
       Start the clock on a card when you begin and stop it when you finish,
@@ -161,7 +183,7 @@ What you can do
       .. figure:: manual/img/time-tracker.png
          :alt: The time tracker with a task running and the week's entries.
 
-.. container:: feature reverse
+.. container:: feature
 
    .. container:: feature-text
 

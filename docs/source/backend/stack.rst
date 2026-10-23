@@ -241,6 +241,28 @@ Time tracking
 The SQL files in ``src/model/sql/`` mirror these models for the test
 database; see :doc:`../setup/workflow`.
 
+Searching
+---------
+
+:mod:`src.api.v1.search` answers every search with one query: each word of
+the search must match one of the card's name, description, checklist names,
+checklist items or label names, compared as
+``unaccent(column) ILIKE unaccent('%word%')`` with ``%`` and ``_`` escaped.
+``unaccent`` is a PostgreSQL extension that ships with the server; a
+migration creates it (a *trusted* extension since PostgreSQL 13, so the
+database owner may), and ``test/database_init.sql`` does the same for the
+test databases. Nothing is indexed: a ``%word%`` pattern can't use a B-tree
+index, so PostgreSQL reads the cards of the boards the user can see. That's
+fine at this scale; ``pg_trgm`` would provide the right index if it ever
+isn't.
+
+The same route serves four scopes — every live board, one board, one
+board's archive, the user's archived boards — chosen by ``board_id`` and
+``archived``, and returns the overdue page's shape (grouped by
+``group_cards_by_board`` in :mod:`src.api.v1.boards`, which both use), plus
+which fields matched per card, the boards whose name matches, and whether
+the 200-card limit cut anything off.
+
 Real-time updates
 -----------------
 

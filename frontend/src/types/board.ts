@@ -23,24 +23,46 @@ export interface BoardsResponse {
   templates: BoardRead[]
 }
 
-// The overdue-tasks page's payload (see the /boards/overdue endpoint): the
-// boards with cards past their due date, each carrying only the lists that
-// hold one, and only the overdue cards themselves. `color`/`card_colors` are
-// the viewer's own colors, so the page paints columns as the board does.
-export interface OverdueListRead {
+// The payload of the pages that gather cards from many boards — overdue
+// tasks (/boards/overdue) and search results (/search): boards, each carrying
+// only the lists that hold one of the cards, and only those cards.
+// `color`/`card_colors` are the viewer's own colors, so the page paints
+// columns as the board does.
+export interface ListCardsRead {
   list_id: string
   list_name: string
   color: string | null
   cards: CardRead[]
 }
 
-export interface OverdueBoardRead {
+export interface BoardCardsRead {
   board_id: string
   board_name: string
-  overdue_count: number
   color: string | null
   card_colors: Record<string, string>
-  lists: OverdueListRead[]
+  lists: ListCardsRead[]
+}
+
+export interface OverdueBoardRead extends BoardCardsRead {
+  overdue_count: number
+}
+
+// Which fields of a card held the search's words.
+export type SearchField = 'name' | 'description' | 'checklist' | 'label'
+
+export interface SearchBoardRead extends BoardCardsRead {
+  match_count: number
+  // Keyed by card id.
+  matched_in: Record<string, SearchField[]>
+}
+
+export interface SearchResults {
+  boards: SearchBoardRead[]
+  // Boards whose name holds the search's words; only for searches that
+  // aren't limited to one board.
+  matching_boards: { board_id: string; board_name: string; color: string | null }[]
+  // More cards matched than the backend returns.
+  truncated: boolean
 }
 
 export interface BoardListRead {

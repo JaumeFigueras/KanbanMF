@@ -5,8 +5,9 @@ Components
 appear:
 
 Application shell
-   ``MainAppBar`` (the top bar on signed-in pages: home link, time tracker,
-   user menu and its dialogs, sign out), ``AuthControls`` (the language and
+   ``MainAppBar`` (the top bar on signed-in pages: home link, the search box
+   when the page passes a ``search`` scope, time tracker, user menu and its
+   dialogs, sign out), ``AuthControls`` (the language and
    theme controls on the sign-in pages), ``LanguageSelector``,
    ``GoogleButton``.
 
@@ -24,11 +25,12 @@ The board
    ``BoardListColumn`` (a list: header, menu and its cards),
    ``CreateListDialog``, ``RenameListDialog``, ``ChangeListColorDialog``,
    ``CardItem`` (a draggable card with its menu) around ``CardFace`` (what
-   a card shows, reused on the overdue page), ``CardDialog`` (create and edit,
+   a card shows, reused on the overdue and search pages), ``CardDialog`` (create and edit,
    with labels, dates, people and checklists), ``CardDateField``,
    ``ChangeCardColorDialog``, ``CopyCardDialog`` (also used to extract a
-   checklist item into a card), ``ArchivedListsView`` (the archive), and
-   ``OverdueListColumn`` for the overdue page.
+   checklist item into a card), ``ArchivedListsView`` (the archive, which can
+   outline one card: where a search of the archive leads), and
+   ``CardListColumn``, the read-only column of the overdue and search pages.
 
 Labels, checklists and people
    ``ManageLabelsDialog`` and ``EditLabelDialog`` (the board's labels),

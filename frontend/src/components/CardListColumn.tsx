@@ -1,31 +1,38 @@
 import { Box, Card, Paper, Typography } from '@mui/material'
-import type { OverdueListRead } from '../types/board'
+import { useTranslation } from 'react-i18next'
+import type { ListCardsRead, SearchField } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import CardFace from './CardFace'
 import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
 import { STRONG_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 
 interface Props {
-  list: OverdueListRead
+  list: ListCardsRead
   numberLocale: string
   dateFormat: DateFormat
   // The viewer's colors for the cards of the board this list belongs to,
   // keyed by card id — same shape the board page passes down.
   cardColors: Record<string, string>
   onCardClick: (card: { id: string; list_id: string }) => void
+  // Search results only: which fields of each card matched, keyed by card
+  // id, shown under the card since its face only shows the name.
+  matchedIn?: Record<string, SearchField[]>
 }
 
-// A read-only echo of BoardListColumn for the overdue-tasks page: same 330px
-// column, same tints, same card face — but no drag handles, menus or add
-// buttons, since nothing here is editable in place. Clicking a card is the
-// column's only interaction; it opens that card on its own board.
-export default function OverdueListColumn({
+// A read-only echo of BoardListColumn for the pages that gather cards from
+// many boards (overdue tasks, search results): same 330px column, same tints,
+// same card face — but no drag handles, menus or add buttons, since nothing
+// here is editable in place. Clicking a card is the column's only
+// interaction; the page decides where it leads.
+export default function CardListColumn({
   list,
   numberLocale,
   dateFormat,
   cardColors,
   onCardClick,
+  matchedIn,
 }: Props) {
+  const { t } = useTranslation()
   const listColor = list.color ?? DEFAULT_COLOR
 
   return (
@@ -79,6 +86,13 @@ export default function OverdueListColumn({
                 dateFormat={dateFormat}
                 color={cardColor}
               />
+              {matchedIn?.[card.id]?.length ? (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.5, pb: 1 }}>
+                  {t('search.foundIn', {
+                    fields: matchedIn[card.id].map((field) => t(`search.field.${field}`)).join(', '),
+                  })}
+                </Typography>
+              ) : null}
             </Card>
           )
         })}

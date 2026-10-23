@@ -189,6 +189,17 @@ goes into ``DATABASE_URL`` in the next section, so keep it to hand. ``-O`` makes
 ``kanbanmf_user`` the owner of the database, which it needs to be for Alembic to
 create the schema.
 
+Owning the database also lets Alembic create the ``unaccent`` extension, which
+the search uses to ignore accents: it ships with PostgreSQL, and since version
+13 it is a *trusted* extension, which a database owner may create without being
+superuser. On an older server, or a database ``kanbanmf_user`` doesn't own,
+create it once yourself:
+
+.. code-block:: bash
+
+   sudo -u postgres psql -p 5434 -d kanbanmf_db \
+        -c "CREATE EXTENSION IF NOT EXISTS unaccent;"
+
 Check it works
 ~~~~~~~~~~~~~~
 

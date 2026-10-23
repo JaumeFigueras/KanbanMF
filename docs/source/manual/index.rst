@@ -18,6 +18,7 @@ colleagues.
    cards
    sharing
    notifications
+   search
    overdue
    time_tracker
    preferences

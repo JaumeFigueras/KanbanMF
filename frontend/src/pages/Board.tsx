@@ -99,7 +99,12 @@ export default function Board() {
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false)
-  const [showArchive, setShowArchive] = useState(false)
+  // ?archive=1 — where a search of the board's archive leads back to — opens
+  // the archive view straight away; &highlight=<card id> marks the card the
+  // search result was. Both are read once and dropped from the address (see
+  // the effect below), so they don't stick to reloads.
+  const [showArchive, setShowArchive] = useState(() => searchParams.get('archive') === '1')
+  const [highlightCardId] = useState(() => searchParams.get('highlight'))
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
@@ -125,6 +130,16 @@ export default function Board() {
     if (!boardId) return
     localStorage.setItem(`kanbanmf:sort:${boardId}`, sortMode)
   }, [boardId, sortMode])
+
+  useEffect(() => {
+    if (!searchParams.has('archive') && !searchParams.has('highlight')) return
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('archive')
+      next.delete('highlight')
+      return next
+    }, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -653,6 +668,7 @@ export default function Board() {
             setNumberLocale(num)
             setDateFormat(fmt)
           }}
+          search={boardId ? { boardId, archived: true } : undefined}
         />
         <ArchivedListsView
           boardId={boardId ?? ''}
@@ -661,6 +677,7 @@ export default function Board() {
           numberLocale={numberLocale}
           dateFormat={dateFormat}
           isOwner={isOwner}
+          highlightCardId={highlightCardId}
           onReturn={returnFromArchive}
           onOpenCard={(cardId) => {
             returnFromArchive()
@@ -685,6 +702,8 @@ export default function Board() {
         // A card carries its members' and assignees' avatar state, so an
         // avatar change of the viewer's own only lands on a refetch.
         onAvatarChanged={() => lists.forEach(l => fetchCardsForList(l.id))}
+        // A template holds no cards, so there's nothing to search on it.
+        search={boardId && !isTemplate ? { boardId } : undefined}
       />
 
       {/* Secondary board toolbar — sits below the main AppBar. Tinted with

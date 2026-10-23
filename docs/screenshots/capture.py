@@ -311,6 +311,38 @@ def overdue(s: Shooter) -> None:
     s.save("overdue", full_page=True)
 
 
+# What each language's search shots type. The Catalan word is typed without
+# its accent, to show that accents don't matter.
+SEARCH_WORDS = {
+    "en": {"search": "page", "archive": "logo"},
+    "ca": {"search": "pagina", "archive": "logotip"},
+}
+
+
+@shot
+def search(s: Shooter) -> None:
+    s.goto("/boards")
+    box = s.labelled("search.allBoards")
+    box.fill(SEARCH_WORDS[s.lang]["search"])
+    box.press("Enter")
+    s.page.wait_for_url("**/search?*")
+    s.settle(900)
+    s.save("search")
+
+
+@shot
+def search_archive(s: Shooter) -> None:
+    s.open_board()
+    s.button("board.archive").click()
+    s.settle(900)
+    box = s.labelled("search.boardArchive")
+    box.fill(SEARCH_WORDS[s.lang]["archive"])
+    box.press("Enter")
+    s.page.wait_for_url("**/search?*")
+    s.settle(900)
+    s.save("search-archive")
+
+
 # -- A board -----------------------------------------------------------------
 
 

@@ -19,11 +19,21 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
    board, the user's colours on it, the lists and their order, and each
    list's cards and card order; refetches on WebSocket events for this
    board. A ``?card=<id>`` query opens that card's dialog once loaded — the
-   overdue page links here that way.
+   overdue and search pages link here that way. ``?archive=1`` opens the
+   archive view, and ``&highlight=<id>`` outlines a card in it: where a
+   search of the archive leads back to.
 
 ``OverdueTasks`` — ``/overdue``
    Every overdue card the user can see, from ``/boards/overdue``, grouped by
    board and list; clicking a card opens it on its board.
+
+``SearchResults`` — ``/search``
+   The results of a search, laid out like the overdue page, from ``/search``.
+   The query and the scope live in the address (``q``, ``board``,
+   ``archived``; see ``utils/search.ts``), so the page reloads and goes Back
+   like any other. Its own box updates ``q`` in place as you type. Live cards
+   open on their board; archived ones lead back to the archive view or to the
+   boards page's Archived Boards section (``/boards?archived=1``).
 
 ``TimeTracker`` — ``/time-tracker``
    The running task, the year/month filter, the table of entries grouped by

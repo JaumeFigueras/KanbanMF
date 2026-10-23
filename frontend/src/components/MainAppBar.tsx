@@ -6,6 +6,7 @@ import {
   Box,
   Divider,
   IconButton,
+  InputBase,
   ListItemIcon,
   ListItemText,
   Menu,
@@ -13,7 +14,9 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material'
+import { alpha, useTheme } from '@mui/material/styles'
 import {
   AddPhotoAlternate,
   DarkMode,
@@ -22,6 +25,7 @@ import {
   LightMode,
   Lock,
   Logout,
+  Search,
   Timer,
 } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +34,8 @@ import { useAuth } from '../context/useAuth'
 import { useThemeToggle } from '../context/useThemeToggle'
 import { apiFetch } from '../api/client'
 import { getBrowserTimezone } from '../utils/locale'
+import type { SearchScope } from '../utils/search'
+import { MIN_SEARCH_LENGTH, searchPlaceholderKey, searchUrl } from '../utils/search'
 import ChangeDisplayNameDialog from './ChangeDisplayNameDialog'
 import ChangePasswordDialog from './ChangePasswordDialog'
 import UploadAvatarDialog from './UploadAvatarDialog'
@@ -43,13 +49,22 @@ interface Props {
   // Pages carry other people's avatar state in their own payloads (a board's
   // owner_has_avatar, a card's members), so they have to refetch to notice.
   onAvatarChanged?: () => void
+  // Shows the search box, searching this scope; Enter opens the results
+  // page. Left out on pages that have nothing to search, or their own box.
+  search?: SearchScope
 }
 
-export default function MainAppBar({ onLocaleChanged, onAvatarChanged }: Props) {
+export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { logout } = useAuth()
   const { dark, toggleDark } = useThemeToggle()
+  const theme = useTheme()
+  // On a phone the box folds into a magnifier icon, and takes the title's
+  // place while open.
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'))
+  const [searchText, setSearchText] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [initials, setInitials] = useState<string | null>(null)
@@ -128,17 +143,64 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged }: Props) 
     navigate('/signin')
   }
 
+  function submitSearch() {
+    const q = searchText.trim()
+    if (search && q.length >= MIN_SEARCH_LENGTH) navigate(searchUrl(q, search))
+  }
+
+  const searchPlaceholder = search ? t(searchPlaceholderKey(search)) : ''
+  const searchBox = search && (
+    <Box
+      component="form"
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault()
+        submitSearch()
+      }}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        flexGrow: isPhone ? 1 : 0,
+        width: isPhone ? 'auto' : 280,
+        mr: 1,
+        borderRadius: 1,
+        bgcolor: alpha(theme.palette.common.white, 0.15),
+        '&:hover': { bgcolor: alpha(theme.palette.common.white, 0.25) },
+      }}
+    >
+      <Search sx={{ mx: 1, opacity: 0.8 }} />
+      <InputBase
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        onBlur={() => { if (isPhone && !searchText) setSearchOpen(false) }}
+        autoFocus={isPhone}
+        placeholder={searchPlaceholder}
+        inputProps={{ 'aria-label': searchPlaceholder, enterKeyHint: 'search' }}
+        sx={{ color: 'inherit', flex: 1, py: 0.5, pr: 1 }}
+      />
+    </Box>
+  )
+
   return (
     <>
       <AppBar position="fixed">
         <Toolbar>
-          <Typography
-            variant="h6"
-            onClick={() => navigate('/boards')}
-            sx={{ flexGrow: 1, fontWeight: 700, letterSpacing: 0.5, cursor: 'pointer' }}
-          >
-            KanbanMF
-          </Typography>
+          {isPhone && searchOpen ? searchBox : (
+            <Typography
+              variant="h6"
+              onClick={() => navigate('/boards')}
+              sx={{ flexGrow: 1, fontWeight: 700, letterSpacing: 0.5, cursor: 'pointer' }}
+            >
+              KanbanMF
+            </Typography>
+          )}
+
+          {search && !isPhone && searchBox}
+          {search && isPhone && !searchOpen && (
+            <IconButton color="inherit" onClick={() => setSearchOpen(true)} aria-label={searchPlaceholder}>
+              <Search />
+            </IconButton>
+          )}
 
           <Tooltip title={t('timeTracker.title')}>
             <IconButton

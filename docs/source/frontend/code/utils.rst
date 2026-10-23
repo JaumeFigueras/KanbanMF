@@ -36,6 +36,11 @@ Small pure helpers, with no React in them:
    Which time entries overlap, compared to the minute — the resolution the
    table shows.
 
+``search.ts``
+   A search's scope (every board, one board, a board's archive, the archived
+   boards), the ``/search`` address that carries it, the backend's query for
+   it and the search box's placeholder.
+
 ``src/theme/``
 --------------
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -16,10 +16,12 @@ import {
   AccordionSummary,
   Box,
   Button,
+  InputAdornment,
+  TextField,
   Toolbar,
   Typography,
 } from '@mui/material'
-import { Add, ExpandMore } from '@mui/icons-material'
+import { Add, ExpandMore, Search } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
@@ -34,6 +36,7 @@ import DuplicateTemplateDialog from '../components/DuplicateTemplateDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
+import { MIN_SEARCH_LENGTH, searchPlaceholderKey, searchUrl } from '../utils/search'
 
 const ACCORDION_KEY = 'kanbanmf.boards.accordions'
 
@@ -105,7 +108,11 @@ export default function Boards() {
   const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
   const [archiveBoardOpen, setArchiveBoardOpen] = useState(false)
   const [duplicateTemplateOpen, setDuplicateTemplateOpen] = useState(false)
-  const [showArchived, setShowArchived] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // ?archived=1 — where an archived-boards search leads back to — opens the
+  // page with the Archived Boards section unfolded.
+  const [showArchived, setShowArchived] = useState(() => searchParams.get('archived') === '1')
+  const [archivedSearch, setArchivedSearch] = useState('')
   const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
   const [boardToDelete, setBoardToDelete] = useState<BoardRead | null>(null)
   const [deleteBoardOpen, setDeleteBoardOpen] = useState(false)
@@ -161,6 +168,27 @@ export default function Boards() {
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
+
+  // The section ?archived=1 unfolded needs its boards on the first load.
+  const [archivedOnLoad] = useState(showArchived)
+  useEffect(() => {
+    if (!archivedOnLoad) return
+    apiFetch('/api/v1/boards/archived')
+      .then(r => r.ok ? r.json() as Promise<BoardRead[]> : [])
+      .then(setArchivedBoards)
+      .catch(() => {})
+  }, [archivedOnLoad])
+
+  // Then drop the parameter, so a reload after folding the section doesn't
+  // unfold it again.
+  useEffect(() => {
+    if (!searchParams.has('archived')) return
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('archived')
+      return next
+    }, { replace: true })
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     apiFetch('/api/v1/users/me')
@@ -431,7 +459,7 @@ export default function Boards() {
 
   return (
     <>
-      <MainAppBar onLocaleChanged={handleLocaleChanged} onAvatarChanged={handleAvatarChanged} />
+      <MainAppBar onLocaleChanged={handleLocaleChanged} onAvatarChanged={handleAvatarChanged} search={{}} />
 
       {/* ── Dialogs ──────────────────────────────────────────────────────── */}
 
@@ -712,6 +740,35 @@ export default function Boards() {
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
+              <Box
+                component="form"
+                role="search"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const q = archivedSearch.trim()
+                  if (q.length >= MIN_SEARCH_LENGTH) navigate(searchUrl(q, { archived: true }))
+                }}
+                sx={{ mb: 2 }}
+              >
+                <TextField
+                  value={archivedSearch}
+                  onChange={(e) => setArchivedSearch(e.target.value)}
+                  placeholder={t(searchPlaceholderKey({ archived: true }))}
+                  size="small"
+                  fullWidth
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search />
+                        </InputAdornment>
+                      ),
+                    },
+                    htmlInput: { 'aria-label': t(searchPlaceholderKey({ archived: true })), enterKeyHint: 'search' },
+                  }}
+                  sx={{ maxWidth: 400 }}
+                />
+              </Box>
               {archivedBoards.length === 0
                 ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
                 : <Box sx={BOARD_GRID_SX}>

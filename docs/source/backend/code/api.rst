@@ -49,6 +49,9 @@ router under its prefix. The prefixes follow how the data is nested:
    * - ``/invitations/{token}``
      - :mod:`~src.api.v1.invitations`
      - public: what the sign-up page shows for a link
+   * - ``/search``
+     - :mod:`~src.api.v1.search`
+     - card search, in four scopes; ignores case and accents (``unaccent``)
    * - ``/time-entries``
      - :mod:`~src.api.v1.time_entries`
      - private to the caller; no WebSocket notifications
