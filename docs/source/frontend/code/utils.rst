@@ -5,7 +5,7 @@ Utilities, theme and i18n
 
    Reference for the small supporting modules:
 
-   - ``src/utils/`` — ``cardSort``, ``colorTint``, ``dueDateColor``,
-     ``labelColor``, ``locale``.
+   - ``src/utils/`` — ``cardSort``, ``colorPalette``, ``colorTint``,
+     ``dueDateColor``, ``duration``, ``labelColor``, ``locale``, ``overlap``.
    - ``src/theme/`` — the light and dark MUI theme objects.
    - ``src/i18n/`` — setup and the ``en`` / ``ca`` locale files.

@@ -4,8 +4,10 @@ API layer
 .. todo::
 
    Introduce the routers: how they are wired up under ``/api/v1``, the nesting
-   (lists under a board, cards under a board and list, checklists under a card),
-   the separate archived-cards router, the WebSocket endpoint, and the shared
+   (lists under a board, cards under a board and list, checklists under a card,
+   invitations under a board), the separate archived-cards router, the public
+   ``config`` and invitation-preview endpoints, the user-private time entries
+   (no WebSocket notifications), the WebSocket endpoint, and the shared
    dependencies in ``deps.py``. A table of endpoints would be more useful here
    than prose.
 

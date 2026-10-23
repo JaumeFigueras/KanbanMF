@@ -13,6 +13,7 @@
 - ✓ Invite to a board
 - ✓ Disable mails in weekends
 - Search
+- User manual
 
 ## Functionality
 

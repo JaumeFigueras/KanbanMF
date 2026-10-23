@@ -13,7 +13,8 @@ Workflow
      built from raw DDL, not from the migrations).
    - Frontend checks: ``npm run build`` (type-check) and ``npm run lint``.
    - Adding a translation key to both ``en.ts`` and ``ca.ts``.
-   - Building the documentation and keeping it warning-free.
+   - Building the documentation and keeping it warning-free; keeping the
+     translations and the manual's screenshots up to date.
    - Branching and commit conventions.
 
    Source material: ``CLAUDE.md``.

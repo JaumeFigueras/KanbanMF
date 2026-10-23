@@ -7,8 +7,9 @@ Data model
    declarative class, the fact that ``model/__init__.py`` is the single source
    of truth for ``Base.metadata``, the ``src/model/sql/`` DDL files that mirror
    the models for the test schema, and the grouping the reader should have in
-   mind (users and identity, boards/lists/cards, per-user personalization,
-   notifications).
+   mind (users and identity, boards/lists/cards and templates, per-user
+   personalization, notifications, invitations, time tracking and its usage
+   ranking).
 
 .. rubric:: Reference
 

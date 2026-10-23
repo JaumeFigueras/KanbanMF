@@ -19,15 +19,28 @@ Stack and how it works
      The two providers, local and Google, and how one person maps to one
      ``User`` with several ``UserIdentity`` rows.
    - The data model as a picture, not a class list: boards → lists → cards →
-     checklists, the association tables, and the per-user personalization
-     tables that keep one user's colours and ordering out of another's way.
+     checklists, the association tables, the per-user personalization tables
+     that keep one user's colours and ordering out of another's way, and the
+     time entries that deliberately reference nothing but their owner.
    - Real-time updates: the in-memory ``ConnectionManager``, the
      notify-and-refetch contract (the server says *what changed*, never the new
      data), and ``origin_client_id`` letting the originating tab ignore its own
      change. Note the single-process assumption this carries.
-   - Due-date reminders: APScheduler running hourly inside the FastAPI process
-     rather than a separate cron job, per-user/per-board opt-in, and the dedupe
-     record that stops a reminder being sent twice.
+   - Due-date reminders: per-user/per-board opt-in, day offsets, the overdue
+     repeat and the allowed weekdays, and the dedupe record that stops a
+     reminder being sent twice.
+   - The scheduler: APScheduler inside the FastAPI process rather than a
+     separate cron job, and its jobs — the reminders (every hour, on the
+     hour), expired invitation cleanup (every hour, at half past) and the
+     time tracker ranking rebuild (02:00, plus once at startup when empty).
+   - Templates: a board flag, what creating a board from one copies, and why
+     templates can't be shared by invitation.
+   - Invitations: the pending share, its token and 30-day expiry, and the
+     point at which it becomes a ``BoardShare`` (local verification or Google
+     sign-in).
+   - The time tracker: entries that copy the board/card names and labels
+     instead of referencing them, the one-running-entry partial unique index,
+     the five-minute start snap, and the usage ranking as derived data.
    - Configuration and settings loading.
 
    A diagram or two would earn their place here — the layer cake and the

@@ -22,6 +22,9 @@ Stack and how it works
    - Drag and drop: what dnd-kit is used for and how an ordering change is
      persisted.
    - Theming and per-user colours; light/dark via ``ThemeToggleContext``.
+   - What is kept per browser in ``localStorage`` rather than on the server:
+     the access token, the theme, each board's card sort mode, and which
+     sections of the boards overview are collapsed.
    - Internationalisation: how a locale is chosen, and the rule that a new key
      goes into both ``en.ts`` and ``ca.ts``.
    - Conventions for new UI: one component per file.

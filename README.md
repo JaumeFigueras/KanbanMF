@@ -22,13 +22,23 @@ abilities to manage small and medium projects. The functionality that has been i
   shared with existing users.
 - **Lists & Cards**: Boards are organized into lists, each holding any number of cards. Both lists and cards can be
   reordered by drag and drop, and cards can be dragged between lists. A card can have a description, start/due/end
-  dates, checklists, labels, members and assignees, and its own custom color — again, per viewing user. Changes
-  make it to every other open session in real time over a WebSocket connection.
+  dates, checklists, labels, members and assignees, and its own custom color — again, per viewing user. Cards can
+  be copied to any list of any board, a checklist can be copied to another card, a checklist item can be extracted
+  into a card of its own, and every card of a list can be archived at once. Changes make it to every other open
+  session in real time over a WebSocket connection.
 - **Due-date e-mail notifications**: Notifications are personal, per user and per board — each person with access
   to a board decides independently whether they want e-mail reminders for cards they're assigned to, and configures
-  their own notification hour and which days (before/after/on the due date, plus an optional daily repeat while
-  overdue) trigger a reminder. Enabling notifications for yourself never opts anyone else in.
+  their own notification hour, which days (before/after/on the due date, plus an optional daily repeat while
+  overdue) trigger a reminder, and which weekdays e-mails may be sent on (e.g. none at weekends). Enabling notifications for yourself never opts anyone else in.
 - **Labels**: Labels are defined per board and can be attached to any card to categorize it.
+- **Overdue tasks**: A single page, reached from the boards page, gathers every overdue card (past its due date
+  and with no end date) from every board the user can see, grouped by board and list.
+- **Time tracker**: A private log of the time each user spends on cards, reached from the timer icon in the top
+  bar. Start and end a task with one click (only one runs at a time, and a task started within five minutes of
+  the previous one ending picks up exactly where it ended), or add and edit entries by hand, each with an optional
+  comment. Entries keep a copy of the board name, card name and labels, so renaming, archiving or deleting the
+  card doesn't change past records. Entries can be filtered by year and month, show per-day and period totals,
+  warn about overlaps, and can be exported to CSV. Boards and lists are offered most-used first.
 - **Templates**: A template is a special board that holds only lists (no cards or labels). Creating a new board
   from a template copies its lists, in order, together with the board and list colors *you* chose on the
   template — other users keep their own colors. Templates live in their own section of the boards page, and can
@@ -37,7 +47,8 @@ abilities to manage small and medium projects. The functionality that has been i
 ## Tech stack
 
 - **Backend**: Python, FastAPI, SQLAlchemy 2.0 (async ORM), PostgreSQL, Alembic for schema migrations,
-  APScheduler for the hourly due-date notification job, WebSockets for real-time updates.
+  APScheduler (running inside the API process) for the hourly due-date reminders and invitation cleanup and the
+  nightly time tracker ranking, WebSockets for real-time updates.
 - **Frontend**: React 19, TypeScript, Vite, Material UI (MUI), react-i18next for translations, dnd-kit for
   drag-and-drop.
 - **Auth**: JWT access tokens (short-lived) + rotating refresh tokens (30 days, stored hashed, sent as an
@@ -46,7 +57,7 @@ abilities to manage small and medium projects. The functionality that has been i
 ## Getting started (local development)
 
 These are the quick steps to run the app locally against your own PostgreSQL instance. For a full
-production-style deployment (systemd, nginx, a dedicated PostgreSQL cluster, etc.), see [SETUP.md](SETUP.md).
+production-style deployment (systemd, Apache, a dedicated PostgreSQL cluster, etc.), see [SETUP.md](SETUP.md).
 
 ### Prerequisites
 
@@ -129,6 +140,7 @@ backend/    FastAPI app — src/model (SQLAlchemy ORM), src/api/v1 (routes), src
             src/core (auth, email, websockets, the notification scheduler), alembic/ (migrations), test/
 frontend/   React app — src/pages, src/components, src/api (fetch client + WebSocket), src/i18n
 deploy/     Apache vhost + systemd unit for the production deployment described in SETUP.md
+docs/       Sphinx documentation (build with `make docs`)
 SETUP.md    Production deployment guide
 ```
 

@@ -14,7 +14,8 @@ Production environment
    - TLS, the WebSocket upgrade through the proxy, and the reverse-proxy
      headers the backend expects.
    - Production ``.env``: secrets, SMTP, Google OAuth redirect URIs.
-   - Upgrading a running deployment, and backups.
+   - Upgrading a running deployment with ``make deploy`` (pull, migrate,
+     restart the backend unit, rebuild the frontend), and backups.
 
    Source material: ``SETUP.md`` and ``deploy/`` at the repository root — fold
    them in here rather than maintaining two copies.

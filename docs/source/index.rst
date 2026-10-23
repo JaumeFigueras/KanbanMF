@@ -7,9 +7,10 @@ Kanban MF documentation
 
    - What KanbanMF is and who it is for; what "Minimalist and Fast" means in
      practice and which trade-offs follow from it.
-   - The feature set at a glance: boards, lists, cards, checklists, labels,
-     sharing, per-user colour/order preferences, due-date e-mail reminders,
-     real-time updates.
+   - The feature set at a glance: boards, templates, lists, cards,
+     checklists, labels, sharing and invitations, per-user colour/order
+     preferences, due-date e-mail reminders, the overdue tasks page, the time
+     tracker, real-time updates.
    - Where to go next: :doc:`setup/index` to run it, :doc:`manual/index` to use
      it, :doc:`backend/index` / :doc:`frontend/index` to work on it.
    - Licence and repository pointers.
