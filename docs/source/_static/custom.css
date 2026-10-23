@@ -17,3 +17,17 @@
 .rst-content dl.py > dt {
     margin-bottom: 0.6em;
 }
+
+/* Local language switcher (see _templates/layout.html). */
+.docs-languages {
+    padding: 0.8em 1.618em;
+    color: #b3b3b3;
+    font-size: 90%;
+}
+.docs-languages a,
+.docs-languages strong {
+    margin-right: 1em;
+}
+.docs-languages a {
+    color: #fcfcfc;
+}
