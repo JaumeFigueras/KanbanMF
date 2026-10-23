@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`TimeTrackerListUsage` model: part of the time tracker's
+nightly-rebuilt usage ranking.
+"""
+
 import uuid
 from datetime import datetime
 

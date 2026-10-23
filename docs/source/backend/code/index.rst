@@ -1,13 +1,28 @@
 Code
 ====
 
-.. todo::
+These pages are generated from the backend's source on every build: each
+module gets a page with its docstrings, and a ``[source]`` link next to every
+object. A new module appears here by itself. They say *what* things are; the
+reasons behind the design are in :doc:`../stack`.
 
-   **Section overview.** Planned contents:
+The code is in four layers, each with its own page:
 
-   - How to read these pages, and the reminder that they are generated from the
-     source: the prose that explains *why* lives in :doc:`../stack`.
-   - A one-line orientation for each of the four layers below.
+:doc:`models`
+   ``src.model`` — the SQLAlchemy models, one module per table.
+
+:doc:`schemas`
+   ``src.schemas`` — the Pydantic bodies the API accepts and returns.
+
+:doc:`api`
+   ``src.main`` and ``src.api`` — the application and its routes.
+
+:doc:`core`
+   ``src.core`` — everything that isn't a route: settings, database,
+   security, e-mail, WebSockets and the scheduled jobs.
+
+The backend is imported as the top-level package ``src`` (``from
+src.model.board import Board``), with ``backend/`` as the working directory.
 
 .. toctree::
    :maxdepth: 2

@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Sign-in with Google (OAuth 2.0 authorization code flow).
+
+``/auth/google/`` sends the browser to Google's consent screen; the callback
+finds or creates the user by e-mail address (so a Google sign-in and a local
+account with the same address are one user), opens a session, turns pending
+invitations into shares and redirects to the frontend with the refresh
+cookie set.
+"""
+
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 

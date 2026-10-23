@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for a board's labels. Anyone with access to the board can read them;
+only the owner can create, change, reorder or delete them.
+"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

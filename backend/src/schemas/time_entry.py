@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for the time tracker."""
+
 import uuid
 from datetime import datetime
 

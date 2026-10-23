@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for boards: the boards page, creating (also from a template),
+renaming, archiving, deleting, sharing, starring, ordering, colours,
+duplicating templates and the overdue-tasks page.
+"""
+
 import uuid
 from datetime import datetime, timezone
 

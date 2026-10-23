@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for checklists, their items and their order."""
+
 import uuid
 from datetime import datetime
 

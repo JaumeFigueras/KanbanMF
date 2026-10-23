@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UIBoardListOrder` model: the order of a board's lists, shared by
+everyone on the board."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -19,8 +22,9 @@ if TYPE_CHECKING:
 class UIBoardListOrder(Base):
     """Stores the UI-driven column order for a board's lists.
 
-    One row per board; list_ids is an ordered array of BoardList UUIDs.
-    Write access is restricted to the board owner. Shared users read only.
+    One row per board; list_ids is an ordered array of BoardList UUIDs. The
+    order is shared: the owner and everyone the board is shared with see and
+    change the same one.
     """
 
     __tablename__ = "ui_board_list_orders"

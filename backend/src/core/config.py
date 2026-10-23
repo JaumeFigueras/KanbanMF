@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Application settings, read from the environment and ``backend/.env``.
+
+Environment variables take precedence over the file. ``DATABASE_URL``,
+``SECRET_KEY`` and ``SMTP_PORT`` have no default, so the backend refuses to
+start without them.
+"""
+
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +20,10 @@ _ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 
 class Settings(BaseSettings):
+    """Every setting, one attribute per environment variable of the same name
+    (case-insensitive). Google OAuth and SMTP are optional: leave them blank to
+    turn those features off."""
+
     model_config = SettingsConfigDict(
         env_file=_ENV_FILE,
         env_file_encoding="utf-8",

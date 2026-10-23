@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for registration, login, token refresh and
+e-mail verification.
+"""
+
 from pydantic import BaseModel, EmailStr
 
 

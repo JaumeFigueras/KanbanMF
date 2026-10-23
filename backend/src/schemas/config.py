@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Response body for the public server configuration."""
+
 from pydantic import BaseModel
 
 

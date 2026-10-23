@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UIListColor` model: one user's colour for a list."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING

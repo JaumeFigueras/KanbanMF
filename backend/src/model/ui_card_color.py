@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UICardColor` model: one user's colour for a card."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The WebSocket endpoint behind the notify-and-refetch pattern."""
+
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status

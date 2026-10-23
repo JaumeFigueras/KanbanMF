@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UserSession` model: one signed-in browser or device."""
+
 import uuid
 from datetime import datetime
 from typing import Optional

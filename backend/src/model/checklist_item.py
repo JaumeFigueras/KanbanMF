@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`ChecklistItem` model."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING

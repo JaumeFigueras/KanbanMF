@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`CardDueNotification` model: the log that keeps a due-date
+reminder from being sent twice.
+"""
+
 import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING

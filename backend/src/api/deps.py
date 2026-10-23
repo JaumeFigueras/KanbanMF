@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""FastAPI dependencies shared by the routers.
+
+The database session, the authenticated user (from the ``Authorization:
+Bearer`` access token), the refresh token (from its HTTP-only cookie) and the
+calling tab's ``X-Client-Id``, which WebSocket notifications echo back as
+``origin_client_id``.
+"""
+
 import uuid
 from typing import AsyncGenerator
 

@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Outgoing e-mail: account verification, due-date reminders and board
+invitations, in English or Catalan.
+
+SMTP is optional; :func:`email_enabled` tells callers whether sending is
+possible at all.
+"""
+
 from datetime import datetime
 from email.utils import parseaddr
 

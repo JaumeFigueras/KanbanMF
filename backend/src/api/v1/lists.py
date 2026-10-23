@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for the lists of a board: create, rename, archive, delete, order and
+per-user colour.
+"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

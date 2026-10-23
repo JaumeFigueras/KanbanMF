@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for cards, copying a card and a list's card
+order.
+"""
+
 import uuid
 from datetime import datetime
 

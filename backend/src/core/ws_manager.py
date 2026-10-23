@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The in-memory registry of open WebSocket connections, per user."""
+
 import uuid
 from typing import Iterable
 

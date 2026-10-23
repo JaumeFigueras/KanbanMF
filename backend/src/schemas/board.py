@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for boards, templates, board order, sharing and
+the overdue-tasks page.
+"""
+
 import uuid
 from datetime import datetime
 

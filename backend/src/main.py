@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The FastAPI application: CORS, the ``/api/v1`` router, a health check, and a
+lifespan that starts and stops the scheduler with the app.
+"""
+
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 

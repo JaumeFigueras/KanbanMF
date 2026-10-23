@@ -67,6 +67,7 @@ extensions = [
     "sphinx.ext.intersphinx",   # cross-link to Python/SQLAlchemy/Pydantic docs
     "sphinx.ext.todo",          # .. todo:: directives, rendered (see below)
     "sphinx.ext.coverage",      # `make coverage` reports undocumented objects
+    "sphinx.ext.graphviz",      # the architecture diagrams (needs `dot`)
     "myst_parser",              # so the root README.md & friends can be included
 ]
 
@@ -84,7 +85,12 @@ nitpicky = False
 # MyST can't resolve them to a doc. Don't warn about it. Make them absolute
 # https://github.com/... URLs in the source files if you want them to work from
 # the rendered HTML too.
-suppress_warnings = ["myst.xref_missing"]
+#
+# setup/production.rst includes SETUP.md from its fourth heading level down,
+# since its top headings ("Old-fashioned deployment", "Debian") are
+# GitHub-only framing; MyST warns that an included document doesn't start at
+# H1, which is intended here.
+suppress_warnings = ["myst.xref_missing", "myst.header"]
 
 # -- Autodoc / autosummary ---------------------------------------------------
 
@@ -151,6 +157,16 @@ source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
+
+# -- Graphviz ----------------------------------------------------------------
+# SVG scales with the page and keeps its text selectable. Needs the `dot`
+# binary: `apt install graphviz` locally; .readthedocs.yaml installs it there.
+
+graphviz_output_format = "svg"
+graphviz_dot_args = [
+    "-Gfontname=Lato", "-Nfontname=Lato", "-Efontname=Lato",
+    "-Gbgcolor=transparent", "-Nfontsize=11", "-Efontsize=10",
+]
 
 # -- Todo --------------------------------------------------------------------
 

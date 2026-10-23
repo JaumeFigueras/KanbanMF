@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Public route telling the frontend which optional server features exist
+(today, only whether e-mail sending is configured).
+"""
+
 from fastapi import APIRouter
 
 from src.core.email import email_enabled

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UserPreferences` model and the :class:`DateFormat` enum."""
+
 import enum
 import uuid
 from datetime import datetime
@@ -14,11 +16,21 @@ from src.model.base import Base
 
 
 class DateFormat(str, enum.Enum):
+    """How dates are shown on card faces."""
+
     NUMERIC = "numeric"
     TEXTUAL = "textual"
 
 
 class UserPreferences(Base):
+    """A user's display preferences, one-to-one with :class:`~src.model.user.User`.
+
+    ``language_locale`` is the interface language (``en`` or ``ca_ES``) and
+    ``number_locale`` how dates and numbers are formatted (``en``, ``en_GB`` or
+    ``ca_ES``); ``timezone`` is an IANA name, used to show dates and to send
+    reminders at the user's local hour.
+    """
+
 
     __tablename__ = "user_preferences"
 

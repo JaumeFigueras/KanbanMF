@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`CardAssignee` association table: who is assigned to a card."""
+
 import uuid
 from datetime import datetime
 

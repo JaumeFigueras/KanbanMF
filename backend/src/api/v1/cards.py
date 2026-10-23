@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for cards: create, read, update, move between lists, copy, archive,
+delete, per-user colour and per-user order within a list.
+
+``archived_router`` serves a board's archived cards, which are not nested
+under a list in the URL.
+"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

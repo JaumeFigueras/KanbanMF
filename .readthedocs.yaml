@@ -7,6 +7,9 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.13"
+  # The architecture diagrams are Graphviz (sphinx.ext.graphviz).
+  apt_packages:
+    - graphviz
 
 sphinx:
   configuration: docs/source/conf.py

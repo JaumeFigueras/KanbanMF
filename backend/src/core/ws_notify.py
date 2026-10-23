@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Helpers for the notify-and-refetch messages the routes send after a change:
+the message itself, and the set of users who can see a board.
+"""
+
 import uuid
 
 from sqlalchemy import select

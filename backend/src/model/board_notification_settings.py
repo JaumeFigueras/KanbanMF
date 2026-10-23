@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`BoardNotificationSettings` model, and helpers to convert its
+weekday bitmask to and from ISO weekday numbers.
+"""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterable, List, Optional

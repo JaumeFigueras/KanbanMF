@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for the user's profile, preferences and
+password.
+"""
+
 import uuid
 from datetime import datetime
 from zoneinfo import available_timezones

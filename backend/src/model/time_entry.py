@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`TimeEntry` model: a private record of time spent on a card."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Optional

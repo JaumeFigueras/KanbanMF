@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UIBoardOrder` model: one user's order of boards on the boards
+page.
+"""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING

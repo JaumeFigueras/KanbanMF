@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for labels and their order. Colours must be
+``#RRGGBB`` and are stored upper-case.
+"""
+
 import re
 import uuid
 from datetime import datetime

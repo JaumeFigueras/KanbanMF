@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for a user's own due-date e-mail settings on one board.
+
+Settings are per user and per board: reading them returns defaults when the
+user has never saved any, and writing them never affects anyone else.
+"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

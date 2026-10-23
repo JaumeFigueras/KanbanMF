@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Password hashing (bcrypt), JWT access tokens and random refresh tokens."""
+
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any

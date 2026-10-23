@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`BoardNotificationOffset` model: one reminder day of a user's
+settings on a board.
+"""
+
 import uuid
 from typing import TYPE_CHECKING
 

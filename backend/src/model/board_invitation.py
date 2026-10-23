@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`BoardInvitation` model: a pending share with an e-mail address
+that has no account yet.
+"""
+
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone

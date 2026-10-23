@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UserBoardStar` model: a board starred by a user."""
+
 import uuid
 from datetime import datetime
 

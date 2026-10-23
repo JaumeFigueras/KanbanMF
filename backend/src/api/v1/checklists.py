@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for a card's checklists and their items, including their order."""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status

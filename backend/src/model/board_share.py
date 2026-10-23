@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`BoardShare` model: a board shared with one user."""
+
 import uuid
 from datetime import datetime
 

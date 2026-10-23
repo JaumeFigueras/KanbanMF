@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for the time tracker. Everything here is private to the caller, so,
+unlike the board routes, nothing sends WebSocket notifications.
+
+Also serves the time tracker's board and list choices, ordered by the usage
+ranking that :mod:`src.core.time_tracker_ranking` rebuilds nightly.
+"""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 

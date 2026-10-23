@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Routes for the signed-in user: profile, preferences, password, avatar,
+account deletion, and the user search used by the share dialog.
+"""
+
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status

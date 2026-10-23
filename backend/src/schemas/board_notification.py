@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for a user's due-date e-mail settings."""
+
 import uuid
 
 from pydantic import BaseModel, field_validator

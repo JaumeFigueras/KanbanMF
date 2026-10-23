@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`CardMember` association table: who is a member of a card."""
+
 import uuid
 from datetime import datetime
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The minimal user summary used wherever a person is shown (cards, shares,
+board owners).
+"""
+
 import uuid
 
 from pydantic import BaseModel

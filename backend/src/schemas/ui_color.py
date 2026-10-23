@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for per-user board, list and card colours."""
+
 import re
 
 from pydantic import BaseModel, field_validator

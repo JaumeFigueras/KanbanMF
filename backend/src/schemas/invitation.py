@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Request and response bodies for board invitations."""
+
 import uuid
 from datetime import datetime
 from typing import Literal

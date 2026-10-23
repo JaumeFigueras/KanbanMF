@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""E-mail and password accounts: registration, verification, login, logout
+and refresh-token rotation.
+
+The refresh token travels only in an HTTP-only cookie and is stored only as a
+bcrypt hash in ``UserSession``; every refresh deletes the session it used and
+issues a new one.
+"""
+
 import secrets
 from datetime import datetime, timedelta, timezone
 

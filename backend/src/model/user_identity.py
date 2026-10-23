@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The :class:`UserIdentity` model and the :class:`AuthProvider` enum: how a
+user signs in.
+"""
+
 import uuid
 import enum
 from datetime import datetime

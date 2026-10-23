@@ -1,13 +1,15 @@
 Frontend
 ========
 
-.. todo::
+The frontend is the single-page application in ``frontend/``: React and
+TypeScript, built by Vite into static files that the browser runs. It draws
+every screen, keeps the signed-in session alive, calls the backend's REST API
+for all data, and listens on a WebSocket for changes made elsewhere. It holds
+no business rules of its own beyond what the interface needs; the backend
+decides what is allowed.
 
-   **Section overview.** Planned contents:
-
-   - One paragraph on what the frontend is responsible for, and the same split
-     as the backend section: :doc:`stack` for how it fits together,
-     :doc:`code/index` for what each part contains.
+As with the backend, :doc:`stack` explains how it fits together and
+:doc:`code/index` describes what each part contains.
 
 .. toctree::
    :maxdepth: 2

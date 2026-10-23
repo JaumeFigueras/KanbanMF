@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""The ``/api/v1`` router: mounts every resource router under its prefix."""
+
 from fastapi import APIRouter
 
 from src.api.v1 import (
