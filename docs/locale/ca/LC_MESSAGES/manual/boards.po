@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Kanban MF 0.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 10:32+0200\n"
+"POT-Creation-Date: 2026-10-23 11:38+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ca\n"
@@ -22,53 +22,376 @@ msgstr ""
 msgid "Boards and lists"
 msgstr ""
 
-msgid "Todo"
-msgstr ""
-
-msgid "Planned contents:"
+msgid "The boards overview"
 msgstr ""
 
 msgid ""
-"The boards overview and its sections: Starred, My Boards, Shared with me "
-"and Templates. Each section can be collapsed, and the choice is "
-"remembered."
+"The boards overview is the first screen after signing in. Click "
+"**KanbanMF** in the top bar to come back to it from anywhere."
+msgstr ""
+
+msgid "The boards overview."
+msgstr ""
+
+msgid "Boards are grouped in sections:"
+msgstr ""
+
+msgid ":guilabel:`Starred`"
 msgstr ""
 
 msgid ""
-"Creating a board, empty or from a template (with a preview of the lists "
-"the template will create — see :doc:`templates`)."
+"The boards you starred, for quick access. A starred board appears both "
+"here and in its own section."
+msgstr ""
+
+msgid ":guilabel:`My Boards`"
+msgstr ""
+
+msgid "The boards you created."
+msgstr ""
+
+msgid ":guilabel:`Shared with me`"
 msgstr ""
 
 msgid ""
-"The menu on a board's tile in the overview: renaming, changing the colour"
-" (or resetting it to the default), starring, sharing (see :doc:`sharing`)"
-" and e-mail notifications (see :doc:`notifications`)."
+"Boards other people created and shared with you. The round avatar on each"
+" tile shows its owner."
+msgstr ""
+
+msgid ":guilabel:`Templates`"
+msgstr ""
+
+msgid "Starting points for new boards — see :doc:`templates`."
 msgstr ""
 
 msgid ""
-"Reordering boards on the overview by drag and drop; the order, the "
-"colours and the stars are yours alone."
+"Click a section's title to fold it away; KanbanMF remembers which "
+"sections you folded, in this browser. At the bottom of the page, "
+":guilabel:`Show Archived Boards` lists the boards you archived and "
+":guilabel:`Show Overdue Tasks` opens the :doc:`overdue tasks <overdue>` "
+"page."
 msgstr ""
 
 msgid ""
-"Archiving a board, the \"Show Archived Boards\" view, restoring a board, "
-"and deleting one permanently — only possible from the archive."
+"The order, the stars and the colours are **yours alone**: someone you "
+"share a board with can star it, colour it and place it differently on "
+"their own overview without affecting yours."
+msgstr ""
+
+msgid "Creating a board"
 msgstr ""
 
 msgid ""
-"Inside a board, the board menu: adding a list, managing labels, sorting "
-"the cards (custom order, due date, A-Z, Z-A — remembered per board, in "
-"this browser), e-mail notifications, and the archive."
+"Click :guilabel:`Create a new Board`, type its name and click **Save**. "
+"Tick :guilabel:`Starred` to star it straight away."
 msgstr ""
 
 msgid ""
-"Lists: adding, renaming, recolouring and reordering them by drag and "
-"drop. The list menu: archiving every card in the list at once, archiving "
-"the list."
+"The dialog to create a board, with a template chosen and the lists\n"
+"it will create."
+msgstr ""
+
+msgid "Creating a board from a template."
 msgstr ""
 
 msgid ""
-"The \"Archived Lists & Cards\" view: restoring or permanently deleting an"
-" archived list or card."
+"If you have templates, or someone shared one with you, the dialog also "
+"offers a :guilabel:`Template`. Choose one to start the board with a copy "
+"of its lists — the dialog previews them. Leave it on :guilabel:`None "
+"(empty board)` for a board with no lists."
 msgstr ""
+
+msgid "Starring and reordering"
+msgstr ""
+
+msgid ""
+"Click the star on a board's tile to star it, and again to unstar it. To "
+"change the order of the boards in a section, drag a tile by its four-"
+"arrow handle and drop it where you want it."
+msgstr ""
+
+msgid "The board menu on the overview"
+msgstr ""
+
+msgid "Each tile has a menu (☰) at its top right."
+msgstr ""
+
+msgid "A board tile with its menu open."
+msgstr ""
+
+msgid "The menu of a board you own."
+msgstr ""
+
+msgid ":guilabel:`Change Name`"
+msgstr ""
+
+msgid "Rename the board. Owner only."
+msgstr ""
+
+msgid ":guilabel:`Change Color`"
+msgstr ""
+
+msgid ""
+"Pick the board's colour, or :guilabel:`Reset to default`. The colour "
+"tints the tile and the board itself, and is only what *you* see."
+msgstr ""
+
+msgid ":guilabel:`Share`"
+msgstr ""
+
+msgid "Share the board with other people — see :doc:`sharing`. Owner only."
+msgstr ""
+
+msgid ":guilabel:`E-Mail notification`"
+msgstr ""
+
+msgid "Your due-date reminders for this board — see :doc:`notifications`."
+msgstr ""
+
+msgid ":guilabel:`Archive Board`"
+msgstr ""
+
+msgid "Owner only; see below."
+msgstr ""
+
+msgid ""
+"On a board shared with you, the menu only has the items you can use: the "
+"colour and your e-mail notifications."
+msgstr ""
+
+msgid "Archiving and deleting a board"
+msgstr ""
+
+msgid ""
+"Archiving hides a board from the overview — for you and for everyone it "
+"is shared with — without losing anything. To see your archived boards, "
+"click :guilabel:`Show Archived Boards` at the bottom of the overview."
+msgstr ""
+
+msgid "The Archived Boards section with one board."
+msgstr ""
+
+msgid "An archived board."
+msgstr ""
+
+msgid ""
+"Each archived board's menu has :guilabel:`Restore Board`, which puts it "
+"back where it was, and :guilabel:`Delete Board`, which deletes it "
+"permanently, with its lists and cards. Deleting can't be undone, and a "
+"board can only be deleted once it is archived."
+msgstr ""
+
+msgid "Working on a board"
+msgstr ""
+
+msgid "Click a board's tile to open it."
+msgstr ""
+
+msgid "A board with four lists."
+msgstr ""
+
+msgid "A board."
+msgstr ""
+
+msgid "The bar under the board's name holds:"
+msgstr ""
+
+msgid ":guilabel:`Add List`"
+msgstr ""
+
+msgid "Add a new list at the right end of the board."
+msgstr ""
+
+msgid ":guilabel:`Labels`"
+msgstr ""
+
+msgid "The board's labels — see :ref:`manual-labels`."
+msgstr ""
+
+msgid ":guilabel:`Sort cards`"
+msgstr ""
+
+msgid ""
+"How the cards are ordered in every list of the board — see :ref:`manual-"
+"sorting`."
+msgstr ""
+
+msgid ":guilabel:`Archive`"
+msgstr ""
+
+msgid "The board's archived lists and cards — see :ref:`manual-archive`."
+msgstr ""
+
+msgid ""
+"The menu (☰) at the right of the bar has your :guilabel:`E-Mail "
+"notification` settings for the board."
+msgstr ""
+
+msgid "Lists"
+msgstr ""
+
+msgid ""
+"Each list's header has three controls: the four-arrow handle to drag the "
+"list to another position, **+** to add a card to it (see :doc:`cards`), "
+"and the list menu (☰)."
+msgstr ""
+
+msgid "A list with its menu open."
+msgstr ""
+
+msgid "The list menu."
+msgstr ""
+
+msgid ":guilabel:`Archive All Cards`"
+msgstr ""
+
+msgid ""
+"Archive every card in the list in one go — handy for clearing out a "
+"*Done* list. The list itself stays."
+msgstr ""
+
+msgid ":guilabel:`Rename List`"
+msgstr ""
+
+msgid "Change the list's name."
+msgstr ""
+
+msgid ""
+"The list's colour, again only for you. New cards you add to a coloured "
+"list take its colour."
+msgstr ""
+
+msgid ":guilabel:`Archive List`"
+msgstr ""
+
+msgid "Hide the list, with all its cards, from the board."
+msgstr ""
+
+msgid ""
+"Everyone with access to the board can add, rename, reorder and archive "
+"lists."
+msgstr ""
+
+msgid "Sorting cards"
+msgstr ""
+
+msgid "The Sort cards menu."
+msgstr ""
+
+msgid "The sort options."
+msgstr ""
+
+msgid ":guilabel:`Custom order`"
+msgstr ""
+
+msgid "The order you arrange by dragging cards. This is the default."
+msgstr ""
+
+msgid ":guilabel:`Due date`"
+msgstr ""
+
+msgid ""
+"Cards with no due date first — still in the order you dragged them into —"
+" then the dated ones, soonest first. Only the undated cards can be moved "
+"by hand; a dated card's place follows from its date."
+msgstr ""
+
+msgid ":guilabel:`Alphabetically (A-Z)` and :guilabel:`Alphabetically (Z-A)`"
+msgstr ""
+
+msgid "By card name."
+msgstr ""
+
+msgid ""
+"The choice applies to every list of the board, and is remembered per "
+"board, in this browser."
+msgstr ""
+
+msgid "Archived lists and cards"
+msgstr ""
+
+msgid ""
+":guilabel:`Archive` in the board's bar shows what has been archived on "
+"the board: archived lists, with their cards, and archived cards from "
+"lists that are still on the board."
+msgstr ""
+
+msgid "The Archived Lists & Cards view."
+msgstr ""
+
+msgid "Archived lists and cards."
+msgstr ""
+
+msgid ""
+"Use a list's or a card's menu (☰) to :guilabel:`Restore` it to the board."
+" The board's owner can also delete it permanently from the same menu; "
+"that can't be undone. :guilabel:`Return to Board` takes you back."
+msgstr ""
+
+#~ msgid "Todo"
+#~ msgstr ""
+
+#~ msgid "Planned contents:"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The boards overview and its sections:"
+#~ " Starred, My Boards, Shared with me"
+#~ " and Templates. Each section can be"
+#~ " collapsed, and the choice is "
+#~ "remembered."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Creating a board, empty or from a"
+#~ " template (with a preview of the "
+#~ "lists the template will create — "
+#~ "see :doc:`templates`)."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The menu on a board's tile in "
+#~ "the overview: renaming, changing the "
+#~ "colour (or resetting it to the "
+#~ "default), starring, sharing (see "
+#~ ":doc:`sharing`) and e-mail notifications (see"
+#~ " :doc:`notifications`)."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Reordering boards on the overview by "
+#~ "drag and drop; the order, the "
+#~ "colours and the stars are yours "
+#~ "alone."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Archiving a board, the \"Show Archived"
+#~ " Boards\" view, restoring a board, "
+#~ "and deleting one permanently — only "
+#~ "possible from the archive."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Inside a board, the board menu: "
+#~ "adding a list, managing labels, sorting"
+#~ " the cards (custom order, due date,"
+#~ " A-Z, Z-A — remembered per board, "
+#~ "in this browser), e-mail notifications, "
+#~ "and the archive."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Lists: adding, renaming, recolouring and "
+#~ "reordering them by drag and drop. "
+#~ "The list menu: archiving every card "
+#~ "in the list at once, archiving the"
+#~ " list."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The \"Archived Lists & Cards\" view: "
+#~ "restoring or permanently deleting an "
+#~ "archived list or card."
+#~ msgstr ""
 

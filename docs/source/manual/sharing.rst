@@ -1,24 +1,100 @@
 Sharing a board
 ===============
 
-.. todo::
+A board you create is yours alone until you share it. Sharing gives other
+people access to the board — its lists, cards, checklists and labels — so
+you can work on it together.
 
-   Planned contents:
+The share dialog
+----------------
 
-   - Sharing a board with someone who already has an account: searching by
-     name or e-mail address in the share dialog, and what they can do once
-     shared.
-   - Inviting someone who has no account yet: their e-mail address, the
-     language of the invitation e-mail, and what happens when they sign up
-     (see :doc:`accounts`). What the dialog says when the address already
-     belongs to a user. Invitations need the server to be able to send
-     e-mail.
-   - Pending invitations: listing them, cancelling one, and their 30-day
-     expiry.
-   - Which settings are per user rather than shared — colours, ordering and
-     stars are yours alone, so two people can see the same board arranged
-     differently.
-   - Removing someone's access (owner only), and what happens to the cards
-     they are a member or assignee of.
-   - Seeing other people's changes as they happen (the live update behaviour),
-     and what to expect when two people edit at once.
+On the boards overview, open the board's menu (☰) and choose
+:guilabel:`Share`. Only the board's owner has this option.
+
+.. figure:: img/share.png
+   :alt: The Share board dialog, with two people, a pending invitation and
+         the fields to add more.
+
+   The share dialog.
+
+:guilabel:`Shared with`
+   The people who already have access. Click an avatar to remove that person
+   (see below).
+
+:guilabel:`Pending invitations`
+   Invitations sent to people who don't have an account yet.
+
+:guilabel:`Add people`
+   Search by name or e-mail address among the people with a KanbanMF account,
+   and pick one to share the board with them straight away.
+
+:guilabel:`Invite by email`
+   For someone who has no account yet.
+
+Inviting someone without an account
+-----------------------------------
+
+Type their e-mail address under :guilabel:`Invite by email`, choose the
+language of the invitation e-mail, and click :guilabel:`Send invitation`.
+They get an e-mail with a link to sign up; once they create their account
+with that address and verify it, the board appears under
+:guilabel:`Shared with me` for them, without you doing anything else (see
+:doc:`accounts`).
+
+If the address already belongs to a KanbanMF user, the dialog says so and
+offers to share the board with them directly.
+
+A pending invitation lasts 30 days. Click the cross next to it to cancel it;
+the link in the e-mail then stops working.
+
+Invitations need the server to be able to send e-mail. If it can't, the
+dialog says so and only :guilabel:`Add people` is available. Templates can
+only be shared with existing users, never by invitation.
+
+What shared users can do
+------------------------
+
+People a board is shared with work on it almost like its owner. They can:
+
+- add, rename, reorder and archive lists;
+- create, edit, move, copy and archive cards, and work with checklists;
+- attach the board's labels to cards;
+- restore archived lists and cards.
+
+Only the owner can rename, share, archive or delete the board, manage its
+labels, or delete archived lists and cards permanently.
+
+Each person's view is their own
+-------------------------------
+
+Some settings only ever affect the person who chooses them:
+
+- board, list and card **colours**;
+- the **order** of boards on the overview, and **stars**;
+- how cards are **sorted** on a board;
+- **e-mail reminders** (see :doc:`notifications`).
+
+So two people can look at the same board in different colours and arranged
+differently, and neither of them changes what the other sees.
+
+Removing someone
+----------------
+
+In the share dialog, click the person's avatar under :guilabel:`Shared with`
+and confirm. They lose access straight away, and the board disappears from
+their overview.
+
+They are not taken off the cards they were a member or assignee of: those
+cards still show them.
+
+Working at the same time
+------------------------
+
+Everyone who has a board open sees the others' changes as they happen: a
+card being added, moved, edited or archived shows up without reloading the
+page.
+
+When two people change the same card at almost the same moment, the last
+change saved wins. If you keep a card's dialog open while someone else edits
+that card, saving it can overwrite their changes, so close and reopen a card
+that someone else may be working on.
