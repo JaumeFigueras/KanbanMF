@@ -47,13 +47,22 @@ import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isUndated, sort
 import { apiFetch } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
-const LIST_EVENT_TYPES = new Set(['list_created', 'list_reordered', 'list_renamed', 'list_archived'])
+const LIST_EVENT_TYPES = new Set([
+  'list_created',
+  'list_reordered',
+  'list_renamed',
+  'list_archived',
+  'list_unarchived',
+  'list_deleted',
+])
 const CARD_EVENT_TYPES = new Set([
   'card_created',
   'card_updated',
   'card_moved',
   'card_order_changed',
   'card_archived',
+  'card_unarchived',
+  'card_deleted',
 ])
 
 // Lists and cards share one DndContext (a card needs to move between list
@@ -175,19 +184,6 @@ export default function Board() {
     fetchLists()
   }, [fetchLists])
 
-  // List changes made elsewhere (owner's other session, or a shared member)
-  // arrive as bare notifications scoped to this board; a notification we
-  // triggered ourselves is skipped since our own local state already reflects it.
-  useEffect(() => {
-    if (!boardId) return
-    return subscribeToNotifications((notification) => {
-      if (notification.board_id !== boardId) return
-      if (!LIST_EVENT_TYPES.has(notification.type)) return
-      if (isOwnNotification(notification)) return
-      fetchLists()
-    })
-  }, [boardId, fetchLists])
-
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's.
   const fetchCardsForList = useCallback((listId: string) => {
@@ -204,6 +200,22 @@ export default function Board() {
       })
       .catch(() => {})
   }, [boardId])
+
+  // List changes made elsewhere (owner's other session, or a shared member)
+  // arrive as bare notifications scoped to this board; a notification we
+  // triggered ourselves is skipped since our own local state already reflects it.
+  useEffect(() => {
+    if (!boardId) return
+    return subscribeToNotifications((notification) => {
+      if (notification.board_id !== boardId) return
+      if (!LIST_EVENT_TYPES.has(notification.type)) return
+      if (isOwnNotification(notification)) return
+      fetchLists()
+      // A restored list may still have the cards it had when it was
+      // archived cached here; list_unarchived names it so they're refetched.
+      if (notification.list_id) fetchCardsForList(notification.list_id)
+    })
+  }, [boardId, fetchLists, fetchCardsForList])
 
   // Fetch only for lists we haven't loaded yet.
   useEffect(() => {

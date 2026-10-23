@@ -230,8 +230,10 @@ async def update_board_list(
     if events:
         recipients = await board_recipients(board_id, board.owner_id, db)
         for event in events:
-            # Card events name the list whose cards to refetch.
-            event_list_id = list_id if event.startswith("card_") else None
+            # Card events name the list whose cards to refetch, and so does
+            # a restore: other clients may still hold the cards the list had
+            # when it was archived.
+            event_list_id = list_id if event.startswith("card_") or event == "list_unarchived" else None
             await manager.notify_many(
                 recipients, board_notification(event, board_id, client_id, list_id=event_list_id)
             )

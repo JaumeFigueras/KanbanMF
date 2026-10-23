@@ -22,11 +22,15 @@ export type BoardNotificationType =
   | 'list_reordered'
   | 'list_renamed'
   | 'list_archived'
+  | 'list_unarchived'
+  | 'list_deleted'
   | 'card_created'
   | 'card_updated'
   | 'card_moved'
   | 'card_order_changed'
   | 'card_archived'
+  | 'card_unarchived'
+  | 'card_deleted'
   // Sent only to the board owner, whose share dialog lists the invitations.
   | 'board_invitations_changed'
 
@@ -36,7 +40,8 @@ export interface BoardNotification {
   // to one board. Every other event (including all list_* and card_*
   // events) carries the board_id it's about.
   board_id: string | null
-  // set only for card_* events — which list's cards to refetch. A
+  // set only for card_* events and list_unarchived — which list's cards to
+  // refetch. A
   // card_moved notification is sent once per affected list (source and
   // destination), so this is always a single id, never both at once.
   list_id: string | null
