@@ -1,0 +1,20 @@
+{#- Local language switcher, at the foot of the sidebar. `make docs` builds
+    every language side by side in build/site/<lang>/, so the same page in
+    another language is ../<lang>/<pagename>.html from this build's root.
+    Only drawn when the build passes -A docs_switcher=1 (see conf.py). -#}
+{% extends "!layout.html" %}
+{% block navigation %}
+  {{ super() }}
+  {%- if docs_switcher and docs_languages %}
+  {%- set root = pathto('_static/', 1)[:-8] %}
+  <div class="docs-languages" role="navigation" aria-label="{{ _('Language') }}">
+    {%- for code, name in docs_languages.items() %}
+      {%- if code == language %}
+    <strong lang="{{ code }}">{{ name }}</strong>
+      {%- else %}
+    <a lang="{{ code }}" hreflang="{{ code }}" href="{{ root }}../{{ code }}/{{ pagename }}{{ file_suffix }}">{{ name }}</a>
+      {%- endif %}
+    {%- endfor %}
+  </div>
+  {%- endif %}
+{% endblock %}
