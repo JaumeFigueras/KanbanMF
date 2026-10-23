@@ -143,6 +143,15 @@ one. Local accounts can't sign in until their address is verified;
 :mod:`src.core.invitations` turns pending invitations into shares at that
 moment, and on every Google sign-in, since Google has verified the address.
 
+Google sign-in is the standard OAuth authorization-code flow, bound to the
+browser that starts it by the ``state`` parameter. ``/auth/google/`` sends
+Google a random state and keeps a copy in a ten-minute ``HTTP-only`` cookie,
+scoped to ``/api/v1/auth/google``. The callback refuses, with ``400`` and
+before contacting Google, any request whose ``state`` doesn't match that
+cookie, then deletes it. Without the check, a link carrying an attacker's own
+authorization code would sign whoever clicked it in to the attacker's account
+(login CSRF).
+
 The data model
 --------------
 

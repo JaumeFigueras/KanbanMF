@@ -46,7 +46,7 @@
   doesn't check access, so they keep getting due-date e-mails about a board they can no longer open. Skip
   recipients who are neither owner nor shared in `core/notifications.py`, and/or drop them from the board's
   cards when the share is deleted.
-- Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
+- ✓ Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
   can be signed in to an attacker's account. Generate a random state, keep it in a short-lived cookie, and check
   it in the callback.
 - `/auth/local/refresh` runs bcrypt against every active session of every user to find the matching one, so each
