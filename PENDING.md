@@ -18,14 +18,14 @@
 
 ## Functionality
 
-- MCP server, so Claude can read and organise your boards (only boards you own and choose, optionally read-only)
+- ✓ MCP server, so Claude can read and organise your boards (only boards you own and choose, optionally read-only)
   - ✓ Board operations moved to `src/core` (shared by the routes and the MCP tools)
   - ✓ OAuth 2.1 authorization server: discovery, DCR + Client ID Metadata Documents, consent API, tokens with
     rotation, grants API
   - ✓ `/mcp` endpoint (Streamable HTTP, official `mcp` SDK) with read tools; Vite proxy for `/mcp` and `/.well-known`
   - ✓ Consent page (`/oauth/consent`) and Connected apps dialog in the frontend (en + ca)
-  - Write tools (create/update/move/archive cards, lists, checklist items)
-  - Apache `ProxyPass` for `/mcp` and `/.well-known/oauth-*`, `SETUP.md`, manual page "Connecting Claude"
+  - ✓ Write tools (create/update/move/archive cards, lists, checklist items)
+  - ✓ Apache `ProxyPass` for `/mcp` and `/.well-known/oauth-*`, `SETUP.md`, manual page "Connecting Claude"
 
 - ✓ Copy checklist to another card
 - Captcha
@@ -57,7 +57,7 @@
 - ✓ Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
   can be signed in to an attacker's account. Generate a random state, keep it in a short-lived cookie, and check
   it in the callback.
-- Checklist changes (add/rename/delete/reorder a checklist or an item, tick an item — `api/v1/checklists.py`,
+- ✓ Checklist changes (add/rename/delete/reorder a checklist or an item, tick an item — `api/v1/checklists.py`,
   `core/checklists.py`) send no WebSocket notification, so other tabs and other people on the board keep showing
   the old checklist and progress until they reload. Notify `card_updated` with the card's `list_id`, as card edits
   do. Needed before the MCP server can add checklist items.
@@ -68,7 +68,7 @@
   hourly tick retries it, but the job only processes a setting when the local hour equals `notify_hour`.
 - `frontend/package.json` lists `@anthropic-ai/claude-code` under `dependencies`, so every `npm install`,
   production included, downloads it. Remove it (or move it to `devDependencies`).
-- `make deploy` doesn't run `pip install -r backend/requirements.txt` or `npm install`, so an update that adds a
+- ✓ `make deploy` doesn't run `pip install -r backend/requirements.txt` or `npm install`, so an update that adds a
   dependency breaks the deploy.
 - The database comment on `user_preferences.user_id` says "Deleting the user also deletes the avatar" (copied from
   `UserAvatar`). Fix the model's `comment`, add a migration and regenerate `src/model/sql/`.

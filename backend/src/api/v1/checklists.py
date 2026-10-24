@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db
 from src.core import checklists as checklist_service
-from src.core.checklists import get_checklist, get_item, require_card
+from src.core.checklists import get_checklist, get_item, notify_card_updated, require_card
 from src.model.checklist import Checklist
 from src.model.checklist_item import ChecklistItem
 from src.model.user import User
@@ -57,9 +57,10 @@ async def create_checklist(
     body: ChecklistCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> ChecklistRead:
     """Add a checklist to a card, appended after any existing checklists."""
-    return await checklist_service.create_checklist(board_id, list_id, card_id, body, current_user, db)
+    return await checklist_service.create_checklist(board_id, list_id, card_id, body, current_user, db, client_id)
 
 
 @router.put("/order", response_model=list[ChecklistRead])
@@ -70,6 +71,7 @@ async def update_checklist_order(
     body: ChecklistOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> list[ChecklistRead]:
     """Reorder a card's checklists — body must list every checklist on the
     card exactly once; position is set to each id's index."""
@@ -86,6 +88,7 @@ async def update_checklist_order(
     for position, checklist_id in enumerate(body.checklist_ids):
         checklists[checklist_id].position = position
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
 
     result = await db.execute(
         select(Checklist)
@@ -105,6 +108,7 @@ async def update_checklist(
     body: ChecklistUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> ChecklistRead:
     """Rename a checklist."""
     await require_card(board_id, list_id, card_id, current_user, db)
@@ -112,6 +116,7 @@ async def update_checklist(
     if body.name is not None:
         checklist.name = body.name
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
     checklist = await get_checklist(card_id, checklist_id, db)
     return ChecklistRead.model_validate(checklist)
 
@@ -124,12 +129,14 @@ async def delete_checklist(
     checklist_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
     """Delete a checklist and all of its items."""
     await require_card(board_id, list_id, card_id, current_user, db)
     checklist = await get_checklist(card_id, checklist_id, db)
     await db.delete(checklist)
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
 
 
 @router.post(
@@ -145,10 +152,11 @@ async def create_checklist_item(
     body: ChecklistItemCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> ChecklistItemRead:
     """Add an item to a checklist, appended after any existing items."""
     return await checklist_service.create_checklist_item(
-        board_id, list_id, card_id, checklist_id, body, current_user, db
+        board_id, list_id, card_id, checklist_id, body, current_user, db, client_id
     )
 
 
@@ -161,6 +169,7 @@ async def update_checklist_item_order(
     body: ChecklistItemOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> list[ChecklistItemRead]:
     """Reorder a checklist's items — body must list every item in the
     checklist exactly once; position is set to each id's index."""
@@ -175,6 +184,7 @@ async def update_checklist_item_order(
     for position, item_id in enumerate(body.item_ids):
         items[item_id].position = position
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
 
     result = await db.execute(
         select(ChecklistItem)
@@ -194,10 +204,11 @@ async def update_checklist_item(
     body: ChecklistItemUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> ChecklistItemRead:
     """Edit an item's text or toggle its done state."""
     return await checklist_service.update_checklist_item(
-        board_id, list_id, card_id, checklist_id, item_id, body, current_user, db
+        board_id, list_id, card_id, checklist_id, item_id, body, current_user, db, client_id
     )
 
 
@@ -210,6 +221,7 @@ async def delete_checklist_item(
     item_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
     """Remove an item from a checklist."""
     await require_card(board_id, list_id, card_id, current_user, db)
@@ -217,3 +229,4 @@ async def delete_checklist_item(
     item = await get_item(checklist_id, item_id, db)
     await db.delete(item)
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)

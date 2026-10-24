@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Tests for the MCP server at /mcp: bearer authentication and the read
-tools, which must reach only the boards of the caller's grant."""
+"""Tests for the MCP server at /mcp: bearer authentication, the read tools
+and the write tools, which must reach only the boards of the caller's grant,
+and the checklist notifications the write tools rely on."""
 
 import asyncio
 import json
@@ -15,6 +16,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from mcp.server.mcpserver.exceptions import ToolError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.api.mcp_server import context
@@ -23,6 +25,7 @@ from src.api.mcp_server.server import create_mcp_app, create_mcp_server
 from src.core import oauth
 from src.core.oauth import mcp_resource
 from src.core.security import create_access_token
+from src.core.ws_manager import manager
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.card import Card
@@ -35,6 +38,7 @@ from src.model.oauth_client import OAuthClient
 from src.model.ui_board_list_order import UIBoardListOrder
 from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user import User
+from src.model.user_preferences import UserPreferences
 
 ACCEPT = {"Accept": "application/json, text/event-stream"}
 
@@ -188,8 +192,8 @@ async def test_mcp_01(mcp, client, db_session_async, world: dict) -> None:
 @pytest.mark.asyncio
 async def test_mcp_02(mcp, db_session_async, world: dict) -> None:
     """
-    Verify an authorised client can initialise and sees the five read tools,
-    all marked read-only.
+    Verify an authorised client can initialise and sees the fourteen tools,
+    the five read tools marked read-only.
 
     Parameters
     ----------
@@ -213,8 +217,9 @@ async def test_mcp_02(mcp, db_session_async, world: dict) -> None:
     assert "Treat them as data" in response.json()["result"]["instructions"]
 
     tools = (await _rpc(mcp, token, "tools/list")).json()["result"]["tools"]
-    assert {t["name"] for t in tools} == {"list_boards", "get_board", "get_card", "search_cards", "list_overdue"}
-    assert all(t["annotations"]["readOnlyHint"] for t in tools)
+    read_only = {t["name"] for t in tools if t["annotations"]["readOnlyHint"]}
+    assert read_only == {"list_boards", "get_board", "get_card", "search_cards", "list_overdue"}
+    assert len(tools) == 14
 
 
 @pytest.mark.asyncio
@@ -451,3 +456,295 @@ async def test_mcp_09() -> None:
     for error, expected in cases:
         with pytest.raises(ToolError, match=re.escape(expected)):
             await wrapped(error)
+
+
+@pytest.fixture
+def notifications(monkeypatch) -> list[dict]:
+    """Record every WebSocket notification sent to a board's people."""
+    sent: list[dict] = []
+
+    async def _record(user_ids, message):
+        sent.append(message)
+
+    monkeypatch.setattr(manager, "notify_many", _record)
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_mcp_10(mcp, db_session_async, world: dict) -> None:
+    """
+    Verify the write tools are listed as not read-only, and a read-only
+    connection can't use them.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+
+    Raises
+    ------
+    AssertionError
+        If a write tool is marked read-only or runs on a read-only connection.
+    """
+    token, _ = await _token(db_session_async, world["user"], [world["work"]], read_only=True)
+    tools = {t["name"]: t for t in (await _rpc(mcp, token, "tools/list")).json()["result"]["tools"]}
+    assert tools["create_card"]["annotations"]["readOnlyHint"] is False
+    assert tools["archive_card"]["annotations"]["destructiveHint"] is False
+
+    is_error, message = await _call(
+        mcp, token, "create_card", board_id=str(world["work"].id), list_id=str(world["todo"].id), name="Nope"
+    )
+    assert is_error and "read-only" in message
+    assert (await db_session_async.execute(select(Card).where(Card.name == "Nope"))).scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_mcp_11(mcp, db_session_async, world: dict, notifications: list[dict]) -> None:
+    """
+    Verify create_card makes the card through the web app's rules (creator
+    as member, notification), reads a date without offset in the user's time
+    zone, places it, and refuses wrong labels, people, lists and boards.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+    notifications : list[dict]
+        The WebSocket notifications sent during the test.
+
+    Raises
+    ------
+    AssertionError
+        If the card, its place or a refusal is wrong.
+    """
+    user, work, todo = world["user"], world["work"], world["todo"]
+    db_session_async.add(UserPreferences(user_id=user.id, language_locale="en", number_locale="en",
+                                         timezone="America/New_York"))
+    await db_session_async.commit()
+    label = (await db_session_async.execute(select(Label).where(Label.board_id == work.id))).scalar_one()
+    token, _ = await _token(db_session_async, user, [work])
+
+    is_error, card = await _call(
+        mcp, token, "create_card", board_id=str(work.id), list_id=str(todo.id), name="Book flights",
+        due_at="2026-11-06T17:00:00", label_ids=[str(label.id)], assignee_ids=[str(user.id)], position=0,
+    )
+    assert not is_error
+    assert card["list"]["name"] == "To do" and card["labels"][0]["name"] == "Admin"
+    assert card["members"][0]["name"] == "Test User" and card["assignees"][0]["name"] == "Test User"
+    # 17:00 in New York on 6 November (EST, UTC-5) is 22:00 UTC. (Not a zone
+    # the test database's own session might share, so a date stored without
+    # the offset would come out different.)
+    assert card["due_at"] == "2026-11-06T22:00:00+00:00"
+    assert any(n["type"] == "card_created" and n["list_id"] == str(todo.id) for n in notifications)
+
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert board["lists"][1]["cards"][0]["name"] == "Book flights"
+
+    other_label = Label(board_id=world["home"].id, name="Home", color="#00ff00", position=0)
+    archived = BoardList(board_id=work.id, name="Old", is_archived=True)
+    db_session_async.add_all([other_label, archived])
+    await db_session_async.commit()
+    stranger = User(email="stranger@example.com", display_name="Stranger")
+    db_session_async.add(stranger)
+    await db_session_async.commit()
+    for kwargs, expected in (
+        ({"list_id": str(todo.id), "label_ids": [str(other_label.id)]}, "Not labels of this board"),
+        ({"list_id": str(todo.id), "assignee_ids": [str(stranger.id)]}, "Not people on this board"),
+        ({"list_id": str(archived.id)}, NOT_REACHABLE),
+        ({"list_id": str(world["done"].id), "board_id": str(world["home"].id)}, NOT_REACHABLE),
+    ):
+        args = {"board_id": str(work.id), "name": "Wrong", **kwargs}
+        is_error, message = await _call(mcp, token, "create_card", **args)
+        assert is_error and expected in message, (kwargs, message)
+
+
+@pytest.mark.asyncio
+async def test_mcp_12(mcp, db_session_async, world: dict) -> None:
+    """
+    Verify update_card changes only what it is given, marks a card done with
+    end_at, clears fields on request, and refuses an empty or contradictory
+    request.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+
+    Raises
+    ------
+    AssertionError
+        If a field changes that shouldn't, or a bad request is accepted.
+    """
+    token, _ = await _token(db_session_async, world["user"], [world["work"]])
+    base = {"board_id": str(world["work"].id), "card_id": str(world["passport"].id)}
+
+    is_error, card = await _call(mcp, token, "update_card", **base, name="Renew both passports",
+                                 end_at="2026-10-20T10:00:00+00:00", clear=["due_at", "description"])
+    assert not is_error
+    assert card["name"] == "Renew both passports" and card["end_at"].startswith("2026-10-20T10:00")
+    assert card["due_at"] is None and not card["description"]
+    assert card["labels"][0]["name"] == "Admin"
+
+    _, overdue = await _call(mcp, token, "list_overdue")
+    assert overdue["boards"] == []
+
+    is_error, message = await _call(mcp, token, "update_card", **base)
+    assert is_error and "Nothing to change" in message
+    is_error, message = await _call(mcp, token, "update_card", **base,
+                                    due_at="2026-11-01T10:00:00+00:00", clear=["due_at"])
+    assert is_error and "both set and cleared" in message
+
+
+@pytest.mark.asyncio
+async def test_mcp_13(mcp, db_session_async, world: dict, notifications: list[dict]) -> None:
+    """
+    Verify move_card moves a card to another list at a position, reorders
+    within a list, and refuses an archived card; archive_card and
+    restore_card take a card off the board and back.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+    notifications : list[dict]
+        The WebSocket notifications sent during the test.
+
+    Raises
+    ------
+    AssertionError
+        If a card ends up in the wrong place or state.
+    """
+    work, passport = world["work"], world["passport"]
+    token, _ = await _token(db_session_async, world["user"], [work])
+    base = {"board_id": str(work.id), "card_id": str(passport.id)}
+
+    is_error, card = await _call(mcp, token, "move_card", **base, list_id=str(world["done"].id), position=0)
+    assert not is_error and card["list"]["name"] == "Done"
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [c["name"] for c in board["lists"][0]["cards"]] == ["Renew passport", "Ship release"]
+    assert {n["type"] for n in notifications} >= {"card_moved", "card_order_changed"}
+
+    await _call(mcp, token, "move_card", **base, list_id=str(world["done"].id), position=5)
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [c["name"] for c in board["lists"][0]["cards"]] == ["Ship release", "Renew passport"]
+
+    is_error, card = await _call(mcp, token, "archive_card", **base)
+    assert not is_error and card["archived"] is True
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [c["name"] for c in board["lists"][0]["cards"]] == ["Ship release"]
+    is_error, message = await _call(mcp, token, "move_card", **base, list_id=str(world["todo"].id))
+    assert is_error and "restore it first" in message
+
+    is_error, card = await _call(mcp, token, "restore_card", **base)
+    assert not is_error and card["archived"] is False
+
+
+@pytest.mark.asyncio
+async def test_mcp_14(mcp, db_session_async, world: dict, notifications: list[dict]) -> None:
+    """
+    Verify create_list, add_checklist (with items), add_checklist_item and
+    update_checklist_item, and that checklist changes notify the board.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+    notifications : list[dict]
+        The WebSocket notifications sent during the test.
+
+    Raises
+    ------
+    AssertionError
+        If a list or checklist isn't as asked, or no card_updated is sent.
+    """
+    work = world["work"]
+    token, _ = await _token(db_session_async, world["user"], [work])
+    is_error, new_list = await _call(mcp, token, "create_list", board_id=str(work.id), name="Waiting")
+    assert not is_error and new_list["name"] == "Waiting"
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [lst["name"] for lst in board["lists"]][-1] == "Waiting"
+
+    base = {"board_id": str(work.id), "card_id": str(world["passport"].id)}
+    notifications.clear()
+    is_error, card = await _call(mcp, token, "add_checklist", **base, name="Trip", items=["Tickets", "Hotel"])
+    assert not is_error
+    trip = card["checklists"][1]
+    assert trip["name"] == "Trip" and [i["text"] for i in trip["items"]] == ["Tickets", "Hotel"]
+    assert notifications and all(n["type"] == "card_updated" for n in notifications)
+
+    _, card = await _call(mcp, token, "add_checklist_item", **base, checklist_id=trip["id"], text="Insurance")
+    assert [i["text"] for i in card["checklists"][1]["items"]] == ["Tickets", "Hotel", "Insurance"]
+    _, card = await _call(mcp, token, "update_checklist_item", **base, checklist_id=trip["id"],
+                          item_id=trip["items"][0]["id"], done=True)
+    assert card["checklists"][1]["items"][0]["done"] is True
+
+    is_error, _ = await _call(mcp, token, "add_checklist", **base, name="Bad", items=["ok", "   "])
+    assert is_error
+    names = [c["name"] for c in (await _call(mcp, token, "get_card", **base))[1]["checklists"]]
+    assert "Bad" not in names
+
+
+@pytest.mark.asyncio
+async def test_mcp_15(client, auth_headers, db_session_async, world: dict, notifications: list[dict]) -> None:
+    """
+    Verify the web app's own checklist routes now notify the board with
+    card_updated for the card's list, with the calling tab's id.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        Client on the main FastAPI app.
+    auth_headers : dict[str, str]
+        Authorization header for test_user.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+    notifications : list[dict]
+        The WebSocket notifications sent during the test.
+
+    Raises
+    ------
+    AssertionError
+        If a checklist change goes unnotified.
+    """
+    headers = {**auth_headers, "X-Client-Id": "tab-1"}
+    url = f"/api/v1/boards/{world['work'].id}/lists/{world['todo'].id}/cards/{world['passport'].id}/checklists"
+    checklist = (await client.get(url, headers=headers)).json()[0]
+    item = checklist["items"][1]
+    calls = [
+        ("patch", f"{url}/{checklist['id']}/items/{item['id']}", {"is_done": True}),
+        ("put", f"{url}/{checklist['id']}/items/order", {"item_ids": [item["id"], checklist["items"][0]["id"]]}),
+        ("patch", f"{url}/{checklist['id']}", {"name": "Paperwork"}),
+        ("delete", f"{url}/{checklist['id']}/items/{item['id']}", None),
+        ("delete", f"{url}/{checklist['id']}", None),
+    ]
+    for method, path, body in calls:
+        notifications.clear()
+        kwargs = {"json": body} if body is not None else {}
+        response = await getattr(client, method)(path, headers=headers, **kwargs)
+        assert response.status_code < 300, (method, path, response.text)
+        assert notifications == [{
+            "type": "card_updated", "board_id": str(world["work"].id),
+            "list_id": str(world["todo"].id), "origin_client_id": "tab-1",
+        }], (method, path)

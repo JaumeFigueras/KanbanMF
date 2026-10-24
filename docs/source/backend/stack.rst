@@ -282,8 +282,20 @@ Tools
    time zone and local time, since dates go out in UTC), ``get_board`` (lists
    and live cards in the board's order, cards summarised), ``get_card``
    (everything, with ids), ``search_cards`` (the core search, narrowed to the
-   grant's boards) and ``list_overdue``. They call the same :mod:`src.core`
-   functions as the routes.
+   grant's boards) and ``list_overdue``.
+   :mod:`~src.api.mcp_server.write_tools`: ``create_card``, ``update_card``
+   (``end_at`` marks a card done, ``clear`` empties fields), ``move_card``
+   (another list of the board, or a place in the list), ``archive_card`` and
+   ``restore_card``, ``create_list``, ``add_checklist`` (with its items),
+   ``add_checklist_item`` and ``update_checklist_item``. All of them call the
+   same :mod:`src.core` functions as the routes, so the rules are the web
+   app's and every change reaches the open tabs by WebSocket (with no
+   ``origin_client_id``, so the user's own tabs refresh too). The write tools
+   refuse to run on a read-only grant, never delete (archiving is the undo-able
+   way to remove a card), and refuse label and people ids that don't belong to
+   the board instead of dropping them silently as the routes do, so the model
+   learns its id was wrong. A date sent without an offset is taken in the
+   user's time zone; dates always go out in UTC.
 
 Errors
    ``tool_errors`` turns the core's ``HTTPException``\s into tool errors —
@@ -294,9 +306,10 @@ Errors
 
 Card names, descriptions and checklists are written by the user and by the
 people they share boards with, so they may contain text meant to steer an
-assistant. The server's instructions tell the client to treat them as data;
-read-only connections and archive-instead-of-delete limit what a misled
-assistant could do.
+assistant. The server's instructions tell the client to treat them as data,
+and to say what it is about to do before changing several cards; read-only
+connections and archive-instead-of-delete limit what a misled assistant could
+do.
 
 The data model
 --------------

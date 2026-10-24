@@ -67,7 +67,7 @@ the domain you're putting in the Apache vhost, update these in `backend/.env`:
 
 | Variable               | Production value                                                    |
 |-------------------------|----------------------------------------------------------------------|
-| `FRONTEND_URL`           | `https://kanban.example.com` — used for CORS and as the post-login redirect target after Google sign-in |
+| `FRONTEND_URL`           | `https://kanban.example.com` — used for CORS, as the post-login redirect target after Google sign-in, and as the OAuth issuer of the MCP server (whose address is `FRONTEND_URL/mcp`), so it must be the exact public `https://` origin, with no trailing slash |
 | `SECRET_KEY`             | A real secret: `openssl rand -hex 32` (never reuse the dev one)     |
 | `GOOGLE_REDIRECT_URI`    | `https://kanban.example.com/api/v1/auth/google/callback` — must also be added to the authorized redirect URIs for this OAuth client in Google Cloud Console |
 | `DATABASE_URL`           | Same PostgreSQL cluster/DB created above, but with production credentials |
@@ -147,6 +147,11 @@ dedicated `ws://` `ProxyPass` for the WebSocket endpoint, since it needs the
 real static file and isn't `/api/` falls back to `index.html`, so client-side routes like
 `/boards/<id>` still work on a hard refresh.
 
+Three more paths go to the backend, for the MCP server Claude connects to: `/mcp` itself, and
+the two OAuth discovery documents `/.well-known/oauth-protected-resource` and
+`/.well-known/oauth-authorization-server`, which the RFCs place at the root of the site. Only
+those two under `/.well-known` — certbot's `acme-challenge` must keep being served from disk.
+
 Obtain the certificate with certbot's webroot plugin, pointed at the same directory the vhost's
 `:80` block serves ACME challenges from:
 
@@ -218,6 +223,26 @@ sudo ss -tlnp           # sanity check: nothing else should be listening on a no
 Port `80` never serves the app — it only redirects to `443` and answers the ACME challenge
 for certificate renewal.
 
+#### Connecting Claude (MCP)
+
+Nothing to switch on: once the vhost above is in place, Claude connects to
+`https://kanban.example.com/mcp`. Check from anywhere that the discovery documents answer:
+
+```bash
+curl https://kanban.example.com/.well-known/oauth-authorization-server   # JSON, issuer = FRONTEND_URL
+curl -i -X POST https://kanban.example.com/mcp                           # 401 with WWW-Authenticate
+```
+
+- Claude's web, desktop and mobile apps talk to the server from Anthropic's network
+  (`160.79.104.0/21`). A firewall, WAF or fail2ban rule in front of Apache must let it reach
+  `/mcp`, `/.well-known/oauth-*` and `/api/v1/oauth/*`.
+- Claude Code identifies itself with a document on `claude.ai`, which the backend fetches, so
+  the server needs outgoing HTTPS. `OAUTH_CIMD_ALLOWED_HOSTS` in `backend/.env` lists the hosts
+  such documents may come from (default `claude.ai,claude.com`); there's normally no reason to
+  change it.
+- Each user connects Claude themselves and chooses which of their own boards it may reach — see
+  the user manual's *Connecting Claude* page.
+
 #### Which URLs get exposed
 
 With the setup above, there is exactly one public origin, all on the standard SSL port:
@@ -227,6 +252,8 @@ With the setup above, there is exactly one public origin, all on the standard SS
 | `https://kanban.example.com/` | Apache, serving the built SPA from `frontend/dist` |
 | `https://kanban.example.com/api/v1/*` | Apache, reverse-proxied to the backend on `127.0.0.1:8000` |
 | `https://kanban.example.com/api/v1/ws` | Same, upgraded to a WebSocket |
+| `https://kanban.example.com/mcp` | Apache, reverse-proxied to the backend: the MCP server (needs an OAuth access token) |
+| `https://kanban.example.com/.well-known/oauth-*` | Same: the two OAuth discovery documents MCP clients read first |
 | `http://kanban.example.com/` | Redirects to the `https://` origin above (or answers the ACME challenge) |
 
 Nothing else is internet-reachable: the FastAPI backend, PostgreSQL, and the build tooling

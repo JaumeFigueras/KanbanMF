@@ -82,6 +82,10 @@ Change / Remove avatar
 Language and Localization, and the theme
    See :doc:`preferences`.
 
+Connected apps
+   The apps, such as Claude, you have allowed to reach some of your boards.
+   See :doc:`claude`.
+
 Signing out
 -----------
 

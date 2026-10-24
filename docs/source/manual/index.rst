@@ -22,6 +22,7 @@ colleagues.
    overdue
    time_tracker
    preferences
+   claude
 
 Words used in this manual
 -------------------------

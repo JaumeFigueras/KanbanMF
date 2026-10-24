@@ -126,13 +126,23 @@ async def reachable_board(grant: McpGrant, board_id: uuid.UUID, db: AsyncSession
 
 
 async def reachable_card(
-    grant: McpGrant, board_id: uuid.UUID, card_id: uuid.UUID, db: AsyncSession, options: tuple = ()
+    grant: McpGrant,
+    board_id: uuid.UUID,
+    card_id: uuid.UUID,
+    db: AsyncSession,
+    options: tuple = (),
+    refresh: bool = False,
 ) -> tuple[Board, BoardList, Card]:
-    """A non-deleted card of a board the grant reaches, with its list."""
+    """A non-deleted card of a board the grant reaches, with its list.
+
+    ``refresh`` reloads the card and the relationships in ``options`` even if
+    the session already holds them, as after a change made in this session.
+    """
     board = await reachable_board(grant, board_id, db)
     result = await db.execute(
         select(Card, BoardList)
         .options(*options)
+        .execution_options(populate_existing=refresh)
         .join(BoardList, BoardList.id == Card.list_id)
         .where(
             Card.id == card_id,

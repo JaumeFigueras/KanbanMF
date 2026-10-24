@@ -21,6 +21,9 @@ What it does, in order:
    frontend would.
 4. Adds a pending invitation straight in the database, for the same reason as
    step 2: the API would e-mail it.
+5. Connects "Claude" to the first user's main board, straight in the database
+   (an OAuth client and a grant, as if the consent page had been answered),
+   so the Connected apps dialog has something to show.
 
 The demo data is written in the language being documented, so the Catalan
 screenshots show Catalan board and card names. Due dates are relative to
@@ -51,7 +54,9 @@ from sqlalchemy import delete  # noqa: E402
 
 from src.core.database import AsyncSessionLocal, engine  # noqa: E402
 from src.core.security import hash_password  # noqa: E402
-from src.model import BoardInvitation, User, UserIdentity, UserPreferences  # noqa: E402
+from src.model import (  # noqa: E402
+    BoardInvitation, McpGrant, McpGrantBoard, OAuthClient, User, UserIdentity, UserPreferences,
+)
 from src.model.user_identity import AuthProvider  # noqa: E402
 
 DEMO_PASSWORD = "demo-password"
@@ -226,6 +231,23 @@ async def add_invitation(board_id: str, inviter_id: str, email: str, lang: str) 
         await db.commit()
 
 
+async def add_connected_app(board_id: str, user_id: str, lang: str) -> None:
+    """Claude, connected to the main board as the consent page would leave it.
+
+    The client has a fixed id per language, so a new seed replaces it (the
+    grant goes with the demo user).
+    """
+    client_id = f"demo-claude-{lang}"
+    async with AsyncSessionLocal() as db:
+        await db.execute(delete(OAuthClient).where(OAuthClient.client_id == client_id))
+        client = OAuthClient(client_id=client_id, registration="dcr", client_name="Claude",
+                             redirect_uris=["https://claude.ai/api/mcp/auth_callback"])
+        db.add(McpGrant(user_id=user_id, client=client, read_only=False,
+                        last_used_at=datetime.now(timezone.utc) - timedelta(hours=2),
+                        boards=[McpGrantBoard(board_id=board_id)]))
+        await db.commit()
+
+
 class Api:
     """A signed-in API client for one demo user."""
 
@@ -370,6 +392,7 @@ async def seed(lang: str, base: str) -> None:
         user_ids = await reset_users(lang)
         main = await asyncio.to_thread(build, lang, base, user_ids)
         await add_invitation(main, user_ids[0], INVITEE[lang], lang)
+        await add_connected_app(main, user_ids[0], lang)
     finally:
         await engine.dispose()
 

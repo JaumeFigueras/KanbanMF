@@ -7,5 +7,6 @@
 :mod:`~src.api.mcp_server.server` builds it, :mod:`~src.api.mcp_server.context`
 holds what every tool shares (the connection's grant, which boards it may
 reach, turning errors into tool errors), and
-:mod:`~src.api.mcp_server.read_tools` the tools.
+:mod:`~src.api.mcp_server.read_tools` and
+:mod:`~src.api.mcp_server.write_tools` the tools.
 """

@@ -29,13 +29,18 @@ after, whatever happens, because the hourly job would otherwise send them.
 """
 
 import argparse
+import base64
+import hashlib
 import json
+import secrets
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 
+import httpx
 from playwright.sync_api import Locator, Page, sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -490,6 +495,37 @@ def display_name(s: Shooter) -> None:
     s.settle()
     s.save("display-name", s.dialog())
     s.escape()
+
+
+@shot
+def connected_apps(s: Shooter) -> None:
+    s.goto("/boards")
+    open_user_menu(s)
+    s.menu_item("connectedApps.title").click()
+    s.settle()
+    s.save("connected-apps", s.dialog())
+    s.escape()
+
+
+@shot
+def oauth_consent(s: Shooter) -> None:
+    """The consent page, reached as Claude reaches it: a client registers and
+    sends the browser to /authorize. The request is left unanswered (it
+    expires in minutes, and the client is cleaned up within a day), since
+    either answer would send the browser off to claude.ai."""
+    redirect_uri = "https://claude.ai/api/mcp/auth_callback"
+    client = httpx.post(f"{s.base}/api/v1/oauth/register",
+                        json={"client_name": "Claude", "redirect_uris": [redirect_uri]}).json()
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(secrets.token_bytes(32)).digest()).rstrip(b"=").decode()
+    s.goto("/api/v1/oauth/authorize?" + urlencode({
+        "response_type": "code", "client_id": client["client_id"], "redirect_uri": redirect_uri,
+        "code_challenge": challenge, "code_challenge_method": "S256", "state": "manual",
+    }))
+    s.page.wait_for_url("**/oauth/consent?request=*")
+    s.settle()
+    s.page.get_by_label(s.text["main"], exact=True).check()
+    s.settle(300)
+    s.save("oauth-consent", s.page.locator(".MuiCard-root").first)
 
 
 @shot

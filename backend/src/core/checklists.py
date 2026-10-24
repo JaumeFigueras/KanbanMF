@@ -3,7 +3,8 @@
 
 """Checklist operations shared by the checklist routes and anything else that
 works on a card's checklists: adding a checklist, adding an item, and editing
-or ticking an item, each with its access checks.
+or ticking an item, each with its access checks — and the notification every
+checklist change sends.
 """
 
 import uuid
@@ -14,6 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.access import get_accessible_board, get_card, get_list
+from src.core.ws_manager import manager
+from src.core.ws_notify import board_notification, board_recipients
+from src.model.board import Board
 from src.model.card import Card
 from src.model.checklist import Checklist
 from src.model.checklist_item import ChecklistItem
@@ -65,6 +69,20 @@ async def require_card(
     return await get_card(list_id, card_id, db)
 
 
+async def notify_card_updated(
+    board_id: uuid.UUID, list_id: uuid.UUID, db: AsyncSession, client_id: str | None
+) -> None:
+    """Tell everyone on the board that a card of the list changed.
+
+    Checklists show on the card's face (the done/total count), so a checklist
+    change is a ``card_updated`` of its list: other clients refetch that
+    list's cards, as for any other card edit.
+    """
+    owner_id = (await db.execute(select(Board.owner_id).where(Board.id == board_id))).scalar_one()
+    recipients = await board_recipients(board_id, owner_id, db)
+    await manager.notify_many(recipients, board_notification("card_updated", board_id, client_id, list_id=list_id))
+
+
 async def create_checklist(
     board_id: uuid.UUID,
     list_id: uuid.UUID,
@@ -72,6 +90,7 @@ async def create_checklist(
     body: ChecklistCreate,
     user: User,
     db: AsyncSession,
+    client_id: str | None,
 ) -> ChecklistRead:
     """Add a checklist to a card, appended after any existing checklists."""
     await require_card(board_id, list_id, card_id, user, db)
@@ -81,6 +100,7 @@ async def create_checklist(
     checklist = Checklist(card_id=card_id, name=body.name, position=count_result.scalar_one())
     db.add(checklist)
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
     checklist = await get_checklist(card_id, checklist.id, db)
     return ChecklistRead.model_validate(checklist)
 
@@ -93,6 +113,7 @@ async def create_checklist_item(
     body: ChecklistItemCreate,
     user: User,
     db: AsyncSession,
+    client_id: str | None,
 ) -> ChecklistItemRead:
     """Add an item to a checklist, appended after any existing items."""
     await require_card(board_id, list_id, card_id, user, db)
@@ -105,6 +126,7 @@ async def create_checklist_item(
     )
     db.add(item)
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
     await db.refresh(item)
     return ChecklistItemRead.model_validate(item)
 
@@ -118,6 +140,7 @@ async def update_checklist_item(
     body: ChecklistItemUpdate,
     user: User,
     db: AsyncSession,
+    client_id: str | None,
 ) -> ChecklistItemRead:
     """Edit an item's text or toggle its done state."""
     await require_card(board_id, list_id, card_id, user, db)
@@ -128,5 +151,6 @@ async def update_checklist_item(
     if body.is_done is not None:
         item.is_done = body.is_done
     await db.commit()
+    await notify_card_updated(board_id, list_id, db, client_id)
     await db.refresh(item)
     return ChecklistItemRead.model_validate(item)

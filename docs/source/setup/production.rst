@@ -80,20 +80,16 @@ From the production checkout, as the user that owns it:
 It runs, and stops at the first step that fails:
 
 1. ``git pull``;
-2. ``alembic upgrade head``, from ``backend/``, to apply any new migration;
-3. ``sudo systemctl restart kanbanmf-backend``;
-4. ``npm run build``, from ``frontend/``, to rebuild ``frontend/dist``.
+2. ``pip install -r backend/requirements.txt``, into ``.venv/``;
+3. ``alembic upgrade head``, from ``backend/``, to apply any new migration;
+4. ``sudo systemctl restart kanbanmf-backend``;
+5. ``npm ci`` and ``npm run build``, from ``frontend/``, to reinstall the
+   frontend's packages exactly as ``package-lock.json`` lists them and
+   rebuild ``frontend/dist``.
 
-Because it stops at the first failure, a failed pull or migration leaves the
-old backend running. The restart is a moment of downtime: open tabs lose their
-WebSocket and reconnect on their own a few seconds later.
-
-.. important::
-
-   ``make deploy`` doesn't install dependencies. When an update changes
-   ``backend/requirements.txt`` or ``frontend/package.json``, run
-   ``.venv/bin/pip install -r backend/requirements.txt`` or ``npm install``
-   (in ``frontend/``) before it.
+Because it stops at the first failure, a failed pull, install or migration
+leaves the old backend running. The restart is a moment of downtime: open
+tabs lose their WebSocket and reconnect on their own a few seconds later.
 
 Backups
 -------

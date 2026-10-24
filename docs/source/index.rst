@@ -187,6 +187,25 @@ What you can do
 
    .. container:: feature-text
 
+      .. rubric:: Ask Claude about your boards
+
+      Connect Claude, Anthropic's AI assistant, and ask it what's overdue,
+      where a project stands or which card mentions the invoice — or have it
+      add cards, move them along and tick off checklists for you. You choose
+      which of your boards it may reach, and can make the connection
+      read-only, change it or revoke it whenever you like.
+
+      :doc:`More about connecting Claude <manual/claude>`
+
+   .. container:: feature-image
+
+      .. figure:: manual/img/oauth-consent.png
+         :alt: The page that asks which boards Claude may reach.
+
+.. container:: feature reverse
+
+   .. container:: feature-text
+
       .. rubric:: Your way
 
       Use KanbanMF in English or Catalan, with the date format and time zone

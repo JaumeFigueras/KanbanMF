@@ -52,9 +52,11 @@ backend frontend:
 	@:
 
 # Run on the server, from the production checkout. make stops at the first
-# failing step, so a failed pull or migration leaves the old backend running.
+# failing step, so a failed pull, install or migration leaves the old backend
+# running. The installs are no-ops when nothing changed.
 deploy:
 	git pull
+	$(VENV)/pip install -q -r backend/requirements.txt
 	cd backend && $(VENV)/alembic upgrade head
 	sudo systemctl restart kanbanmf-backend
-	cd frontend && npm run build
+	cd frontend && npm ci && npm run build

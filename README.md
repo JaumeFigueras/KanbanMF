@@ -43,6 +43,13 @@ abilities to manage small and medium projects. The functionality that has been i
   comment. Entries keep a copy of the board name, card name and labels, so renaming, archiving or deleting the
   card doesn't change past records. Entries can be filtered by year and month, show per-day and period totals,
   warn about overlaps, and can be exported to CSV. Boards and lists are offered most-used first.
+- **Claude (MCP server)**: Claude, Anthropic's AI assistant, can connect to KanbanMF over the Model Context
+  Protocol (`/mcp`, Streamable HTTP) — from claude.ai, the desktop and mobile apps, or Claude Code. Signing in uses
+  OAuth 2.1 with a consent page where the user picks which of *their own* boards it may reach and whether it is
+  read-only; boards shared with them are never offered. Connections can be changed or revoked from **Connected
+  apps** in the user menu. Claude can list boards, read a board or a card, search cards and list overdue ones, and —
+  unless the connection is read-only — create, edit, move, archive and restore cards, add lists and add or tick
+  checklist items. Nothing can be deleted through it, and every change reaches open tabs live.
 - **Templates**: A template is a special board that holds only lists (no cards or labels). Creating a new board
   from a template copies its lists, in order, together with the board and list colors *you* chose on the
   template — other users keep their own colors. Templates live in their own section of the boards page, and can

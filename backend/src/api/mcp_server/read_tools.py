@@ -11,7 +11,7 @@ to keep answers short.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -52,7 +52,9 @@ CardId = Annotated[uuid.UUID, Field(description="A card id, from get_board or se
 
 
 def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value else None
+    """ISO 8601 in UTC, as the server's instructions promise (the database
+    hands dates back in its own session's time zone)."""
+    return value.astimezone(timezone.utc).isoformat() if value else None
 
 
 def board_url(board_id: uuid.UUID) -> str:
