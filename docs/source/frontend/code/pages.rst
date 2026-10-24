@@ -35,6 +35,15 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
    open on their board; archived ones lead back to the archive view or to the
    boards page's Archived Boards section (``/boards?archived=1``).
 
+``OAuthConsent`` — ``/oauth/consent``
+   Where an app such as Claude asks to reach the user's boards: the backend's
+   ``/oauth/authorize`` sends the browser here with ``?request=<id>``. It shows
+   who asks, the account signed in, and where the answer goes (with a warning
+   when that is a program on this computer), offers the user's own live boards
+   (``/oauth/requests/<id>``) and a read-only switch, and sends the browser on
+   to the ``redirect_to`` that ``approve`` or ``deny`` answers. With
+   ``?error=<code>`` it only explains why the request was stopped.
+
 ``TimeTracker`` — ``/time-tracker``
    The running task, the year/month filter, the table of entries grouped by
    day with totals and overlap warnings, the start/add/edit/delete dialogs,

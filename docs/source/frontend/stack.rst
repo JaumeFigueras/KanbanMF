@@ -57,6 +57,9 @@ wraps every route in ``AuthProvider``. The routes are:
    * - ``/search``
      - ``SearchResults``
      - ``ProtectedRoute``
+   * - ``/oauth/consent``
+     - ``OAuthConsent``
+     - ``ProtectedRoute``
    * - ``/signin``, ``/signup``
      - ``SignIn``, ``SignUp``
      - ``PublicRoute``
@@ -70,6 +73,15 @@ wraps every route in ``AuthProvider``. The routes are:
 ``ProtectedRoute`` shows a spinner while ``AuthProvider`` checks the session,
 then either the page or a redirect to ``/signin``; ``PublicRoute`` sends a
 signed-in user to ``/boards``.
+
+A page that sends the user to sign in is where they come back to afterwards:
+``ProtectedRoute`` keeps its path in ``sessionStorage`` (``utils/returnTo.ts``),
+and ``SignIn``, ``PublicRoute`` and the ``/`` redirect go there instead of
+``/boards``; the next protected page shown clears it. It lives in
+``sessionStorage`` rather than in router state because Google sign-in leaves
+the app and comes back to ``/`` through the backend. This is what takes Claude's
+connection request through sign-in to the consent page, and it also brings an
+expired session back to the board it was on.
 
 Signing in and staying signed in
 --------------------------------

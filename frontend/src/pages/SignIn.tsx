@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
 import AuthControls from '../components/AuthControls'
 import { useAuth } from '../context/useAuth'
+import { peekReturnTo } from '../utils/returnTo'
 
 export default function SignIn() {
   const { t } = useTranslation()
@@ -53,7 +54,7 @@ export default function SignIn() {
       }
       const { access_token } = await res.json()
       login(access_token)
-      navigate('/boards')
+      navigate(peekReturnTo() ?? '/boards')
     } catch {
       setErrorKey('signIn.errorCredentials')
     } finally {

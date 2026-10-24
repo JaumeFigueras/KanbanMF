@@ -14,11 +14,15 @@ import SearchResults from './pages/SearchResults'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import VerifyEmail from './pages/VerifyEmail'
+import OAuthConsent from './pages/OAuthConsent'
+import { peekReturnTo } from './utils/returnTo'
 
 function DefaultRedirect() {
   const { accessToken, loading } = useAuth()
   if (loading) return null
-  return <Navigate to={accessToken ? '/boards' : '/signin'} replace />
+  // Google sign-in comes back to "/", so this is also where it resumes a
+  // page that sent the user to sign in.
+  return <Navigate to={accessToken ? peekReturnTo() ?? '/boards' : '/signin'} replace />
 }
 
 export default function App() {
@@ -35,6 +39,7 @@ export default function App() {
             <Route path="/time-tracker" element={<ProtectedRoute><TimeTracker /></ProtectedRoute>} />
             <Route path="/overdue" element={<ProtectedRoute><OverdueTasks /></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
+            <Route path="/oauth/consent" element={<ProtectedRoute><OAuthConsent /></ProtectedRoute>} />
             <Route path="/signin" element={<PublicRoute><SignIn /></PublicRoute>} />
             <Route path="/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
             <Route path="/verify-email" element={<VerifyEmail />} />

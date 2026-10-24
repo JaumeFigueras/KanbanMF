@@ -19,6 +19,7 @@ import {
 import { alpha, useTheme } from '@mui/material/styles'
 import {
   AddPhotoAlternate,
+  Cable,
   DarkMode,
   DriveFileRenameOutline,
   Language,
@@ -40,6 +41,7 @@ import ChangeDisplayNameDialog from './ChangeDisplayNameDialog'
 import ChangePasswordDialog from './ChangePasswordDialog'
 import UploadAvatarDialog from './UploadAvatarDialog'
 import LanguageLocalizationDialog from './LanguageLocalizationDialog'
+import ConnectedAppsDialog from './ConnectedAppsDialog'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -88,6 +90,7 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [uploadAvatarOpen, setUploadAvatarOpen] = useState(false)
   const [langLocOpen, setLangLocOpen] = useState(false)
+  const [connectedAppsOpen, setConnectedAppsOpen] = useState(false)
 
   // A promise chain rather than an async function: every setState then sits
   // in a callback, which lets the lint rule against setting state directly
@@ -277,6 +280,10 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
               <ListItemIcon><Language fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.languageLocalization')}</ListItemText>
             </MenuItem>
+            <MenuItem onClick={() => { setMenuAnchor(null); setConnectedAppsOpen(true) }}>
+              <ListItemIcon><Cable fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('connectedApps.title')}</ListItemText>
+            </MenuItem>
             <MenuItem onClick={() => { setMenuAnchor(null); toggleDark() }}>
               <ListItemIcon>
                 {dark ? <LightMode fontSize="small" /> : <DarkMode fontSize="small" />}
@@ -320,6 +327,13 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
           i18n.changeLanguage(LOCALE_TO_I18N[newLang] ?? 'en')
           onLocaleChanged?.(newNum, newFmt)
         }}
+      />
+
+      <ConnectedAppsDialog
+        open={connectedAppsOpen}
+        onClose={() => setConnectedAppsOpen(false)}
+        numberLocale={numberLocale}
+        dateFormat={dateFormat}
       />
 
       <ChangePasswordDialog

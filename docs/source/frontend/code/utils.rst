@@ -36,6 +36,10 @@ Small pure helpers, with no React in them:
    Which time entries overlap, compared to the minute — the resolution the
    table shows.
 
+``returnTo.ts``
+   The page to come back to after signing in, kept in ``sessionStorage``;
+   only paths of this app are accepted.
+
 ``search.ts``
    A search's scope (every board, one board, a board's archive, the archived
    boards), the ``/search`` address that carries it, the backend's query for

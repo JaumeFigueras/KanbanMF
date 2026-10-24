@@ -51,7 +51,10 @@ Time tracker
 
 Account
    ``ChangeDisplayNameDialog``, ``ChangePasswordDialog``,
-   ``UploadAvatarDialog``, ``LanguageLocalizationDialog``.
+   ``UploadAvatarDialog``, ``LanguageLocalizationDialog``,
+   ``ConnectedAppsDialog`` (the apps allowed to reach the user's boards, from
+   ``/oauth/grants``: change a connection's boards or read-only flag, revoke
+   it; also shows the ``/mcp`` address to give Claude).
 
 Shared pieces
    ``ColorPicker`` (the fixed palette behind every colour dialog).
