@@ -49,6 +49,10 @@
 - ✓ Google sign-in sends no OAuth `state` parameter (`api/v1/auth/google.py`), so it's open to login CSRF: a victim
   can be signed in to an attacker's account. Generate a random state, keep it in a short-lived cookie, and check
   it in the callback.
+- Checklist changes (add/rename/delete/reorder a checklist or an item, tick an item — `api/v1/checklists.py`,
+  `core/checklists.py`) send no WebSocket notification, so other tabs and other people on the board keep showing
+  the old checklist and progress until they reload. Notify `card_updated` with the card's `list_id`, as card edits
+  do. Needed before the MCP server can add checklist items.
 - `/auth/local/refresh` runs bcrypt against every active session of every user to find the matching one, so each
   refresh gets slower as sessions accumulate. Store a lookup key (e.g. a session id in the cookie, or a SHA-256 of
   the token) and bcrypt-check only that row.
