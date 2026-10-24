@@ -118,8 +118,10 @@ The app is now served at `http://localhost:5173`.
 ## Running tests
 
 ```bash
-# From backend/, with the venv active
-python3 -m pytest -x -v --cov-report=html:./test/coverage_reports --cov=./src ./test -s -vv
+# From the repo root
+make test                          # the whole suite
+make test TEST_ARGS="-x -k oauth"  # extra pytest arguments
+make test-cov                      # with coverage: HTML report in backend/test/coverage-reports/ (gitignored)
 ```
 
 ## Database migrations

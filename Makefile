@@ -3,6 +3,8 @@
 #   make docs            build the HTML documentation, every language, into docs/build/site
 #   make docs-po         refresh the docs' translation catalogues (docs/locale/)
 #   make screenshots     reseed the demo data and retake the manual's screenshots
+#   make test            run the backend test suite (TEST_ARGS="-k oauth" to narrow it)
+#   make test-cov        the same, with a coverage report in backend/test/coverage-reports
 #   make run backend     run the API dev server (auto-reloads)
 #   make run frontend    run the Vite dev server (HMR)
 #   make deploy          update a production checkout: pull, migrate, restart, build
@@ -16,10 +18,10 @@ VENV := $(CURDIR)/.venv/bin
 # one here and let the no-op rule below swallow it.
 TARGET := $(word 2,$(MAKECMDGOALS))
 
-.PHONY: help docs docs-po screenshots run backend frontend deploy
+.PHONY: help docs docs-po screenshots test test-cov run backend frontend deploy
 
 help:
-	@sed -n '3,8p' $(MAKEFILE_LIST) | sed 's/^# \?//'
+	@sed -n '3,10p' $(MAKEFILE_LIST) | sed 's/^# \?//'
 
 docs:
 	$(MAKE) -C docs site SPHINXBUILD="$(VENV)/sphinx-build"
@@ -37,6 +39,20 @@ screenshots:
 		$(VENV)/python docs/screenshots/seed.py --lang $$lang && \
 		$(VENV)/python docs/screenshots/capture.py --lang $$lang || exit 1; \
 	done
+
+# The backend's tests, against throw-away PostgreSQL databases (see
+# backend/test/conftest.py): nothing touches the development database.
+# Extra pytest arguments go in TEST_ARGS, e.g. make test TEST_ARGS="-x -k oauth".
+TEST_ARGS ?=
+
+test:
+	cd backend && $(VENV)/python -m pytest -q $(TEST_ARGS) ./test
+
+# Line coverage of src/, summarised in the terminal (files below 100 %) and as
+# browsable HTML in backend/test/coverage-reports/index.html (gitignored).
+test-cov:
+	cd backend && $(VENV)/python -m pytest -q $(TEST_ARGS) --cov=./src \
+		--cov-report=term:skip-covered --cov-report=html:./test/coverage-reports ./test
 
 run:
 ifeq ($(TARGET),backend)
