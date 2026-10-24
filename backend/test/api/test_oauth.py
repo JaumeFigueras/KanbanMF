@@ -46,7 +46,7 @@ def _query(location: str) -> dict[str, str]:
 async def boards(db_session_async, test_user: User) -> dict[str, Board]:
     """test_user's two live boards, plus boards a grant may never include: an
     archived one, a template, and another user's board shared with test_user."""
-    other = User(email="other@example.com", display_name="Other")
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
     db_session_async.add(other)
     await db_session_async.flush()
     result = {
@@ -536,7 +536,7 @@ async def test_oauth_10(
     assert [b["name"] for b in response.json()["boards"]] == ["Home", "Work"]
     assert response.json()["read_only"] is True
 
-    stranger = User(email="stranger@example.com", display_name="Stranger")
+    stranger = User(email="stranger@example.com", display_name="Stranger", is_verified=True)
     db_session_async.add(stranger)
     await db_session_async.commit()
     stranger_headers = {"Authorization": f"Bearer {create_access_token(stranger.id)}"}

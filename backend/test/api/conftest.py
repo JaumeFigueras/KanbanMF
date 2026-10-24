@@ -45,8 +45,8 @@ async def client(db_session_async):
 
 @pytest_asyncio.fixture
 async def test_user(db_session_async) -> User:
-    """A plain, persisted User row with no preferences/identities/avatar."""
-    user = User(email="user@example.com", display_name="Test User")
+    """A plain, persisted, verified User row with no preferences/identities/avatar."""
+    user = User(email="user@example.com", display_name="Test User", is_verified=True)
     db_session_async.add(user)
     await db_session_async.commit()
     await db_session_async.refresh(user)

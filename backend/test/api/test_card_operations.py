@@ -97,7 +97,7 @@ async def test_card_operations_01(
     """
     todo, _ = await _lists(db_session_async, board)
     label = await _label(db_session_async, board)
-    stranger = User(email="stranger@example.com", display_name="Stranger")
+    stranger = User(email="stranger@example.com", display_name="Stranger", is_verified=True)
     other_board = Board(owner_id=test_user.id, name="Other")
     db_session_async.add_all([stranger, other_board])
     await db_session_async.flush()
@@ -154,7 +154,7 @@ async def test_card_operations_02(
         If any of the three requests isn't refused with 400, 403 and 404.
     """
     template = Board(owner_id=test_user.id, name="Template", is_template=True)
-    owner = User(email="owner@example.com", display_name="Owner")
+    owner = User(email="owner@example.com", display_name="Owner", is_verified=True)
     db_session_async.add_all([template, owner])
     await db_session_async.flush()
     foreign = Board(owner_id=owner.id, name="Not yours")
@@ -452,7 +452,7 @@ async def test_card_operations_08(
     """
     todo, done = await _lists(db_session_async, board)
     card = Card(list_id=todo.id, creator_id=test_user.id, name="Card")
-    outsider = User(email="outsider@example.com", display_name="Outsider")
+    outsider = User(email="outsider@example.com", display_name="Outsider", is_verified=True)
     db_session_async.add_all([card, outsider])
     await db_session_async.commit()
 

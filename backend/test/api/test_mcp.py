@@ -75,7 +75,7 @@ async def mcp(db_session_async, monkeypatch):
 async def world(db_session_async, test_user: User) -> dict:
     """test_user's "Work" board (two ordered lists, cards, a label, a
     checklist), their "Home" board, and another user's board."""
-    other = User(email="other@example.com", display_name="Other")
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
     db_session_async.add(other)
     await db_session_async.flush()
     work = Board(owner_id=test_user.id, name="Work")
@@ -552,7 +552,7 @@ async def test_mcp_11(mcp, db_session_async, world: dict, notifications: list[di
     archived = BoardList(board_id=work.id, name="Old", is_archived=True)
     db_session_async.add_all([other_label, archived])
     await db_session_async.commit()
-    stranger = User(email="stranger@example.com", display_name="Stranger")
+    stranger = User(email="stranger@example.com", display_name="Stranger", is_verified=True)
     db_session_async.add(stranger)
     await db_session_async.commit()
     for kwargs, expected in (

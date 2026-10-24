@@ -76,7 +76,7 @@ async def test_time_tracker_ranking_01(db_session_async, test_user: User, use_te
     AssertionError
         If any count differs from the expected per-user tallies.
     """
-    other = User(email="other@example.com", display_name="Other")
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
     db_session_async.add(other)
     await db_session_async.flush()
     work, work_list = await _board_with_list(db_session_async, test_user, "Work")

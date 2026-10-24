@@ -173,6 +173,16 @@ one. Local accounts can't sign in until their address is verified;
 :mod:`src.core.invitations` turns pending invitations into shares at that
 moment, and on every Google sign-in, since Google has verified the address.
 
+An unverified account can't do anything at all. Registering returns no token
+— only the address the verification e-mail went to — and ``get_current_user``
+refuses an unverified user with ``403`` even if a token exists, as do the
+WebSocket and the MCP server. Otherwise anyone could register someone else's
+address and act in its name straight away: share boards, or send invitation
+e-mails from this server. For the same reason ``PUT /users/me`` doesn't change
+the e-mail address: it used to, unverified and without asking for the
+password, which let a stolen session claim an address; until there is a flow
+that confirms the new address, it answers ``400``.
+
 Google sign-in is the standard OAuth authorization-code flow, bound to the
 browser that starts it by the ``state`` parameter. ``/auth/google/`` sends
 Google a random state and keeps a copy in a ten-minute ``HTTP-only`` cookie,

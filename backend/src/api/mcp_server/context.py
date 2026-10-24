@@ -93,7 +93,7 @@ async def current_grant(db: AsyncSession) -> McpGrant:
         .where(McpGrant.id == uuid.UUID(grant_id))
     )
     grant = result.scalar_one_or_none()
-    if grant is None or not grant.user.is_active:
+    if grant is None or not grant.user.is_active or not grant.user.is_verified:
         raise ToolError("This connection has been revoked.")
     return grant
 

@@ -56,7 +56,7 @@ async def test_users_02(client, test_user: User, auth_headers: dict[str, str]) -
     assert body["email"] == test_user.email
     assert body["display_name"] == test_user.display_name
     assert body["is_active"] is True
-    assert body["is_verified"] is False
+    assert body["is_verified"] is True  # unverified accounts can't use the API
     assert body["language_locale"] == "en"
     assert body["number_locale"] == "en"
     assert body["date_format"] == "numeric"

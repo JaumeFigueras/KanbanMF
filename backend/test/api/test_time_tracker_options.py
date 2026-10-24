@@ -23,7 +23,7 @@ def _now() -> datetime:
 
 async def _other_user(db) -> User:
     """Persist and return a second user."""
-    other = User(email="other@example.com", display_name="Other")
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
     db.add(other)
     await db.flush()
     return other
@@ -168,7 +168,7 @@ async def test_time_tracker_options_03(client, db_session_async, test_user: User
         If any request gets a different status code.
     """
     shared_with = await _other_user(db_session_async)
-    outsider = User(email="outsider@example.com", display_name="Outsider")
+    outsider = User(email="outsider@example.com", display_name="Outsider", is_verified=True)
     board = Board(owner_id=test_user.id, name="Board")
     deleted = Board(owner_id=test_user.id, name="Deleted", is_deleted=True)
     db_session_async.add_all([outsider, board, deleted])

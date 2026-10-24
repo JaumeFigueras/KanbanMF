@@ -28,7 +28,7 @@ PAST = datetime.now(timezone.utc) - timedelta(days=1)
 @pytest_asyncio.fixture
 async def other_user(db_session_async) -> User:
     """A second, already registered user."""
-    user = User(email="other@example.com", display_name="Other User")
+    user = User(email="other@example.com", display_name="Other User", is_verified=True)
     db_session_async.add(user)
     await db_session_async.commit()
     await db_session_async.refresh(user)

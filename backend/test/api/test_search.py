@@ -28,7 +28,7 @@ async def data(db_session_async, test_user: User) -> SimpleNamespace:
     cards that match in each field, an archived card and an archived list.
     Ann owns "Ann's board", shared with test_user, and "Private", which isn't.
     test_user also has an archived board and a template."""
-    ann = User(email="ann@example.com", display_name="Ann")
+    ann = User(email="ann@example.com", display_name="Ann", is_verified=True)
     db_session_async.add(ann)
     await db_session_async.flush()
 

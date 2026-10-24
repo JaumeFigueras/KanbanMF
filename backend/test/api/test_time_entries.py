@@ -247,7 +247,7 @@ async def test_time_entries_04(
     assert r.status_code == 422
 
     # A board the caller has no access to can't be used as a snapshot source.
-    other = User(email="other@example.com", display_name="Other")
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
     db_session_async.add(other)
     await db_session_async.flush()
     other_board = Board(owner_id=other.id, name="Theirs")
@@ -479,7 +479,7 @@ async def test_time_entries_07(
     # The latest *end* wins, not the latest start: the long entry started
     # first but finished last.
     long_end = base + timedelta(hours=10)
-    other = User(email="other@example.com", display_name="Other User")
+    other = User(email="other@example.com", display_name="Other User", is_verified=True)
     db_session_async.add(other)
     await db_session_async.flush()
     db_session_async.add_all([

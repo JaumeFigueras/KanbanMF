@@ -30,8 +30,13 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None) -> 
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    # The same people as get_current_user: active, with a verified address.
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User.id).where(User.id == uuid.UUID(user_id)))
+        result = await db.execute(
+            select(User.id).where(
+                User.id == uuid.UUID(user_id), User.is_active.is_(True), User.is_verified.is_(True)
+            )
+        )
         if result.scalar_one_or_none() is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

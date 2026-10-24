@@ -29,7 +29,7 @@ from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
 from src.model.user_session import REFRESH_TOKEN_EXPIRE_DAYS
-from src.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, VerifyEmailRequest
+from src.schemas.auth import LoginRequest, RegisterRequest, RegisterResponse, TokenResponse, VerifyEmailRequest
 
 router = APIRouter()
 
@@ -53,8 +53,8 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
     )
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> RegisterResponse:
     """Create a new local account.
 
     Steps:
@@ -62,7 +62,10 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     2. Create User row (is_verified=False).
     3. Create UserIdentity(local) with hashed password and a verification token.
     4. Send verification email.
-    5. Return an access token so the user can act immediately (unverified).
+
+    Nothing to sign in with is returned: the account can't be used until the
+    address is verified, or anyone could act in the name of an address they
+    don't own (e.g. send board invitations from this server as it).
     """
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
@@ -116,8 +119,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         language=lang,
     )
 
-    access_token = create_access_token(str(user.id))
-    return TokenResponse(access_token=access_token)
+    return RegisterResponse(email=user.email)
 
 
 @router.post("/login", response_model=TokenResponse)

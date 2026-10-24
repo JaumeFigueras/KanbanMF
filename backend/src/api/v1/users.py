@@ -87,17 +87,19 @@ async def update_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    """Update the current user's display name and/or email.
+    """Update the current user's display name.
 
-    Changing the email resets is_verified to False and requires re-verification.
+    Changing the e-mail address is refused until there is a proper flow for it
+    (a confirmation sent to the new address, and the password asked for). It
+    used to be accepted straight away, unverified and with no e-mail sent:
+    that let a stolen session take the address over, let anyone claim an
+    address that isn't theirs, and now that unverified accounts can't use the
+    API, it would lock the user out for good.
     """
     if body.email and body.email != current_user.email:
-        conflict = await db.execute(select(User).where(User.email == body.email))
-        if conflict.scalar_one_or_none() is not None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
-        current_user.email = body.email
-        current_user.is_verified = False
-        # TODO: send verification email to the new address
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Changing the e-mail address isn't supported"
+        )
 
     if body.display_name is not None:
         current_user.display_name = body.display_name

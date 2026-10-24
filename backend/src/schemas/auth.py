@@ -24,6 +24,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterResponse(BaseModel):
+    """The account was created; the verification e-mail went to ``email``.
+    No token: the account can't be used until the address is verified."""
+
+    email: EmailStr
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

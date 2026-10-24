@@ -34,7 +34,14 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Validate the Bearer JWT and return the authenticated User row."""
+    """Validate the Bearer JWT and return the authenticated User row.
+
+    The account must be active and its e-mail address verified. Nothing hands
+    an unverified account a token today, but this is the one place that
+    decides who may use the API, so it doesn't rely on that: an account
+    whose address nobody has proved could otherwise act in that address's
+    name — share boards, send invitation e-mails.
+    """
     user_id = decode_access_token(credentials.credentials)
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
@@ -43,6 +50,8 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    if not user.is_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
 
     return user
 

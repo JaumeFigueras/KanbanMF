@@ -501,7 +501,7 @@ async def refresh_tokens(refresh_token: str, client_id: str, resource: str | Non
         await db.delete(grant)
         await db.commit()
         raise OAuthError("invalid_grant", "The refresh token was already used.")
-    if token.refresh_expires_at <= _now() or not grant.user.is_active:
+    if token.refresh_expires_at <= _now() or not grant.user.is_active or not grant.user.is_verified:
         raise OAuthError("invalid_grant", "The refresh token has expired.")
     if resource is not None and not same_resource(resource, token.resource):
         raise OAuthError("invalid_target", "resource doesn't match the original authorization.")
@@ -534,7 +534,7 @@ async def authenticate_access_token(token: str, db: AsyncSession) -> McpGrant | 
     """The grant behind a valid MCP access token, or None.
 
     Valid means: known, not expired, issued for this MCP server, and its user
-    still active. Records the use in ``last_used_at``. The grant comes with
+    still active and verified. Records the use in ``last_used_at``. The grant comes with
     its user, client and boards loaded.
     """
     result = await db.execute(
@@ -549,7 +549,7 @@ async def authenticate_access_token(token: str, db: AsyncSession) -> McpGrant | 
         .where(McpGrant.id == stored.grant_id)
     )
     grant = grant_result.scalar_one()
-    if not grant.user.is_active:
+    if not grant.user.is_active or not grant.user.is_verified:
         return None
     grant.last_used_at = _now()
     await db.commit()

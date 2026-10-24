@@ -44,8 +44,8 @@ async def shared_board(db_session_async, test_user: User) -> SimpleNamespace:
     ``in_archived_list`` and the active list an individually archived
     ``archived_card``, both with Ann on them. Ann and Bob have reminders on.
     """
-    ann = User(email="ann@example.com", display_name="Ann")
-    bob = User(email="bob@example.com", display_name="Bob")
+    ann = User(email="ann@example.com", display_name="Ann", is_verified=True)
+    bob = User(email="bob@example.com", display_name="Bob", is_verified=True)
     db_session_async.add_all([ann, bob])
     await db_session_async.flush()
 
@@ -423,7 +423,7 @@ async def test_board_share_removal_06(
         If a reminder is sent in any case but ``live``, or missing in it.
     """
     now = datetime.now(timezone.utc)
-    ann = User(email="ann@example.com", display_name="Ann")
+    ann = User(email="ann@example.com", display_name="Ann", is_verified=True)
     db_session_async.add(ann)
     board = Board(owner_id=test_user.id, name="Board", is_archived=case == "archived_board")
     db_session_async.add(board)
