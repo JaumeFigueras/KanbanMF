@@ -246,6 +246,58 @@ Grants
    every call, so a deleted or archived board drops out of reach straight
    away.
 
+The MCP server
+--------------
+
+:mod:`src.api.mcp_server` is the server itself: the official MCP SDK's
+``MCPServer`` (package ``mcp``), served over Streamable HTTP at ``/mcp``. It is
+a route of the main FastAPI app — a plain Starlette ``Route``, since a
+``Mount`` would answer only ``/mcp/`` — and its session manager runs in
+:mod:`src.main`'s lifespan, next to the scheduler. It is **stateless** and
+answers **plain JSON**: every request carries its token and stands alone,
+nothing is streamed, so there is nothing for the reverse proxy to buffer or
+for a restart to lose.
+
+Authentication
+   A request without a valid access token gets ``401`` with
+   ``WWW-Authenticate: Bearer … resource_metadata="…/.well-known/oauth-protected-resource/mcp"``,
+   which is how a client finds the authorization server. The SDK's bearer
+   middleware asks ``GrantTokenVerifier``, which calls
+   :func:`src.core.oauth.authenticate_access_token`, and puts the grant's id
+   on the request. The SDK's DNS-rebinding check is off: it guards servers
+   that trust any local request, while this one trusts none without a token,
+   and behind Apache it would only ever see ``Host: 127.0.0.1:8000``.
+
+Scope
+   Every tool opens its own session and loads the grant again
+   (:mod:`~src.api.mcp_server.context`), so a change in the connected apps
+   list counts from the next call. A board is reachable when it is in the
+   grant, still owned by the grant's user, live and not a template; anything
+   else — a board outside the grant, someone else's, a card of another board
+   — gets the same "not found, or not shared with this connection", so the
+   answer never reveals what exists beyond the grant.
+
+Tools
+   :mod:`~src.api.mcp_server.read_tools`: ``list_boards`` (with the user's
+   time zone and local time, since dates go out in UTC), ``get_board`` (lists
+   and live cards in the board's order, cards summarised), ``get_card``
+   (everything, with ids), ``search_cards`` (the core search, narrowed to the
+   grant's boards) and ``list_overdue``. They call the same :mod:`src.core`
+   functions as the routes.
+
+Errors
+   ``tool_errors`` turns the core's ``HTTPException``\s into tool errors —
+   a result with ``isError``, which the model reads and can act on, rather
+   than an HTTP status, which MCP keeps for protocol failures. ``403`` and
+   ``404`` become the message above, the ``409`` codes of restoring a card a
+   sentence, the rest their detail.
+
+Card names, descriptions and checklists are written by the user and by the
+people they share boards with, so they may contain text meant to steer an
+assistant. The server's instructions tell the client to treat them as data;
+read-only connections and archive-instead-of-delete limit what a misled
+assistant could do.
+
 The data model
 --------------
 

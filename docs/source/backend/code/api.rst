@@ -2,7 +2,9 @@ API layer
 =========
 
 :mod:`src.main` creates the FastAPI application: CORS for ``FRONTEND_URL``, a
-``/healthz`` check, a lifespan that starts and stops the scheduler, the OAuth
+``/healthz`` check, a lifespan that starts and stops the scheduler and the MCP
+server's session manager, the MCP server at ``/mcp``
+(:mod:`src.api.mcp_server`), the OAuth
 discovery documents under ``/.well-known`` (:mod:`src.api.well_known`, at the
 root because RFC 8414 and RFC 9728 fix their addresses), and the ``/api/v1``
 router from :mod:`src.api.v1.router`, which mounts every resource

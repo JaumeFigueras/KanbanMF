@@ -23,7 +23,7 @@
   - ✓ Board operations moved to `src/core` (shared by the routes and the MCP tools)
   - ✓ OAuth 2.1 authorization server: discovery, DCR + Client ID Metadata Documents, consent API, tokens with
     rotation, grants API
-  - `/mcp` endpoint (Streamable HTTP, official `mcp` SDK) with read tools; Vite proxy for `/mcp` and `/.well-known`
+  - ✓ `/mcp` endpoint (Streamable HTTP, official `mcp` SDK) with read tools; Vite proxy for `/mcp` and `/.well-known`
   - Consent page (`/oauth/consent`) and Connected apps dialog in the frontend (en + ca)
   - Write tools (create/update/move/archive cards, lists, checklist items)
   - Apache `ProxyPass` for `/mcp` and `/.well-known/oauth-*`, `SETUP.md`, manual page "Connecting Claude"

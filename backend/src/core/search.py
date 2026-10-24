@@ -93,6 +93,7 @@ async def search_cards(
     archived: bool,
     current_user: User,
     db: AsyncSession,
+    only_board_ids: set[uuid.UUID] | None = None,
 ) -> SearchResults:
     """Find the cards that hold every word of ``q`` in their name,
     description, checklists (names and items) or label names, ignoring case
@@ -112,6 +113,9 @@ async def search_cards(
     first) and list (in the board's order), each list's cards in their
     custom order. At most :data:`SEARCH_LIMIT` cards come back, the most
     recently changed first; ``truncated`` says when more matched.
+
+    ``only_board_ids``, when given, narrows any scope to those boards (the
+    MCP server passes the boards its connection may reach).
     """
     words = q.split()
     if board_id is not None:
@@ -126,6 +130,8 @@ async def search_cards(
             board_scope.append(Board.is_archived.is_(False))
         else:
             board_scope.append(Board.id == board_id)
+    if only_board_ids is not None:
+        board_scope.append(Board.id.in_(only_board_ids))
 
     card_scope = [BoardList.is_deleted.is_(False), Card.is_deleted.is_(False)]
     if not archived:
