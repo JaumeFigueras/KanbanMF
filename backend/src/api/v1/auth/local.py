@@ -14,7 +14,7 @@ purpose, and run on the event loop it would stall every other request.
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_current_user, get_db, get_refresh_token_from_cookie
 from src.core.email import send_verification_email
 from src.core.invitations import accept_pending_invitations
+from src.core.rate_limit import LOGIN_PER_ACCOUNT, LOGIN_PER_IP, REGISTER_PER_IP, client_ip
 from src.core.security import create_access_token, hash_password, verify_password
 from src.core.sessions import find_session, open_session
 from src.model.board_invitation import BoardInvitation
@@ -54,7 +55,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) -> RegisterResponse:
+async def register(body: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)) -> RegisterResponse:
     """Create a new local account.
 
     Steps:
@@ -66,7 +67,11 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
     Nothing to sign in with is returned: the account can't be used until the
     address is verified, or anyone could act in the name of an address they
     don't own (e.g. send board invitations from this server as it).
+
+    Limited per IP address, since every registration e-mails whatever
+    address was typed (:mod:`src.core.rate_limit`).
     """
+    REGISTER_PER_IP.hit(client_ip(request))
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -123,7 +128,9 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(
+    body: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> TokenResponse:
     """Authenticate with email + password.
 
     Steps:
@@ -131,7 +138,13 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     2. Verify the password.
     3. Create a UserSession (refresh token stored hashed).
     4. Return JWT access token + set refresh token as HTTP-only cookie.
+
+    Attempts are limited per IP address and per account before anything is
+    looked up (:mod:`src.core.rate_limit`), so guessing a password costs the
+    guesser time, not the server bcrypt work.
     """
+    LOGIN_PER_IP.hit(client_ip(request))
+    LOGIN_PER_ACCOUNT.hit(body.email.lower())
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 

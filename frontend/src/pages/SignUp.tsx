@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
 import AuthControls from '../components/AuthControls'
 import type { InvitationPreview } from '../types/invitation'
+import { passwordProblem } from '../utils/password'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -50,6 +51,11 @@ export default function SignUp() {
     const password = data.get('password') as string
     const confirm = data.get('confirmPassword') as string
 
+    const problem = passwordProblem(password)
+    if (problem) {
+      setPasswordError(t(problem))
+      return
+    }
     if (password !== confirm) {
       setPasswordError(t('signUp.passwordMismatch'))
       return
@@ -76,6 +82,8 @@ export default function SignUp() {
         setSuccess(true)
       } else if (res.status === 409) {
         setApiError(t('signUp.emailTaken'))
+      } else if (res.status === 429) {
+        setApiError(t('common.tooManyAttempts'))
       } else if (invitation && (res.status === 400 || res.status === 422)) {
         // The invitation expired or was cancelled while this page was open.
         setInvitation(null)

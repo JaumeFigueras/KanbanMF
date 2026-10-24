@@ -6,7 +6,7 @@ Creating an account
 
 Open the sign-up page — the **Sign up** link under the sign-in form — and
 fill in a display name (the name other people will see), your e-mail address
-and a password, twice.
+and a password, twice. The password needs at least 8 characters.
 
 .. figure:: img/signup.png
    :alt: The sign-up form.
@@ -54,6 +54,11 @@ working — whoever chose it never proved the address was theirs.
 The Google button is always shown, but it only works if whoever runs your
 KanbanMF server has set Google sign-in up. If it fails, ask them, or use an
 e-mail address and password instead.
+
+After ten wrong passwords for the same account within a quarter of an hour,
+KanbanMF stops checking for a while and says there have been too many
+attempts — even with the right password — so that nobody can try passwords
+one after another. Wait a few minutes and try again.
 
 Your profile
 ------------

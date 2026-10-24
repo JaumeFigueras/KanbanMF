@@ -15,6 +15,10 @@ Core services
    SHA-256 they are stored and looked up by; opening and finding sign-in
    sessions.
 
+:mod:`~src.core.rate_limit`
+   The in-memory rate limits on sign-in, sign-up, password change,
+   invitations and OAuth client registration.
+
 :mod:`~src.core.email`
    The verification, reminder and invitation e-mails, in English and
    Catalan, and ``email_enabled()``.

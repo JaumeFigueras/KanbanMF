@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from src.api.deps import get_db
+from src.core.rate_limit import LIMITS
 from src.core.security import create_access_token
 from src.main import app
 from src.model.user import User
@@ -57,3 +59,12 @@ async def test_user(db_session_async) -> User:
 async def auth_headers(test_user: User) -> dict[str, str]:
     """A valid Authorization header for test_user."""
     return {"Authorization": f"Bearer {create_access_token(test_user.id)}"}
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """Every test starts with empty rate-limit counters (they live in the
+    process, so they would otherwise carry over from test to test)."""
+    for limit in LIMITS:
+        limit.reset()
+    yield

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.core.people import compute_initials
+from src.core.rate_limit import PASSWORD_CHANGE_PER_USER
 from src.core.security import hash_password, verify_password
 from src.model.user import User
 from src.model.user_avatar import MAX_AVATAR_SIZE_BYTES, UserAvatar
@@ -145,7 +146,12 @@ async def change_my_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Change the current user's password (local accounts only)."""
+    """Change the current user's password (local accounts only).
+
+    Limited per user, so a stolen session can't be used to guess the current
+    password at speed.
+    """
+    PASSWORD_CHANGE_PER_USER.hit(str(current_user.id))
     identity_result = await db.execute(
         select(UserIdentity).where(
             UserIdentity.user_id == current_user.id,

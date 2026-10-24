@@ -20,6 +20,7 @@ from src.api.deps import get_client_id, get_current_user, get_db
 from src.api.v1.boards import _person_read
 from src.core.access import get_accessible_board, reject_if_template
 from src.core.email import email_enabled, send_board_invitation_email
+from src.core.rate_limit import INVITATION_PER_USER
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification
 from src.model.board import Board
@@ -79,6 +80,9 @@ async def create_board_invitation(
     """
     board = await _owned_board(board_id, current_user, db)
     reject_if_template(board, "Templates can't be shared by invitation")
+    # Each invitation e-mails a stranger in this server's name, and the 409
+    # says whether an address has an account: both are limited per user.
+    INVITATION_PER_USER.hit(str(current_user.id))
 
     user_result = await db.execute(select(User).where(func.lower(User.email) == body.email))
     existing_user = user_result.scalar_one_or_none()

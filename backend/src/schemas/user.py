@@ -12,6 +12,7 @@ from zoneinfo import available_timezones
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.model.user_preferences import DateFormat
+from src.schemas.auth import check_password
 
 
 class UserRead(BaseModel):
@@ -51,6 +52,11 @@ class UserUpdate(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_rule(cls, v: str) -> str:
+        return check_password(v)
 
 
 class UserPreferencesUpdate(BaseModel):

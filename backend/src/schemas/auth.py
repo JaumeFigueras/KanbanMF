@@ -5,7 +5,21 @@
 e-mail verification.
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+# bcrypt only reads the first 72 bytes of a password (and bcrypt 5 refuses
+# longer ones), so that is the ceiling; 8 characters is the usual floor.
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_BYTES = 72
+
+
+def check_password(value: str) -> str:
+    """The password rule, shared by registration and password change."""
+    if len(value) < PASSWORD_MIN_LENGTH:
+        raise ValueError(f"The password must be at least {PASSWORD_MIN_LENGTH} characters long.")
+    if len(value.encode()) > PASSWORD_MAX_BYTES:
+        raise ValueError(f"The password must be at most {PASSWORD_MAX_BYTES} bytes long.")
+    return value
 
 
 class RegisterRequest(BaseModel):
@@ -17,6 +31,11 @@ class RegisterRequest(BaseModel):
     # against the e-mail being registered: the board itself is shared once
     # that address is verified, whether or not the token was sent.
     invitation_token: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def password_rule(cls, v: str) -> str:
+        return check_password(v)
 
 
 class LoginRequest(BaseModel):

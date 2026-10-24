@@ -147,6 +147,12 @@ dedicated `ws://` `ProxyPass` for the WebSocket endpoint, since it needs the
 real static file and isn't `/api/` falls back to `index.html`, so client-side routes like
 `/boards/<id>` still work on a hard refresh.
 
+Apache adds an `X-Forwarded-For` header with the client's address, and the backend's rate limits
+(on sign-in, sign-up and the like) count per address from it: uvicorn trusts that header only from
+`127.0.0.1`, its default. Keep the backend listening on `127.0.0.1` behind Apache, as the unit file
+does — exposed directly, or behind another proxy, every client would look like the same address or
+could choose its own.
+
 Three more paths go to the backend, for the MCP server Claude connects to: `/mcp` itself, and
 the two OAuth discovery documents `/.well-known/oauth-protected-resource` and
 `/.well-known/oauth-authorization-server`, which the RFCs place at the root of the site. Only

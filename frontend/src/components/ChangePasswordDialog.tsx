@@ -14,6 +14,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { apiFetch } from '../api/client'
+import { passwordProblem } from '../utils/password'
 
 interface Props {
   open: boolean
@@ -51,6 +52,8 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
     if (!oldPassword) return t('boards.oldPasswordRequired')
     if (!newPassword) return t('boards.newPasswordRequired')
     if (!confirmPassword) return t('boards.confirmPasswordRequired')
+    const problem = passwordProblem(newPassword)
+    if (problem) return t(problem)
     if (newPassword !== confirmPassword) return t('signUp.passwordMismatch')
     return null
   }
@@ -67,6 +70,10 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
       })
+      if (r.status === 429) {
+        setError(t('common.tooManyAttempts'))
+        return
+      }
       if (r.status === 400) {
         const body = await r.json()
         if (body.detail === 'Current password is incorrect') {

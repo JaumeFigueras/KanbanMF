@@ -355,10 +355,10 @@ def test_user_schema_14() -> None:
     AssertionError
         If the values are not stored unchanged.
     """
-    body = ChangePasswordRequest(old_password="old-pw", new_password="new-pw")
+    body = ChangePasswordRequest(old_password="old-pw", new_password="new-password")
 
     assert body.old_password == "old-pw"
-    assert body.new_password == "new-pw"
+    assert body.new_password == "new-password"
 
 
 # ---------------------------------------------------------------------------
@@ -396,28 +396,28 @@ def test_user_schema_16() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 17 – No strength/length rule exists at the schema level (documents intent)
+# 17 – The new password must be 8 characters to 72 bytes long
 # ---------------------------------------------------------------------------
 
 def test_user_schema_17() -> None:
     """
-    Verify an empty-string new_password is currently accepted by the schema.
-
-    This is not an endorsed behavior so much as a record of the current,
-    intentional contract: ChangePasswordRequest has no length/complexity
-    validator today, so any password-strength rule would need to live
-    elsewhere (there is none right now). If that changes, this test should
-    start failing and be updated deliberately, rather than the gap going
-    unnoticed.
+    Verify ChangePasswordRequest enforces the password rule on new_password:
+    at least 8 characters, at most 72 bytes (bcrypt's limit — counted in
+    bytes, so accented letters count double). The old password isn't checked:
+    it was set before the rule existed.
 
     Raises
     ------
     AssertionError
-        If an empty new_password is unexpectedly rejected.
+        If a too short or too long password is accepted, or one at the limits
+        refused.
     """
-    body = ChangePasswordRequest(old_password="old-pw", new_password="")
+    for bad in ("", "seven77", "x" * 73, "é" * 37):
+        with pytest.raises(ValidationError):
+            ChangePasswordRequest(old_password="old-pw", new_password=bad)
 
-    assert body.new_password == ""
+    for good in ("eight888", "x" * 72, "é" * 36):
+        assert ChangePasswordRequest(old_password="old", new_password=good).new_password == good
 
 
 # ===========================================================================

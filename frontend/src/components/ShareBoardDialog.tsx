@@ -221,6 +221,8 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
         setInviteFeedback({ kind: 'error', message: t('boards.emailNotConfigured') })
       } else if (r.status === 502) {
         setInviteFeedback({ kind: 'error', message: t('boards.invitationSendFailed') })
+      } else if (r.status === 429) {
+        setInviteFeedback({ kind: 'error', message: t('common.tooManyAttempts') })
       } else {
         setInviteFeedback({ kind: 'error', message: t('common.saveError') })
       }

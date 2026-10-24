@@ -166,7 +166,47 @@ Refresh token
 Passwords are bcrypt hashes. Checking or creating one takes about a third of
 a second on purpose, so the routes run it in a worker thread
 (``run_in_threadpool``): on the event loop it would stall every other
-request meanwhile.
+request meanwhile. A password must have 8 characters to 72 bytes — bcrypt
+reads no further — checked by the schemas and, for a quicker answer, by the
+forms.
+
+Rate limits
+~~~~~~~~~~~
+
+:mod:`src.core.rate_limit` caps the requests worth abusing, with an in-memory
+sliding window per key (the backend is one process, so memory is the whole
+picture; a restart only forgets counts). Over the limit the answer is ``429``
+with ``Retry-After``, before any bcrypt work or e-mail.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 30 35
+
+   * - Request
+     - Limit
+     - Against
+   * - ``POST /auth/local/login``
+     - 10 per account and 30 per IP, per 15 minutes
+     - guessing passwords
+   * - ``POST /auth/local/register``
+     - 5 per IP per hour
+     - verification e-mails to strangers
+   * - ``PUT /users/me/password``
+     - 10 per user per 15 minutes
+     - guessing the current password with a stolen session
+   * - ``POST /boards/{id}/invitations``
+     - 30 per user per hour
+     - invitation e-mails; probing which addresses have accounts
+   * - ``POST /oauth/register``
+     - 20 per IP per hour
+     - filling the clients table
+
+The per-account login limit means someone guessing an account's password also
+locks its owner out for up to 15 minutes; that is the price of not letting
+them guess. The IP is ``request.client.host``, which behind Apache is the real
+client: uvicorn trusts ``X-Forwarded-For`` from ``127.0.0.1`` by default and
+takes the last address in it that isn't the proxy's — the one Apache added —
+so a client can't pick its own address by sending the header.
 
 Each browser or device has its own session; signing out deletes only that
 one. Local accounts can't sign in until their address is verified;

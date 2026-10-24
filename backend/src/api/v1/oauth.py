@@ -14,7 +14,7 @@ The work is done in :mod:`src.core.oauth`.
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,6 +43,7 @@ from src.core.oauth import (
     user_grants,
     with_query,
 )
+from src.core.rate_limit import OAUTH_REGISTER_PER_IP, client_ip
 from src.model.board import Board
 from src.model.mcp_grant import McpGrant
 from src.model.mcp_grant_board import McpGrantBoard
@@ -80,8 +81,13 @@ def _consent_page(**params: str) -> str:
 
 
 @router.post("/register", response_model=ClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: ClientRegistrationRequest, db: AsyncSession = Depends(get_db)):
-    """Dynamic Client Registration (RFC 7591), for public clients only."""
+async def register(body: ClientRegistrationRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Dynamic Client Registration (RFC 7591), for public clients only.
+
+    Open to anyone, as the protocol requires, so limited per IP address: each
+    registration stores a client (unused ones are deleted after a day).
+    """
+    OAUTH_REGISTER_PER_IP.hit(client_ip(request))
     try:
         client = await register_client(
             body.client_name, body.redirect_uris, body.grant_types, body.token_endpoint_auth_method, db

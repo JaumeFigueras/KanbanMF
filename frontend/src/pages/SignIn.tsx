@@ -44,7 +44,9 @@ export default function SignIn() {
         }),
       })
       if (!res.ok) {
-        if (res.status === 403) {
+        if (res.status === 429) {
+          setErrorKey('common.tooManyAttempts')
+        } else if (res.status === 403) {
           const body = await res.json().catch(() => ({}))
           setErrorKey(body.detail === 'Email not verified' ? 'signIn.errorNotVerified' : 'signIn.errorCredentials')
         } else {
