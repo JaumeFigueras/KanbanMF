@@ -51,7 +51,7 @@ The layers
      node [shape=box, style="rounded,filled", fillcolor="#E3F2FD", color="#1976D2"];
      edge [color="#555555"];
      main    [label="src.main\napp, CORS, lifespan"];
-     api     [label="src.api\nrouters + deps"];
+     api     [label="src.api\nrouters + deps\n+ MCP server"];
      schemas [label="src.schemas\nPydantic bodies"];
      core    [label="src.core\nsettings, DB, security, e-mail,\nscheduler, WebSockets"];
      model   [label="src.model\nSQLAlchemy models", fillcolor="#FFF3E0", color="#F57C00"];
@@ -93,7 +93,10 @@ The layers
 Handling a request
 ------------------
 
-Everything is under ``/api/v1``. :mod:`src.api.v1.router` nests the routers
+Everything is under ``/api/v1``, except the MCP server at ``/mcp`` and the
+OAuth discovery documents under ``/.well-known`` (see
+`Connecting Claude: OAuth for the MCP server`_), whose addresses are fixed by
+their standards. :mod:`src.api.v1.router` nests the routers
 the way the data is nested — lists under a board, cards under a list,
 checklists under a card — so a URL like
 ``/boards/{board_id}/lists/{list_id}/cards/{card_id}`` names the whole path.

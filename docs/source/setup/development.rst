@@ -338,6 +338,26 @@ first. The equivalent raw commands are:
 Open http://localhost:5173. Use the frontend's port, not the backend's — going
 straight to 8000 gets you the API, not the application.
 
+Trying the MCP server
+~~~~~~~~~~~~~~~~~~~~~
+
+The Vite proxy also forwards ``/mcp`` and the OAuth discovery documents, so
+Claude Code can connect to the development copy:
+
+.. code-block:: bash
+
+   claude mcp add --transport http kanbanmf-dev http://localhost:5173/mcp
+
+Then type ``/mcp`` in Claude Code and authenticate: the browser opens the
+consent page of the development frontend. Claude Code identifies itself with
+a document on ``claude.ai``, which the backend downloads, so it needs internet
+access. To look at the protocol by hand, a request without a token must
+answer ``401`` and point at the discovery document:
+
+.. code-block:: bash
+
+   curl -i -X POST http://localhost:5173/mcp
+
 .. _dev-first-user:
 
 Creating the first user

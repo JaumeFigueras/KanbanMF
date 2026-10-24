@@ -116,9 +116,11 @@ share an origin:
 
 - in development, Vite serves the page on port 5173 and proxies ``/api``,
   WebSocket upgrades included, to ``http://localhost:8000``
-  (``frontend/vite.config.ts``);
-- in production, Apache serves the built page and proxies ``/api`` to the
-  backend (:doc:`../setup/production`).
+  (``frontend/vite.config.ts``), and ``/mcp`` and ``/.well-known/oauth-*``
+  too, so the MCP server can be tried at ``http://localhost:5173/mcp``;
+- in production, Apache serves the built page and proxies ``/api`` (and
+  ``/mcp`` and the OAuth discovery documents) to the backend
+  (:doc:`../setup/production`).
 
 No CORS, no host or port to configure, and the cookie just works. A hardcoded
 ``http://localhost:8000`` would seem to work in development and break in

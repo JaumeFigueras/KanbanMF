@@ -26,6 +26,14 @@ The tests are organised like the code: ``test/model/`` for model-level
 behaviour, ``test/schemas/`` for validation, and ``test/api/`` for the
 routes, called through the FastAPI app as a client would.
 
+The MCP server is tested the same way, over HTTP: ``test/api/test_mcp.py``
+sends JSON-RPC requests to a fresh server app with real access tokens, and
+``test/api/test_oauth.py`` walks the OAuth flow. The MCP SDK's session
+manager has to be left by the task that started it, and pytest-asyncio tears
+fixtures down in another task, so the ``mcp`` fixture runs it in a task of
+its own — copy that fixture rather than wrapping the manager in ``async
+with`` inside a fixture.
+
 Changing the data model
 -----------------------
 
@@ -185,6 +193,11 @@ Screenshots
 ``docs/screenshots/capture.py``, which drives the real frontend with
 Playwright and writes ``docs/source/manual/img/<name>.png`` (English) and
 ``<name>.ca.png`` (Catalan).
+
+The seed also connects "Claude" to the first user's main board, so the
+Connected apps dialog has something to show; the ``oauth_consent`` shot
+starts a real authorization request and leaves it unanswered (it expires,
+and the hourly clean-up removes it and its client).
 
 Each screenshot is one ``@shot`` function in ``capture.py``, finding buttons
 by their translated labels; ``--only <name>`` retakes a few. The first time

@@ -59,7 +59,9 @@ abilities to manage small and medium projects. The functionality that has been i
 
 - **Backend**: Python, FastAPI, SQLAlchemy 2.0 (async ORM), PostgreSQL, Alembic for schema migrations,
   APScheduler (running inside the API process) for the hourly due-date reminders and invitation cleanup and the
-  nightly time tracker ranking, WebSockets for real-time updates.
+  nightly time tracker ranking, WebSockets for real-time updates, and the official MCP Python SDK for the MCP
+  server at `/mcp`, behind its own OAuth 2.1 authorization server (PKCE, Dynamic Client Registration and Client ID
+  Metadata Documents, rotating refresh tokens).
 - **Frontend**: React 19, TypeScript, Vite, Material UI (MUI), react-i18next for translations, dnd-kit for
   drag-and-drop.
 - **Auth**: JWT access tokens (short-lived) + rotating refresh tokens (30 days, stored hashed, sent as an
@@ -152,9 +154,10 @@ migrations.
 
 ```
 backend/    FastAPI app — src/model (SQLAlchemy ORM), src/api/v1 (routes), src/schemas (Pydantic),
-            src/core (auth, email, websockets, the notification scheduler), alembic/ (migrations), test/
+            src/core (auth, OAuth, board operations, email, websockets, the scheduler), src/api/mcp_server (the MCP
+            server and its tools), alembic/ (migrations), test/
 frontend/   React app — src/pages, src/components, src/api (fetch client + WebSocket), src/i18n
-deploy/     Apache vhost + systemd unit for the production deployment described in SETUP.md
+deploy/     Apache vhost (incl. /mcp and the OAuth discovery paths) + systemd unit, as described in SETUP.md
 docs/       Sphinx documentation (build with `make docs`)
 SETUP.md    Production deployment guide
 ```

@@ -26,7 +26,9 @@ A production KanbanMF is three things on one Debian machine:
 Apache is the only public entry point. It serves the built frontend and
 proxies everything under ``/api`` — the WebSocket included — to the backend,
 so the browser sees a single origin and the frontend needs no configuration
-at all. See :doc:`../backend/stack` for why the backend must stay a single
+at all. It also proxies ``/mcp`` and the two OAuth discovery documents
+(``/.well-known/oauth-protected-resource`` and
+``/.well-known/oauth-authorization-server``), so Claude can connect. See :doc:`../backend/stack` for why the backend must stay a single
 process.
 
 The steps are the same as for :doc:`development` up to the point where the
