@@ -7,23 +7,17 @@ duplicating templates and the overdue-tasks page.
 """
 
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_client_id, get_current_user, get_db, reject_if_template
-# The overdue page draws the same card faces the board does, so it reuses the
-# card serialization helpers instead of growing a second copy of them here.
-from src.api.v1.cards import (
-    _card_load_options,
-    _card_people_ids,
-    _card_to_read,
-    _people_by_id,
-)
+from src.api.deps import get_client_id, get_current_user, get_db
+from src.core.access import get_accessible_board, reject_if_template
+from src.core.card_groups import overdue_boards
 from src.core.card_replacement import count_cards_of, replace_cards_of
+from src.core.people import compute_initials
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
@@ -41,7 +35,6 @@ from src.model.user_avatar import UserAvatar
 from src.model.user_board_star import UserBoardStar
 from src.model.user_preferences import UserPreferences
 from src.schemas.board import (
-    BoardCardsRead,
     BoardCreate,
     BoardOrderRead,
     BoardOrderUpdate,
@@ -50,7 +43,6 @@ from src.schemas.board import (
     BoardShareImpact,
     BoardUpdate,
     BoardsResponse,
-    ListCardsRead,
     OverdueBoardRead,
     TemplateDuplicate,
 )
@@ -58,10 +50,6 @@ from src.schemas.person import PersonRead
 from src.schemas.ui_color import BoardColorsRead, ColorRead, ColorUpdate
 
 router = APIRouter()
-
-
-def _compute_initials(display_name: str) -> str:
-    return "".join(w[0].upper() for w in display_name.split() if w)[:3]
 
 
 async def _starred_ids(user_id: uuid.UUID, db: AsyncSession) -> set[uuid.UUID]:
@@ -144,7 +132,7 @@ async def _read_as_owner(
     pref = pref_result.scalar_one_or_none()
     owner_initials = (
         pref.initials if (pref and pref.initials)
-        else _compute_initials(owner.display_name)
+        else compute_initials(owner.display_name)
     )
     avatar_result = await db.execute(
         select(UserAvatar.user_id).where(UserAvatar.user_id == owner.id)
@@ -288,7 +276,7 @@ async def list_boards(
         owner = users_by_id.get(board.owner_id)
         pref = prefs_by_id.get(board.owner_id)
         dn = owner.display_name if owner else ""
-        initials = pref.initials if (pref and pref.initials) else _compute_initials(dn)
+        initials = pref.initials if (pref and pref.initials) else compute_initials(dn)
         return _to_read(board, starred, dn, initials, board.owner_id in avatar_ids)
 
     return BoardsResponse(
@@ -311,7 +299,7 @@ async def create_board(
     """
     template: Board | None = None
     if body.template_id is not None:
-        template = await _check_board_access(body.template_id, current_user, db)
+        template = await get_accessible_board(body.template_id, current_user, db)
         if not template.is_template:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Board is not a template")
         if template.is_archived:
@@ -363,7 +351,7 @@ async def list_archived_boards(
     pref = pref_result.scalar_one_or_none()
     owner_initials = (
         pref.initials if (pref and pref.initials)
-        else _compute_initials(current_user.display_name)
+        else compute_initials(current_user.display_name)
     )
     avatar_result = await db.execute(
         select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
@@ -382,152 +370,9 @@ async def list_overdue_boards(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[OverdueBoardRead]:
-    """Return every overdue card the user can see, grouped by board and list.
-
-    A card counts as overdue when its due date has passed and it has no end
-    date — the same "still open, past due" rule the reminder e-mails use (see
-    :mod:`src.core.notifications`). Archived and deleted boards, lists and
-    cards are all left out, as are templates and boards and lists with
-    nothing overdue.
-
-    Boards come back ordered by how many overdue cards they hold (most first),
-    lists in the board's own list order, and cards oldest due date first. The
-    viewer's personal board/list/card colors ride along so the page can paint
-    the columns exactly as the board itself does.
-    """
-    result = await db.execute(
-        select(Card, BoardList)
-        .options(*_card_load_options())
-        .join(BoardList, Card.list_id == BoardList.id)
-        .join(Board, BoardList.board_id == Board.id)
-        .outerjoin(
-            BoardShare,
-            (BoardShare.board_id == Board.id) & (BoardShare.user_id == current_user.id),
-        )
-        .where(
-            or_(Board.owner_id == current_user.id, BoardShare.user_id.isnot(None)),
-            Board.is_deleted.is_(False),
-            Board.is_archived.is_(False),
-            Board.is_template.is_(False),
-            BoardList.is_deleted.is_(False),
-            BoardList.is_archived.is_(False),
-            Card.is_deleted.is_(False),
-            Card.is_archived.is_(False),
-            Card.due_at.isnot(None),
-            Card.due_at < datetime.now(timezone.utc),
-            Card.end_at.is_(None),
-        )
-        .order_by(Card.due_at)
-    )
-    grouped = await group_cards_by_board(list(result.all()), current_user, db)
-    boards = [
-        OverdueBoardRead(
-            **board.model_dump(),
-            overdue_count=sum(len(lst.cards) for lst in board.lists),
-        )
-        for board in grouped
-    ]
-    boards.sort(key=lambda b: (-b.overdue_count, b.board_name))
-    return boards
-
-
-async def group_cards_by_board(
-    rows: list[tuple[Card, BoardList]], current_user: User, db: AsyncSession
-) -> list[BoardCardsRead]:
-    """Group (card, list) rows by board and list, the way the overdue-tasks and
-    search pages show them.
-
-    Cards keep the order of ``rows`` within their list, and lists follow the
-    board's own list order. The viewer's personal board/list/card colors ride
-    along so the page can paint the columns exactly as the board itself does.
-    Cards must come with :func:`src.api.v1.cards._card_load_options` loaded.
-    """
-    if not rows:
-        return []
-
-    # board id -> list id -> its cards, both dicts kept in insertion order,
-    # so each list's cards come out in the order of the rows.
-    by_board: dict[uuid.UUID, dict[uuid.UUID, list[Card]]] = {}
-    lists_by_id: dict[uuid.UUID, BoardList] = {}
-    for card, board_list in rows:
-        lists_by_id[board_list.id] = board_list
-        by_board.setdefault(board_list.board_id, {}).setdefault(board_list.id, []).append(card)
-
-    board_ids = list(by_board)
-    board_names_result = await db.execute(
-        select(Board.id, Board.name).where(Board.id.in_(board_ids))
-    )
-    board_names = {row.id: row.name for row in board_names_result.all()}
-
-    people_ids: set[uuid.UUID] = set()
-    for card, _ in rows:
-        people_ids |= _card_people_ids(card)
-    people_by_id = await _people_by_id(people_ids, db)
-
-    # The viewer's own colors, in three batched queries rather than one per
-    # entity — mirrors the board page's /boards/{id}/colors.
-    board_colors_result = await db.execute(
-        select(UIBoardColor.board_id, UIBoardColor.color).where(
-            UIBoardColor.user_id == current_user.id,
-            UIBoardColor.board_id.in_(board_ids),
-        )
-    )
-    board_colors = {row.board_id: row.color for row in board_colors_result.all()}
-
-    list_colors_result = await db.execute(
-        select(UIListColor.list_id, UIListColor.color).where(
-            UIListColor.user_id == current_user.id,
-            UIListColor.list_id.in_(list(lists_by_id)),
-        )
-    )
-    list_colors = {row.list_id: row.color for row in list_colors_result.all()}
-
-    card_colors_result = await db.execute(
-        select(UICardColor.card_id, UICardColor.color).where(
-            UICardColor.user_id == current_user.id,
-            UICardColor.card_id.in_([card.id for card, _ in rows]),
-        )
-    )
-    card_colors = {row.card_id: row.color for row in card_colors_result.all()}
-
-    order_result = await db.execute(
-        select(UIBoardListOrder.board_id, UIBoardListOrder.list_ids).where(
-            UIBoardListOrder.board_id.in_(board_ids)
-        )
-    )
-    list_order = {row.board_id: row.list_ids for row in order_result.all()}
-
-    boards: list[BoardCardsRead] = []
-    for board_id, cards_by_list in by_board.items():
-        # Follow the board's own list order; a list missing from it (older
-        # board, an archived list, or a row never written) falls in after
-        # the ordered ones.
-        ordered_ids = [lid for lid in list_order.get(board_id, []) if lid in cards_by_list]
-        ordered_ids += [lid for lid in cards_by_list if lid not in ordered_ids]
-
-        boards.append(
-            BoardCardsRead(
-                board_id=board_id,
-                board_name=board_names.get(board_id, ""),
-                color=board_colors.get(board_id),
-                card_colors={
-                    str(card.id): card_colors[card.id]
-                    for cards in cards_by_list.values()
-                    for card in cards
-                    if card.id in card_colors
-                },
-                lists=[
-                    ListCardsRead(
-                        list_id=list_id,
-                        list_name=lists_by_id[list_id].name,
-                        color=list_colors.get(list_id),
-                        cards=[_card_to_read(c, people_by_id) for c in cards_by_list[list_id]],
-                    )
-                    for list_id in ordered_ids
-                ],
-            )
-        )
-    return boards
+    """Return every overdue card the user can see, grouped by board and list
+    (see :func:`src.core.card_groups.overdue_boards`)."""
+    return await overdue_boards(current_user, db)
 
 
 # NOTE: /order and /overdue must be defined before /{board_id} so FastAPI
@@ -639,7 +484,7 @@ async def get_board(
     pref = pref_result.scalar_one_or_none()
     owner_initials = (
         pref.initials if (pref and pref.initials)
-        else _compute_initials(owner_name)
+        else compute_initials(owner_name)
     )
     avatar_result = await db.execute(
         select(UserAvatar.user_id).where(UserAvatar.user_id == board.owner_id)
@@ -677,30 +522,6 @@ async def delete_board(
     await manager.notify(current_user.id, board_notification("board_deleted", board_id, client_id))
 
 
-async def _check_board_access(
-    board_id: uuid.UUID,
-    current_user: User,
-    db: AsyncSession,
-) -> Board:
-    """Return the board if the user is the owner or a shared member, else raise."""
-    result = await db.execute(
-        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
-    )
-    board = result.scalar_one_or_none()
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
-    if board.owner_id != current_user.id:
-        share = await db.execute(
-            select(BoardShare.board_id).where(
-                BoardShare.board_id == board_id,
-                BoardShare.user_id == current_user.id,
-            )
-        )
-        if share.scalar_one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return board
-
-
 async def _person_read(user: User, db: AsyncSession) -> PersonRead:
     """Build the avatar/initials summary of a single user."""
     prefs_result = await db.execute(
@@ -716,7 +537,7 @@ async def _person_read(user: User, db: AsyncSession) -> PersonRead:
         id=user.id,
         display_name=user.display_name,
         initials=(
-            prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name)
+            prefs.initials if prefs and prefs.initials else compute_initials(user.display_name)
         ),
         has_avatar=has_avatar,
     )
@@ -729,7 +550,7 @@ async def list_board_members(
     db: AsyncSession = Depends(get_db),
 ) -> list[PersonRead]:
     """Return the users allowed to work with the board: its owner plus everyone it's shared with."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
 
     share_result = await db.execute(
         select(BoardShare.user_id).where(BoardShare.board_id == board_id)
@@ -756,7 +577,7 @@ async def list_board_members(
             initials=(
                 prefs_by_id[user.id].initials
                 if user.id in prefs_by_id and prefs_by_id[user.id].initials
-                else _compute_initials(user.display_name)
+                else compute_initials(user.display_name)
             ),
             has_avatar=user.id in avatar_ids,
         )
@@ -775,7 +596,7 @@ async def create_board_share(
     client_id: str | None = Depends(get_client_id),
 ) -> PersonRead:
     """Share the board with another user. Only the board owner may do this."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     if board.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can share this board")
 
@@ -825,7 +646,7 @@ async def delete_board_share(
     src.core.card_replacement), and the user's e-mail reminders for the board
     are switched off — all in the same transaction as the share itself.
     """
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     share = await _get_share_as_owner(board, user_id, current_user, db)
 
     await db.delete(share)
@@ -861,7 +682,7 @@ async def get_board_share_impact(
 ) -> BoardShareImpact:
     """How many cards removing the user would archive and replace, for the
     confirmation message. Only the board owner may ask."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     await _get_share_as_owner(board, user_id, current_user, db)
     return BoardShareImpact(card_count=await count_cards_of(board_id, user_id, db))
 
@@ -936,7 +757,7 @@ async def update_board(
     pref = pref_result.scalar_one_or_none()
     owner_initials = (
         pref.initials if (pref and pref.initials)
-        else _compute_initials(current_user.display_name)
+        else compute_initials(current_user.display_name)
     )
     avatar_result = await db.execute(
         select(UserAvatar.user_id).where(UserAvatar.user_id == current_user.id)
@@ -968,7 +789,7 @@ async def duplicate_template(
     :func:`_copy_template_into`), but none of its shares: it starts private to
     whoever duplicated it.
     """
-    template = await _check_board_access(board_id, current_user, db)
+    template = await get_accessible_board(board_id, current_user, db)
     if not template.is_template:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only templates can be duplicated")
     if template.is_archived:
@@ -993,7 +814,7 @@ async def star_board(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Star a board. Idempotent — starring an already-starred board is a no-op."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     reject_if_template(board, "Templates cannot be starred")
 
     # RETURNING yields a row only when the star is actually new (ON CONFLICT
@@ -1021,7 +842,7 @@ async def unstar_board(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove a star from a board. Idempotent."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     reject_if_template(board, "Templates cannot be starred")
 
     await db.execute(
@@ -1054,7 +875,7 @@ async def get_board_colors(
     frontend can render the whole board with its final colors from the
     first paint instead of one request per list/card.
     """
-    await _check_board_access(board_id, current_user, db)
+    await get_accessible_board(board_id, current_user, db)
 
     board_color_result = await db.execute(
         select(UIBoardColor.color).where(
@@ -1089,7 +910,7 @@ async def get_board_color(
     db: AsyncSession = Depends(get_db),
 ) -> ColorRead:
     """Return the current user's personal color choice for this board, if any."""
-    await _check_board_access(board_id, current_user, db)
+    await get_accessible_board(board_id, current_user, db)
     result = await db.execute(
         select(UIBoardColor.color).where(
             UIBoardColor.user_id == current_user.id,
@@ -1111,7 +932,7 @@ async def set_board_color(
     Purely a per-user display preference — the owner and every shared user
     each have their own, so this never affects what anyone else sees.
     """
-    await _check_board_access(board_id, current_user, db)
+    await get_accessible_board(board_id, current_user, db)
     await db.execute(
         pg_insert(UIBoardColor)
         .values(user_id=current_user.id, board_id=board_id, color=body.color)
@@ -1131,7 +952,7 @@ async def clear_board_color(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Reset the current user's color for this board back to the default. Idempotent."""
-    await _check_board_access(board_id, current_user, db)
+    await get_accessible_board(board_id, current_user, db)
     await db.execute(
         delete(UIBoardColor).where(
             UIBoardColor.user_id == current_user.id,

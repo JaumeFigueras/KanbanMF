@@ -13,6 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
+from src.core.people import compute_initials
 from src.core.security import hash_password, verify_password
 from src.model.user import User
 from src.model.user_avatar import MAX_AVATAR_SIZE_BYTES, UserAvatar
@@ -41,11 +42,6 @@ def _detect_mime(data: bytes) -> str | None:
 router = APIRouter()
 
 
-def _compute_initials(display_name: str) -> str:
-    """Return up to 3 uppercase initials derived from display_name words."""
-    return "".join(w[0].upper() for w in display_name.split() if w)[:3]
-
-
 async def _build_user_read(user: User, db: AsyncSession) -> UserRead:
     """Assemble a UserRead by querying preferences and identity providers."""
     prefs_result = await db.execute(
@@ -70,7 +66,7 @@ async def _build_user_read(user: User, db: AsyncSession) -> UserRead:
         number_locale=prefs.number_locale if prefs else "en",
         date_format=prefs.date_format if prefs else "numeric",
         timezone=prefs.timezone if prefs else "UTC",
-        initials=prefs.initials if prefs and prefs.initials else _compute_initials(user.display_name),
+        initials=prefs.initials if prefs and prefs.initials else compute_initials(user.display_name),
         auth_providers=providers,
     )
 
@@ -286,7 +282,7 @@ async def search_users(
             initials=(
                 prefs_by_id[user.id].initials
                 if user.id in prefs_by_id and prefs_by_id[user.id].initials
-                else _compute_initials(user.display_name)
+                else compute_initials(user.display_name)
             ),
             has_avatar=user.id in avatar_ids,
         )

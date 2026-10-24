@@ -16,8 +16,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_client_id, get_current_user, get_db, reject_if_template
-from src.api.v1.boards import _check_board_access, _person_read
+from src.api.deps import get_client_id, get_current_user, get_db
+from src.api.v1.boards import _person_read
+from src.core.access import get_accessible_board, reject_if_template
 from src.core.email import email_enabled, send_board_invitation_email
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification
@@ -35,7 +36,7 @@ public_router = APIRouter()
 
 async def _owned_board(board_id: uuid.UUID, current_user: User, db: AsyncSession) -> Board:
     """Return the board if the current user owns it; members get 403 like the share routes."""
-    board = await _check_board_access(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     if board.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can modify sharing")
     return board

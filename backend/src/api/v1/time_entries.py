@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.deps import get_current_user, get_db
+from src.core.access import get_accessible_board
 from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.board_share import BoardShare
@@ -43,26 +44,6 @@ router = APIRouter()
 _START_SNAP_WINDOW = timedelta(minutes=5)
 
 
-async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSession) -> Board:
-    """Fetch a live board the user owns or has been shared, or raise 404/403."""
-    result = await db.execute(
-        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
-    )
-    board = result.scalar_one_or_none()
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
-    if board.owner_id != user.id:
-        share = await db.execute(
-            select(BoardShare.board_id).where(
-                BoardShare.board_id == board_id,
-                BoardShare.user_id == user.id,
-            )
-        )
-        if share.scalar_one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return board
-
-
 async def _card_snapshot(
     board_id: uuid.UUID,
     list_id: uuid.UUID,
@@ -76,7 +57,7 @@ async def _card_snapshot(
     plain values, so the entry keeps describing the work even after the card
     is renamed, relabelled, archived or deleted.
     """
-    board = await _get_accessible_board(board_id, user, db)
+    board = await get_accessible_board(board_id, user, db)
 
     result = await db.execute(
         select(Card)
@@ -270,7 +251,7 @@ async def list_time_tracker_lists(
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeTrackerOption]:
     """Return a board's live lists, ordered like :func:`list_time_tracker_boards`."""
-    await _get_accessible_board(board_id, current_user, db)
+    await get_accessible_board(board_id, current_user, db)
     usage_count = func.coalesce(TimeTrackerListUsage.usage_count, 0).label("usage_count")
     result = await db.execute(
         select(BoardList.id, BoardList.name, usage_count)

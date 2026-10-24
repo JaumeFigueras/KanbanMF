@@ -78,12 +78,17 @@ The layers
 
 :mod:`src.api`
    The routes. They check access, do the work in the database, and notify
-   (see below). Shared helpers are in :mod:`src.api.deps`.
+   (see below). Shared dependencies are in :mod:`src.api.deps`. The work on
+   cards, lists and checklists, and the search and overdue queries, live in
+   :mod:`src.core` instead, so the routes are thin wrappers around them and
+   anything else that changes a board goes through the same checks and
+   notifications.
 
 :mod:`src.core`
    Everything that isn't a route: settings, the engine, password hashing and
-   tokens, e-mail, the WebSocket registry and notifications, and the
-   scheduled jobs.
+   tokens, e-mail, the WebSocket registry and notifications, the scheduled
+   jobs, the access checks (:mod:`src.core.access`) and the board operations
+   the routes call.
 
 Handling a request
 ------------------
@@ -244,7 +249,8 @@ database; see :doc:`../setup/workflow`.
 Searching
 ---------
 
-:mod:`src.api.v1.search` answers every search with one query: each word of
+:mod:`src.core.search` (called by :mod:`src.api.v1.search`) answers every
+search with one query: each word of
 the search must match one of the card's name, description, checklist names,
 checklist items or label names, compared as
 ``unaccent(column) ILIKE unaccent('%word%')`` with ``%`` and ``_`` escaped.
@@ -259,7 +265,7 @@ isn't.
 The same route serves four scopes — every live board, one board, one
 board's archive, the user's archived boards — chosen by ``board_id`` and
 ``archived``, and returns the overdue page's shape (grouped by
-``group_cards_by_board`` in :mod:`src.api.v1.boards`, which both use), plus
+``group_cards_by_board`` in :mod:`src.core.card_groups`, which both use), plus
 which fields matched per card, the boards whose name matches, and whether
 the 200-card limit cut anything off.
 

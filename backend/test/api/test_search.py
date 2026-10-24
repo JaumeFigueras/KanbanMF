@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 
-from src.api.v1 import search as search_module
+from src.core import search as search_module
 from src.core.security import create_access_token
 from src.model.board import Board
 from src.model.board_list import BoardList

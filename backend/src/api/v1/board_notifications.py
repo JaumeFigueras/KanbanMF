@@ -9,13 +9,13 @@ user has never saved any, and writing them never affects anyone else.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db, reject_if_template
-from src.model.board import Board
+from src.api.deps import get_current_user, get_db
+from src.core.access import get_accessible_board, reject_if_template
 from src.model.board_notification_offset import BoardNotificationOffset
 from src.model.board_notification_settings import (
     WORKDAYS_MASK,
@@ -23,30 +23,10 @@ from src.model.board_notification_settings import (
     mask_to_weekdays,
     weekdays_to_mask,
 )
-from src.model.board_share import BoardShare
 from src.model.user import User
 from src.schemas.board_notification import BoardNotificationSettingsRead, BoardNotificationSettingsUpdate
 
 router = APIRouter()
-
-
-async def _get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSession) -> Board:
-    result = await db.execute(
-        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
-    )
-    board = result.scalar_one_or_none()
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
-    if board.owner_id != user.id:
-        share = await db.execute(
-            select(BoardShare.board_id).where(
-                BoardShare.board_id == board_id,
-                BoardShare.user_id == user.id,
-            )
-        )
-        if share.scalar_one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return board
 
 
 async def _read_settings(board_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession) -> BoardNotificationSettingsRead:
@@ -102,7 +82,7 @@ async def get_board_notification_settings(
     Accessible to the owner and any shared member — each reads/writes only
     their own row, never another user's.
     """
-    board = await _get_accessible_board(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     reject_if_template(board, "Templates have no due dates to notify about")
     return await _read_settings(board_id, current_user.id, db)
 
@@ -124,7 +104,7 @@ async def update_board_notification_settings(
     EmailNotificationDialog), so this is a full replace rather than a partial
     patch: the offset-days list is dropped and re-inserted rather than diffed.
     """
-    board = await _get_accessible_board(board_id, current_user, db)
+    board = await get_accessible_board(board_id, current_user, db)
     reject_if_template(board, "Templates have no due dates to notify about")
     notify_weekdays = weekdays_to_mask(body.notify_weekdays)
 
