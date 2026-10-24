@@ -4,32 +4,31 @@
 """E-mail and password accounts: registration, verification, login, logout
 and refresh-token rotation.
 
-The refresh token travels only in an HTTP-only cookie and is stored only as a
-bcrypt hash in ``UserSession``; every refresh deletes the session it used and
-issues a new one.
+The refresh token travels only in an HTTP-only cookie and is stored only as its
+SHA-256 in ``UserSession`` (see :mod:`src.core.sessions`); every refresh
+deletes the session it used and issues a new one. Passwords are bcrypt
+hashes, checked in a worker thread: bcrypt takes about a third of a second on
+purpose, and run on the event loop it would stall every other request.
 """
 
 import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db, get_refresh_token_from_cookie
 from src.core.email import send_verification_email
 from src.core.invitations import accept_pending_invitations
-from src.core.security import (
-    create_access_token,
-    generate_refresh_token,
-    hash_password,
-    verify_password,
-)
+from src.core.security import create_access_token, hash_password, verify_password
+from src.core.sessions import find_session, open_session
 from src.model.board_invitation import BoardInvitation
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
-from src.model.user_session import REFRESH_TOKEN_EXPIRE_DAYS, UserSession
+from src.model.user_session import REFRESH_TOKEN_EXPIRE_DAYS
 from src.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, VerifyEmailRequest
 
 router = APIRouter()
@@ -93,7 +92,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     identity = UserIdentity(
         user_id=user.id,
         provider=AuthProvider.LOCAL,
-        hashed_password=hash_password(body.password),
+        hashed_password=await run_in_threadpool(hash_password, body.password),
         verification_token=verification_token,
         verification_token_expiry=datetime.now(timezone.utc) + timedelta(hours=24),
     )
@@ -146,7 +145,12 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     identity = identity_result.scalar_one_or_none() if identity_result else None
 
     # Use constant-time comparison even on "user not found" to avoid timing attacks
-    if user is None or identity is None or not verify_password(body.password, identity.hashed_password or ""):
+    if (
+        user is None
+        or identity is None
+        or not identity.hashed_password
+        or not await run_in_threadpool(verify_password, body.password, identity.hashed_password)
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not user.is_active:
@@ -155,13 +159,7 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
     if not user.is_verified:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified")
 
-    plain_refresh = generate_refresh_token()
-    session = UserSession(
-        user_id=user.id,
-        hashed_refresh_token=hash_password(plain_refresh),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(session)
+    plain_refresh = open_session(user.id, db)
     await db.commit()
 
     _set_refresh_cookie(response, plain_refresh)
@@ -176,15 +174,10 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Invalidate the current session by deleting the matching UserSession row."""
-    sessions = await db.execute(
-        select(UserSession).where(UserSession.user_id == current_user.id, UserSession.is_active.is_(True))
-    )
-    for session in sessions.scalars():
-        if verify_password(refresh_token, session.hashed_refresh_token):
-            await db.delete(session)
-            break
-
-    await db.commit()
+    session = await find_session(refresh_token, db, user_id=current_user.id)
+    if session is not None:
+        await db.delete(session)
+        await db.commit()
     response.delete_cookie(_REFRESH_COOKIE)
 
 
@@ -197,34 +190,20 @@ async def refresh(
     """Rotate the refresh token and return a new access token.
 
     Steps:
-    1. Find all active sessions and locate the one matching the cookie.
+
+    1. Find the active, unexpired session the cookie belongs to, by the
+       token's SHA-256 (one indexed query).
     2. Delete the old session (token rotation — prevents replay attacks).
     3. Issue a new session with a fresh refresh token.
     4. Return new access token + set new refresh cookie.
     """
-    credentials_error = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
-
-    # Scan active sessions for a hash match (linear scan — acceptable for per-user sessions)
-    all_sessions = await db.execute(select(UserSession).where(UserSession.is_active.is_(True)))
-    matched: UserSession | None = None
-    for session in all_sessions.scalars():
-        if verify_password(refresh_token, session.hashed_refresh_token):
-            matched = session
-            break
-
-    if matched is None or matched.expires_at < datetime.now(timezone.utc):
-        raise credentials_error
+    matched = await find_session(refresh_token, db)
+    if matched is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 
     user_id = matched.user_id
     await db.delete(matched)
-
-    plain_refresh = generate_refresh_token()
-    new_session = UserSession(
-        user_id=user_id,
-        hashed_refresh_token=hash_password(plain_refresh),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(new_session)
+    plain_refresh = open_session(user_id, db)
     await db.commit()
 
     _set_refresh_cookie(response, plain_refresh)

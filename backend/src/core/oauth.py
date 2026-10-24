@@ -25,6 +25,7 @@ from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
+from src.core.security import hash_token
 from src.model.board import Board
 from src.model.mcp_grant import McpGrant
 from src.model.mcp_grant_board import McpGrantBoard
@@ -81,15 +82,6 @@ def issuer() -> str:
 def mcp_resource() -> str:
     """The MCP server's canonical URI, the audience of every token."""
     return f"{issuer()}/mcp"
-
-
-def hash_token(token: str) -> str:
-    """SHA-256 (hex) of a token, code or refresh token, as stored.
-
-    These are 256-bit random strings, so a fast hash is enough (unlike
-    passwords); it also lets a token be looked up by its hash.
-    """
-    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def _new_secret(prefix: str = "") -> str:

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Password hashing (bcrypt), JWT access tokens and random refresh tokens."""
+"""Password hashing (bcrypt), JWT access tokens, random refresh tokens and the
+SHA-256 hash they are stored and looked up by."""
 
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -19,6 +21,17 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 (hex) of a random token (refresh token, OAuth code or token), as
+    stored.
+
+    These are 256-bit random strings, so a fast hash is enough — bcrypt is for
+    passwords, which can be guessed — and, unlike bcrypt, it lets a token be
+    looked up by its hash with one indexed query.
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:

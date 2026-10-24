@@ -10,9 +10,10 @@ Core services
    The async engine and ``AsyncSessionLocal``, the session factory used by
    requests (through ``get_db``) and by the scheduled jobs.
 
-:mod:`~src.core.security`
-   bcrypt for passwords and refresh tokens, JWT access tokens, random
-   refresh tokens.
+:mod:`~src.core.security` and :mod:`~src.core.sessions`
+   bcrypt for passwords, JWT access tokens, random refresh tokens and the
+   SHA-256 they are stored and looked up by; opening and finding sign-in
+   sessions.
 
 :mod:`~src.core.email`
    The verification, reminder and invitation e-mails, in English and
@@ -44,6 +45,8 @@ Core services
    - :mod:`~src.core.notifications` — the hourly due-date reminders;
    - :mod:`~src.core.invitations` — turning invitations into shares when an
      address is verified, and the hourly clean-up of expired ones;
+   - :mod:`~src.core.sessions` — the hourly clean-up of expired sign-in
+     sessions;
    - :mod:`~src.core.oauth` — the hourly clean-up of expired OAuth requests,
      codes and tokens, and of clients nobody approved;
    - :mod:`~src.core.time_tracker_ranking` — the nightly rebuild of the time

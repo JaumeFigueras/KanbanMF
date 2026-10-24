@@ -8,11 +8,16 @@ docs in step with it.
 Running the tests
 -----------------
 
-From ``backend/``, with the virtualenv active:
+From the repository root (no virtualenv activation needed):
 
 .. code-block:: bash
 
-   python3 -m pytest -x -v --cov-report=html:./test/coverage_reports --cov=./src ./test -s -vv
+   make test                        # the whole suite
+   make test TEST_ARGS="-x -k oauth"   # extra pytest arguments: stop at the first failure, only matching tests
+   make test-cov                    # the same, with a coverage report
+
+or, from ``backend/`` with the virtualenv active, ``python3 -m pytest ./test``
+with whatever options you like.
 
 The tests run against a **real PostgreSQL**, not a mock. ``pytest-postgresql``
 starts a throw-away server for the test session and gives every test a fresh
@@ -20,7 +25,9 @@ database, so tests can't leak into each other or into your development data.
 That needs the PostgreSQL server binaries (``pg_ctl``) installed on the
 machine, which :doc:`development` already does.
 
-The coverage report lands in ``backend/test/coverage_reports/index.html``.
+``make test-cov`` prints the files that aren't fully covered and writes a
+browsable report to ``backend/test/coverage-reports/index.html``; the
+directory is gitignored.
 
 The tests are organised like the code: ``test/model/`` for model-level
 behaviour, ``test/schemas/`` for validation, and ``test/api/`` for the

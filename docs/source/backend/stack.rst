@@ -148,10 +148,25 @@ Access token
 Refresh token
    A random string valid for 30 days, sent only as an ``HTTP-only``,
    ``Secure``, ``SameSite=Lax`` cookie, so page scripts can't read it. The
-   database stores only its bcrypt hash. ``POST /auth/local/refresh`` trades
-   it for a new access token **and a new refresh token**: the old session is
-   deleted, so each refresh token works once, and a stolen one stops working
-   as soon as either party uses it.
+   database stores only its SHA-256, and finds the session by it with one
+   indexed query (:mod:`src.core.sessions`). ``POST /auth/local/refresh``
+   trades it for a new access token **and a new refresh token**: the old
+   session is deleted, so each refresh token works once, and a stolen one
+   stops working as soon as either party uses it. An hourly job deletes
+   expired sessions.
+
+   SHA-256 rather than bcrypt is deliberate. bcrypt is slow so that a
+   *guessable* secret — a password — is expensive to try; a 256-bit random
+   token can't be guessed, so it gains nothing from that, and bcrypt can't be
+   looked up by: the session had to be found by checking the cookie against
+   every session of every user, a third of a second each, on the server's
+   only process. A single request with a made-up cookie could stop the site
+   for seconds.
+
+Passwords are bcrypt hashes. Checking or creating one takes about a third of
+a second on purpose, so the routes run it in a worker thread
+(``run_in_threadpool``): on the event loop it would stall every other
+request meanwhile.
 
 Each browser or device has its own session; signing out deletes only that
 one. Local accounts can't sign in until their address is verified;
@@ -531,6 +546,9 @@ and settings. Each opens its own database session.
    * - Expired invitations (:mod:`src.core.invitations`)
      - every hour, at half past
      - Delete invitations past their 30 days.
+   * - Expired sessions (:mod:`src.core.sessions`)
+     - every hour, at a quarter past
+     - Delete sign-in sessions past their 30 days.
    * - Expired OAuth rows (:mod:`src.core.oauth`)
      - every hour, at a quarter to
      - Delete expired authorization requests, codes and tokens (a rotated

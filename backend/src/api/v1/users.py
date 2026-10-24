@@ -9,6 +9,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -153,10 +154,14 @@ async def change_my_password(
     if identity is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No local account found")
 
-    if not verify_password(body.old_password, identity.hashed_password or ""):
+    # bcrypt is slow on purpose: run it off the event loop, or every other
+    # request waits for it.
+    if not identity.hashed_password or not await run_in_threadpool(
+        verify_password, body.old_password, identity.hashed_password
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
-    identity.hashed_password = hash_password(body.new_password)
+    identity.hashed_password = await run_in_threadpool(hash_password, body.new_password)
     await db.commit()
 
 

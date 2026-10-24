@@ -23,12 +23,14 @@ class UserSession(Base):
 
     Implements the refresh token rotation pattern:
 
-    - On login: a refresh token is created and stored HASHED here.
-      The plain token is sent to the client as an HTTP-only cookie.
-    - On token refresh: the plain token from the cookie is verified
-      against the hash, a new refresh token is issued (old one deleted),
-      and a new short-lived JWT access token is returned.
+    - On login: a refresh token is created and only its SHA-256 is stored
+      here. The plain token is sent to the client as an HTTP-only cookie.
+    - On token refresh: the session is looked up by the SHA-256 of the
+      cookie's token — one indexed query, whatever the number of sessions —
+      a new refresh token is issued (old one deleted), and a new short-lived
+      JWT access token is returned.
     - On logout: the session row is deleted, invalidating the refresh token.
+    - Expired sessions are deleted by an hourly job (src.core.sessions).
 
     One user can have multiple active sessions (multiple devices).
     """
@@ -51,9 +53,10 @@ class UserSession(Base):
 
     # Hashed refresh token — never store the plain token in the DB
     hashed_refresh_token: Mapped[str] = mapped_column(
-        String(255),
+        String(64),
         nullable=False,
-        comment="bcrypt hash of the refresh token. Plain token is sent via HTTP-only cookie."
+        unique=True,
+        comment="SHA-256 (hex) of the refresh token, to look the session up by. Plain token is sent via HTTP-only cookie."
     )
 
     # Device / client info (optional, useful for 'active sessions' management UI)

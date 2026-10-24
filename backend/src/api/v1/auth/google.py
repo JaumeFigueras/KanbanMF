@@ -24,7 +24,6 @@ owner is now taking over.
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -37,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import get_db
 from src.core.config import settings
 from src.core.invitations import accept_pending_invitations
-from src.core.security import generate_refresh_token, hash_password
+from src.core.sessions import open_session
 from src.model.mcp_grant import McpGrant
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
@@ -232,13 +231,7 @@ async def google_callback(
     )
 
     # --- 5. Create session ---
-    plain_refresh = generate_refresh_token()
-    session = UserSession(
-        user_id=user.id,
-        hashed_refresh_token=hash_password(plain_refresh),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(session)
+    plain_refresh = open_session(user.id, db)
     await db.commit()
 
     # --- 5b. Google has verified the address, so pending invitations to it

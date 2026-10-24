@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """In-process scheduler: hourly due-date e-mail notifications, cleanup
-of expired board invitations and of expired OAuth rows, plus the nightly (02:00) rebuild of the time
+of expired board invitations, sign-in sessions and OAuth rows, plus the nightly (02:00) rebuild of the time
 tracker's usage ranking, which is also built once at startup if it's empty.
 
 Runs inside the FastAPI process itself (wired into its lifespan in
@@ -23,6 +23,7 @@ from apscheduler.triggers.cron import CronTrigger
 from src.core.invitations import delete_expired_invitations
 from src.core.notifications import send_due_date_notifications
 from src.core.oauth import delete_expired_oauth_rows
+from src.core.sessions import delete_expired_sessions
 from src.core.time_tracker_ranking import ensure_time_tracker_ranking, rebuild_time_tracker_ranking
 
 scheduler = AsyncIOScheduler()
@@ -41,6 +42,12 @@ def start_scheduler() -> None:
         delete_expired_invitations,
         trigger=CronTrigger(minute=30),
         id="expired_invitations_cleanup",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        delete_expired_sessions,
+        trigger=CronTrigger(minute=15),
+        id="expired_sessions_cleanup",
         replace_existing=True,
     )
     scheduler.add_job(
