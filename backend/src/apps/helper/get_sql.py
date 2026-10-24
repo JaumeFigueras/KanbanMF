@@ -78,6 +78,12 @@ from src.model.ui_card_color import UICardColor
 from src.model.time_entry import TimeEntry
 from src.model.time_tracker_board_usage import TimeTrackerBoardUsage
 from src.model.time_tracker_list_usage import TimeTrackerListUsage
+from src.model.oauth_client import OAuthClient
+from src.model.mcp_grant import McpGrant
+from src.model.mcp_grant_board import McpGrantBoard
+from src.model.oauth_authorization_request import OAuthAuthorizationRequest
+from src.model.oauth_authorization_code import OAuthAuthorizationCode
+from src.model.oauth_token import OAuthToken
 
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
@@ -133,6 +139,12 @@ def main(e: Engine):  # pragma: no cover
         TimeEntry,
         TimeTrackerBoardUsage,
         TimeTrackerListUsage,
+        OAuthClient,
+        McpGrant,
+        McpGrantBoard,
+        OAuthAuthorizationRequest,
+        OAuthAuthorizationCode,
+        OAuthToken,
     ]
 
     files_created = []

@@ -31,6 +31,10 @@ Core services
    Cards from several boards grouped by board and list, the overdue cards,
    card search, and the name/initials/avatar summary of a person.
 
+:mod:`~src.core.oauth`
+   The OAuth 2.1 authorization server behind the MCP server: clients,
+   consent, codes, tokens and their rotation, and the access-token check.
+
 :mod:`~src.core.ws_manager` and :mod:`~src.core.ws_notify`
    The open WebSockets per user, and the notify-and-refetch messages.
 
@@ -40,6 +44,8 @@ Core services
    - :mod:`~src.core.notifications` — the hourly due-date reminders;
    - :mod:`~src.core.invitations` — turning invitations into shares when an
      address is verified, and the hourly clean-up of expired ones;
+   - :mod:`~src.core.oauth` — the hourly clean-up of expired OAuth requests,
+     codes and tokens, and of clients nobody approved;
    - :mod:`~src.core.time_tracker_ranking` — the nightly rebuild of the time
      tracker's usage ranking.
 

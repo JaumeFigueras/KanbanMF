@@ -14,6 +14,7 @@ from src.api.v1 import (
     invitations,
     labels,
     lists,
+    oauth,
     search,
     time_entries,
     users,
@@ -47,3 +48,4 @@ router.include_router(search.router, prefix="/search", tags=["search"])
 router.include_router(time_entries.router, prefix="/time-entries", tags=["time-entries"])
 router.include_router(local.router, prefix="/auth/local", tags=["auth:local"])
 router.include_router(google.router, prefix="/auth/google", tags=["auth:google"])
+router.include_router(oauth.router, prefix="/oauth", tags=["oauth"])

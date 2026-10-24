@@ -2,8 +2,10 @@ API layer
 =========
 
 :mod:`src.main` creates the FastAPI application: CORS for ``FRONTEND_URL``, a
-``/healthz`` check, a lifespan that starts and stops the scheduler, and the
-``/api/v1`` router from :mod:`src.api.v1.router`, which mounts every resource
+``/healthz`` check, a lifespan that starts and stops the scheduler, the OAuth
+discovery documents under ``/.well-known`` (:mod:`src.api.well_known`, at the
+root because RFC 8414 and RFC 9728 fix their addresses), and the ``/api/v1``
+router from :mod:`src.api.v1.router`, which mounts every resource
 router under its prefix. The prefixes follow how the data is nested:
 
 .. list-table::
@@ -55,6 +57,10 @@ router under its prefix. The prefixes follow how the data is nested:
    * - ``/time-entries``
      - :mod:`~src.api.v1.time_entries`
      - private to the caller; no WebSocket notifications
+   * - ``/oauth``
+     - :mod:`~src.api.v1.oauth`
+     - the MCP server's authorization server (register, authorize, token,
+       revoke), and the consent page's and connected apps list's endpoints
    * - ``/config``
      - :mod:`~src.api.v1.config`
      - public: optional features (e-mail)

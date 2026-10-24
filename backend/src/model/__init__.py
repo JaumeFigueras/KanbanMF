@@ -31,6 +31,12 @@ from src.model.user_preferences import UserPreferences
 from src.model.time_entry import TimeEntry
 from src.model.time_tracker_board_usage import TimeTrackerBoardUsage
 from src.model.time_tracker_list_usage import TimeTrackerListUsage
+from src.model.oauth_client import OAuthClient
+from src.model.mcp_grant import McpGrant
+from src.model.mcp_grant_board import McpGrantBoard
+from src.model.oauth_authorization_request import OAuthAuthorizationRequest
+from src.model.oauth_authorization_code import OAuthAuthorizationCode
+from src.model.oauth_token import OAuthToken
 
 __all__ = [
     "Base", "Board", "BoardList",
@@ -42,4 +48,6 @@ __all__ = [
     "BoardShare", "BoardInvitation", "UserBoardStar",
     "User", "UserIdentity", "UserAvatar", "UserSession", "UserPreferences",
     "TimeEntry", "TimeTrackerBoardUsage", "TimeTrackerListUsage",
+    "OAuthClient", "McpGrant", "McpGrantBoard", "OAuthAuthorizationRequest", "OAuthAuthorizationCode",
+    "OAuthToken",
 ]

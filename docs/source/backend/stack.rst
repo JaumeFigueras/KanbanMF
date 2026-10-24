@@ -157,6 +157,95 @@ cookie, then deletes it. Without the check, a link carrying an attacker's own
 authorization code would sign whoever clicked it in to the attacker's account
 (login CSRF).
 
+Connecting Claude: OAuth for the MCP server
+-------------------------------------------
+
+The MCP server lets an assistant such as Claude read and change a user's
+boards. It doesn't use the sign-in tokens above: an MCP client gets its own,
+through a standard OAuth 2.1 authorization server in
+:mod:`src.core.oauth` (routes in :mod:`src.api.v1.oauth`), as the MCP
+specification asks of a remote server. The issuer is the app's public address
+(``FRONTEND_URL``) and the protected resource is ``FRONTEND_URL/mcp``.
+
+.. graphviz::
+   :caption: Connecting a client for the first time.
+   :alt: The client reads the discovery documents, registers, and sends the
+         browser to /authorize; the user approves boards on the consent page;
+         the client trades the code for tokens and calls /mcp with them.
+
+   digraph oauth {
+     rankdir=LR;
+     node [shape=box, style="rounded,filled", fillcolor="#E3F2FD", color="#1976D2"];
+     edge [color="#555555", fontsize=9];
+     claude  [label="MCP client\n(Claude)", fillcolor="#FFF3E0", color="#F57C00"];
+     wk      [label="/.well-known/\noauth-*"];
+     auth    [label="/oauth/authorize"];
+     consent [label="consent page\n(frontend)", fillcolor="#E8F5E9", color="#388E3C"];
+     token   [label="/oauth/token"];
+     mcp     [label="/mcp"];
+     claude -> wk [label="1. discover"];
+     claude -> auth [label="2. browser"];
+     auth -> consent [label="3. request id"];
+     consent -> claude [label="4. code", style=dashed];
+     claude -> token [label="5. code + PKCE"];
+     claude -> mcp [label="6. access token"];
+   }
+
+Discovery
+   ``/.well-known/oauth-protected-resource/mcp`` (and the same document at
+   the root) names the authorization server;
+   ``/.well-known/oauth-authorization-server`` lists its endpoints, PKCE
+   ``S256`` only, and public clients only (``none`` at the token endpoint).
+
+Clients
+   A client identifies itself in one of two ways, both supported because
+   Claude uses both. **Dynamic Client Registration** (RFC 7591): Claude's
+   web, desktop and mobile apps ``POST /oauth/register`` and get a random
+   ``client_id``; they do so for every new connection, so clients nobody
+   approved within a day are deleted. A **Client ID Metadata Document**:
+   Claude Code's ``client_id`` is an HTTPS URL on ``claude.ai`` where it
+   publishes its name and redirect URIs. The server fetches that document
+   (no redirects followed, 16 KB at most) and caches it for a day — but only
+   from the hosts in ``OAUTH_CIMD_ALLOWED_HOSTS``, since fetching a URL a
+   stranger chose is otherwise a way to make the server request internal
+   addresses (SSRF). A client is just a name and its redirect URIs; on its
+   own it can do nothing.
+
+Authorize and consent
+   ``/oauth/authorize`` checks the client and its redirect URI first, and
+   until both are known to be good it reports errors on the consent page
+   rather than redirecting, so it can't be used as an open redirect. Redirect
+   URIs match exactly, except that a loopback ``http://localhost`` one
+   matches on any port (RFC 8252), as Claude Code listens on a free port each
+   time. A good request is stored for ten minutes and the browser goes to the
+   frontend's consent page with its id. There the user, signed in as usual,
+   sees the client's name and where the answer goes (with a warning when
+   that is a program on their own computer), ticks **their own** live boards
+   — boards shared with them, archived boards and templates are never
+   offered — and may make the connection read-only. Approving creates a
+   ``McpGrant`` with its ``McpGrantBoard`` rows and a five-minute, single-use
+   code, sent back with the client's ``state`` and the issuer (``iss``,
+   RFC 9207).
+
+Tokens
+   The code, with the PKCE verifier, buys an access token (one hour) and a
+   refresh token (30 days). Both are random strings with a recognisable
+   prefix (``kmf_at_``, ``kmf_rt_``), stored only as SHA-256 hashes — a fast
+   hash is enough for 256-bit random values, and lets a token be looked up
+   by its hash — and bound to the ``/mcp`` resource. They are not JWTs, so
+   ``get_current_user`` never accepts them, and a sign-in JWT never works on
+   ``/mcp``. Refreshing rotates the pair; a rotated refresh token that comes
+   back means someone else holds a copy, so the whole grant is deleted.
+   ``/oauth/revoke`` deletes a pair (RFC 7009).
+
+Grants
+   What a client may do is decided by its grant, not by scopes (there is a
+   single scope, ``kanban``): the boards, and read-only or not. The
+   connected apps list changes them or deletes the grant, which ends every
+   token at once. The MCP server checks the grant and the boards again on
+   every call, so a deleted or archived board drops out of reach straight
+   away.
+
 The data model
 --------------
 
@@ -232,6 +321,11 @@ Notifications
 Invitations
    ``BoardInvitation``: a share waiting for an account with that e-mail
    address, with a random token for the sign-up link and a 30-day expiry.
+
+Connected apps
+   ``OAuthClient``, ``McpGrant`` and ``McpGrantBoard``,
+   ``OAuthAuthorizationRequest``, ``OAuthAuthorizationCode`` and
+   ``OAuthToken`` (see `Connecting Claude: OAuth for the MCP server`_).
 
 Time tracking
    ``TimeEntry`` **copies** the board name, card name and labels (as JSONB)
@@ -362,6 +456,11 @@ and settings. Each opens its own database session.
    * - Expired invitations (:mod:`src.core.invitations`)
      - every hour, at half past
      - Delete invitations past their 30 days.
+   * - Expired OAuth rows (:mod:`src.core.oauth`)
+     - every hour, at a quarter to
+     - Delete expired authorization requests, codes and tokens (a rotated
+       token is kept until its refresh token would have expired, so its
+       reuse is still noticed), and clients nobody approved within a day.
    * - Time tracker ranking (:mod:`src.core.time_tracker_ranking`)
      - 02:00 server time, and once at startup if empty
      - Empty and refill the usage tables from each user's last 90 days of

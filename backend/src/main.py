@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""The FastAPI application: CORS, the ``/api/v1`` router, a health check, and a
-lifespan that starts and stops the scheduler with the app.
+"""The FastAPI application: CORS, the ``/api/v1`` router, the ``/.well-known``
+OAuth discovery documents, a health check, and a lifespan that starts and
+stops the scheduler with the app.
 """
 
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api import well_known
 from src.api.v1.router import router
 from src.core.config import settings
 from src.core.scheduler import shutdown_scheduler, start_scheduler
@@ -39,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(well_known.router)
 
 
 @app.get("/healthz", tags=["ops"])

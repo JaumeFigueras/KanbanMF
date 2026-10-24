@@ -36,6 +36,10 @@ The models fall into groups; :doc:`../stack` describes each:
 - **Time tracking:** :mod:`~src.model.time_entry`,
   :mod:`~src.model.time_tracker_board_usage`,
   :mod:`~src.model.time_tracker_list_usage`.
+- **Connected apps (OAuth for the MCP server):** :mod:`~src.model.oauth_client`,
+  :mod:`~src.model.mcp_grant`, :mod:`~src.model.mcp_grant_board`,
+  :mod:`~src.model.oauth_authorization_request`,
+  :mod:`~src.model.oauth_authorization_code`, :mod:`~src.model.oauth_token`.
 
 Most columns carry a ``comment``, which ends up in the database too and is
 shown in the reference below.

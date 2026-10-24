@@ -446,3 +446,97 @@ CREATE TABLE time_tracker_list_usage (
 WITH (OIDS = FALSE);
 ALTER TABLE public.time_tracker_list_usage OWNER TO kanbanmf_user;
 GRANT SELECT on public.time_tracker_list_usage to kanbanmf_remoteuser;
+
+CREATE TABLE oauth_clients (
+	id UUID NOT NULL, 
+	client_id VARCHAR(512) NOT NULL, 
+	registration VARCHAR(10) NOT NULL, 
+	client_name VARCHAR(200) NOT NULL, 
+	redirect_uris TEXT[] NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	metadata_fetched_at TIMESTAMP WITH TIME ZONE, 
+	PRIMARY KEY (id), 
+	CONSTRAINT ck_oauth_clients_registration CHECK (registration IN ('dcr', 'cimd')), 
+	UNIQUE (client_id)
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.oauth_clients OWNER TO kanbanmf_user;
+GRANT SELECT on public.oauth_clients to kanbanmf_remoteuser;
+
+CREATE TABLE mcp_grants (
+	id UUID NOT NULL, 
+	user_id UUID NOT NULL, 
+	client_id UUID NOT NULL, 
+	read_only BOOLEAN NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	last_used_at TIMESTAMP WITH TIME ZONE, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	FOREIGN KEY(client_id) REFERENCES oauth_clients (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+CREATE INDEX ix_mcp_grants_user_id ON mcp_grants (user_id);
+CREATE INDEX ix_mcp_grants_client_id ON mcp_grants (client_id);
+ALTER TABLE public.mcp_grants OWNER TO kanbanmf_user;
+GRANT SELECT on public.mcp_grants to kanbanmf_remoteuser;
+
+CREATE TABLE mcp_grant_boards (
+	grant_id UUID NOT NULL, 
+	board_id UUID NOT NULL, 
+	PRIMARY KEY (grant_id, board_id), 
+	FOREIGN KEY(grant_id) REFERENCES mcp_grants (id) ON DELETE CASCADE, 
+	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.mcp_grant_boards OWNER TO kanbanmf_user;
+GRANT SELECT on public.mcp_grant_boards to kanbanmf_remoteuser;
+
+CREATE TABLE oauth_authorization_requests (
+	id UUID NOT NULL, 
+	client_id UUID NOT NULL, 
+	redirect_uri TEXT NOT NULL, 
+	state TEXT, 
+	code_challenge VARCHAR(128) NOT NULL, 
+	resource TEXT NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(client_id) REFERENCES oauth_clients (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.oauth_authorization_requests OWNER TO kanbanmf_user;
+GRANT SELECT on public.oauth_authorization_requests to kanbanmf_remoteuser;
+
+CREATE TABLE oauth_authorization_codes (
+	code_hash VARCHAR(64) NOT NULL, 
+	grant_id UUID NOT NULL, 
+	redirect_uri TEXT NOT NULL, 
+	code_challenge VARCHAR(128) NOT NULL, 
+	resource TEXT NOT NULL, 
+	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	PRIMARY KEY (code_hash), 
+	FOREIGN KEY(grant_id) REFERENCES mcp_grants (id) ON DELETE CASCADE
+)
+WITH (OIDS = FALSE);
+ALTER TABLE public.oauth_authorization_codes OWNER TO kanbanmf_user;
+GRANT SELECT on public.oauth_authorization_codes to kanbanmf_remoteuser;
+
+CREATE TABLE oauth_tokens (
+	id UUID NOT NULL, 
+	grant_id UUID NOT NULL, 
+	access_token_hash VARCHAR(64) NOT NULL, 
+	refresh_token_hash VARCHAR(64) NOT NULL, 
+	resource TEXT NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	access_expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	refresh_expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	rotated_at TIMESTAMP WITH TIME ZONE, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(grant_id) REFERENCES mcp_grants (id) ON DELETE CASCADE, 
+	UNIQUE (access_token_hash), 
+	UNIQUE (refresh_token_hash)
+)
+WITH (OIDS = FALSE);
+CREATE INDEX ix_oauth_tokens_grant_id ON oauth_tokens (grant_id);
+ALTER TABLE public.oauth_tokens OWNER TO kanbanmf_user;
+GRANT SELECT on public.oauth_tokens to kanbanmf_remoteuser;

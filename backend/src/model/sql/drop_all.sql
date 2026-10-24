@@ -2,6 +2,11 @@
 -- Run this to wipe the schema before recreating it from the sql/ files.
 --
 -- Order rationale:
+--   oauth_tokens, oauth_authorization_codes, mcp_grant_boards
+--                                   →  reference mcp_grants (+ boards)
+--   mcp_grants                      →  references oauth_clients + users
+--   oauth_authorization_requests    →  references oauth_clients
+--   oauth_clients                   →  no references
 --   time_tracker_*_usage            →  reference boards / board_lists + users
 --   time_entries                    →  reference users
 --   checklist_items                 →  reference checklists
@@ -29,6 +34,12 @@
 --   users                           →  root table
 --   custom types                    →  must be dropped after all tables that use them
 
+DROP TABLE IF EXISTS oauth_tokens                 CASCADE;
+DROP TABLE IF EXISTS oauth_authorization_codes    CASCADE;
+DROP TABLE IF EXISTS mcp_grant_boards             CASCADE;
+DROP TABLE IF EXISTS mcp_grants                   CASCADE;
+DROP TABLE IF EXISTS oauth_authorization_requests CASCADE;
+DROP TABLE IF EXISTS oauth_clients                CASCADE;
 DROP TABLE IF EXISTS time_tracker_board_usage CASCADE;
 DROP TABLE IF EXISTS time_tracker_list_usage  CASCADE;
 DROP TABLE IF EXISTS time_entries           CASCADE;

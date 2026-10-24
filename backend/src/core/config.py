@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     google_token_url: str = "https://oauth2.googleapis.com/token"
     google_userinfo_url: str = "https://openidconnect.googleapis.com/v1/userinfo"
 
+    # MCP server OAuth. Hosts allowed to serve a Client ID Metadata Document
+    # (a client whose client_id is an HTTPS URL, as Claude Code's is), comma
+    # separated. The authorization server fetches that URL, so only trusted
+    # hosts are accepted; clients that register instead (Dynamic Client
+    # Registration, as Claude's web and desktop apps do) need no entry here.
+    oauth_cimd_allowed_hosts: str = "claude.ai,claude.com"
+
     # SMTP / Email
     smtp_host: str = ""
     smtp_port: int
