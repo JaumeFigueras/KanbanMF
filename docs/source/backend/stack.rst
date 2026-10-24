@@ -129,6 +129,13 @@ A person is one ``User``, identified by their e-mail address. How they sign
 in is a ``UserIdentity``: a ``local`` one with a bcrypt password hash, a
 ``google`` one with Google's tokens, or both — signing in with Google with the
 address of an existing local account adds a Google identity to the same user.
+Only an address Google reports as verified (``email_verified``) is accepted.
+When the existing account was never verified, nobody had proved the address
+was theirs, so joining it first deletes its local identity (the password),
+any other Google identity, its sessions and its MCP grants: otherwise someone
+could register another person's address with their own password, wait for
+the owner to sign in with Google, and then sign in to the now verified
+account with that password.
 
 Signing in, by either route, opens a ``UserSession`` and returns two tokens:
 

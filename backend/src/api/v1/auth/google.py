@@ -15,6 +15,12 @@ short-lived HTTP-only cookie, and the callback refuses to sign anyone in unless
 the two match. Without it, anyone could send a victim a callback link carrying
 the attacker's own authorization code and sign the victim in to the
 attacker's account (login CSRF).
+
+Only an address Google reports as verified is accepted, and joining an
+existing account that was never verified first removes everything its earlier
+holder set up (password, sessions, MCP connections): that person never proved
+the address was theirs, so they mustn't keep a way into the account its real
+owner is now taking over.
 """
 
 import secrets
@@ -24,7 +30,7 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +38,7 @@ from src.api.deps import get_db
 from src.core.config import settings
 from src.core.invitations import accept_pending_invitations
 from src.core.security import generate_refresh_token, hash_password
+from src.model.mcp_grant import McpGrant
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
@@ -78,6 +85,31 @@ async def google_login() -> RedirectResponse:
     return redirect
 
 
+async def _drop_unproven_access(user: User, google_sub: str, db: AsyncSession) -> None:
+    """Remove every way into an unverified account except this Google one.
+
+    Nobody ever proved they own an unverified account's address, so whoever
+    created it — or changed its address to this one — may not be the person
+    now signing in with Google, who has. Without this, someone could register
+    another person's address with a password of their own, wait for the real
+    owner to use Google, and then sign in with that password to an account
+    that is now verified and in use: an account takeover. So the password,
+    any other Google identity, every session and every MCP connection go.
+    """
+    await db.execute(
+        delete(UserIdentity).where(
+            UserIdentity.user_id == user.id,
+            (UserIdentity.provider == AuthProvider.LOCAL)
+            | (
+                (UserIdentity.provider == AuthProvider.GOOGLE)
+                & (UserIdentity.provider_user_id.is_distinct_from(google_sub))
+            ),
+        )
+    )
+    await db.execute(delete(UserSession).where(UserSession.user_id == user.id))
+    await db.execute(delete(McpGrant).where(McpGrant.user_id == user.id))
+
+
 @router.get("/callback")
 async def google_callback(
     code: str,
@@ -93,8 +125,11 @@ async def google_callback(
        in this same browser; refuse with 400 otherwise, before talking to
        Google at all.
     1. Exchange the authorization code for tokens.
-    2. Fetch the user's Google profile (email, name, sub).
-    3. Look up or create the User row (matched on email).
+    2. Fetch the user's Google profile (email, name, sub); refuse an
+       address Google hasn't verified.
+    3. Look up or create the User row (matched on email). An existing
+       account that was never verified loses every other way in first (see
+       :func:`_drop_unproven_access`).
     4. Look up or create a UserIdentity(google) with the provider tokens,
        and ensure a UserPreferences row exists (backfilled if missing).
     5. Create a UserSession (refresh token rotation), then share every
@@ -139,6 +174,12 @@ async def google_callback(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to fetch Google profile")
 
     profile = profile_response.json()
+    # Only an address Google has verified proves who owns it; everything
+    # below relies on that.
+    if profile.get("email_verified") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Google hasn't verified this e-mail address"
+        )
     google_sub: str = profile["sub"]
     email: str = profile["email"]
     display_name: str = profile.get("name", email.split("@")[0])
@@ -151,7 +192,10 @@ async def google_callback(
         db.add(user)
         await db.flush()
     else:
-        # Merge: Google always verifies the email
+        if not user.is_verified:
+            await _drop_unproven_access(user, google_sub, db)
+            user.display_name = display_name
+        # Merge: the address is now proven by Google.
         user.is_verified = True
 
     # --- 4. Upsert UserIdentity(google) ---

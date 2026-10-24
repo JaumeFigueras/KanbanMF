@@ -46,7 +46,10 @@ Signing in
 Sign in with your e-mail address and password, or with **Continue with
 Google**. Google accounts need no verification e-mail. If you already have an
 account with the same address, signing in with Google leads to that same
-account — both ways of signing in work from then on.
+account — both ways of signing in work from then on. The exception is an
+account whose address was never verified: Google proves the address is yours,
+so that account becomes yours, and the password it was created with stops
+working — whoever chose it never proved the address was theirs.
 
 The Google button is always shown, but it only works if whoever runs your
 KanbanMF server has set Google sign-in up. If it fails, ask them, or use an
