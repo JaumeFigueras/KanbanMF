@@ -19,6 +19,8 @@
 ## Functionality
 
 - ✓ MCP server for Claude (OAuth 2.1, consent page, read and write tools)
+- MCP server: allow renaming a checklist (a write tool such as `update_checklist`; today only items can be
+  changed)
 - ✓ Copy checklist to another card
 - Captcha
 - ✓ DnD of Labels
