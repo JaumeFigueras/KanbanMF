@@ -16,11 +16,10 @@ interface Props {
   open: boolean
   onClose: () => void
   boardId: string
-  boardColor: string | null
   onCreated: (list: BoardListRead) => void
 }
 
-export default function CreateListDialog({ open, onClose, boardId, boardColor, onCreated }: Props) {
+export default function CreateListDialog({ open, onClose, boardId, onCreated }: Props) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -54,18 +53,6 @@ export default function CreateListDialog({ open, onClose, boardId, boardColor, o
       })
       if (!r.ok) throw new Error()
       const list: BoardListRead = await r.json()
-
-      // A new list inherits the board's own color (the creator's per-user
-      // choice) so it doesn't stick out — but only when the board actually
-      // has a non-default color; leave a default-colored board's lists to
-      // fall back to the default too, same as an existing list would.
-      if (boardColor) {
-        await apiFetch(`/api/v1/boards/${boardId}/lists/${list.id}/color`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ color: boardColor }),
-        }).catch(() => {})
-      }
 
       onCreated(list)
       onClose()

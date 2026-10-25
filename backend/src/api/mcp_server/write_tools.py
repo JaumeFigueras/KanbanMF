@@ -8,7 +8,8 @@ Each goes through the same :mod:`src.core` operations as the web app, so the
 same rules apply and everyone with the board open sees the change at once.
 They refuse to run on a read-only connection, reach only the boards of the
 caller's grant, and never delete anything: archiving is the way to remove a
-card, and it can be undone with ``restore_card``.
+card, and it can be undone with ``restore_card``. A card name they write
+starts with ``TBR:`` (to be reviewed), so a person knows to check it.
 """
 
 import uuid
@@ -66,6 +67,16 @@ Position = Annotated[
 ]
 LabelIds = Annotated[list[uuid.UUID], Field(description="Label ids of this board, from get_board.")]
 PersonIds = Annotated[list[uuid.UUID], Field(description="Ids of people on this board, from get_board.")]
+
+# Put before every card name the tools write, so a person knows to review it.
+REVIEW_PREFIX = "TBR: "
+
+
+def _for_review(name: str) -> str:
+    """``name`` with the review prefix, once (a name that already has it, as
+    when renaming a card that hasn't been reviewed yet, keeps just one)."""
+    name = name.strip()
+    return name if name.startswith(REVIEW_PREFIX) else REVIEW_PREFIX + name
 
 
 async def _writable_grant(db: AsyncSession) -> McpGrant:
@@ -159,7 +170,7 @@ async def _answer(grant: McpGrant, board_id: uuid.UUID, card_id: uuid.UUID, db: 
 async def create_card(
     board_id: BoardId,
     list_id: ListId,
-    name: Annotated[str, Field(description="The card's name.")],
+    name: Annotated[str, Field(description='The card\'s name; it gets a "TBR: " prefix.')],
     description: Annotated[str | None, Field(description="Longer text; Markdown is fine.")] = None,
     start_at: Date = None,
     due_at: Date = None,
@@ -168,6 +179,7 @@ async def create_card(
     position: Position = None,
 ) -> dict:
     """Create a card in a list. The user becomes its creator and a member.
+    Its name starts with "TBR: " (to be reviewed), for the user to check it.
     Returns the new card, as get_card does."""
     async with open_session() as db:
         grant = await _writable_grant(db)
@@ -177,7 +189,7 @@ async def create_card(
         tz = await _user_tz(grant, db)
         card = await card_service.create_card(
             board.id, list_id,
-            CardCreate(name=name, description=description, start_at=_aware(start_at, tz),
+            CardCreate(name=_for_review(name), description=description, start_at=_aware(start_at, tz),
                        due_at=_aware(due_at, tz), label_ids=label_ids, assignee_ids=assignee_ids),
             grant.user, db, None,
         )
@@ -190,7 +202,7 @@ async def create_card(
 async def update_card(
     board_id: BoardId,
     card_id: CardId,
-    name: Annotated[str | None, Field(description="New name.")] = None,
+    name: Annotated[str | None, Field(description='New name; it gets a "TBR: " prefix.')] = None,
     description: Annotated[str | None, Field(description="New description (replaces the old one).")] = None,
     start_at: Date = None,
     due_at: Date = None,
@@ -212,6 +224,8 @@ async def update_card(
         await _check_ids(board, label_ids, assignee_ids, db)
         tz = await _user_tz(grant, db)
         fields: dict = {}
+        if name is not None:
+            name = _for_review(name)
         for key, value in (("name", name), ("description", description), ("label_ids", label_ids),
                            ("assignee_ids", assignee_ids)):
             if value is not None:

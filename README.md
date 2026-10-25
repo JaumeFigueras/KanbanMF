@@ -49,7 +49,8 @@ abilities to manage small and medium projects. The functionality that has been i
   read-only; boards shared with them are never offered. Connections can be changed or revoked from **Connected
   apps** in the user menu. Claude can list boards, read a board or a card, search cards and list overdue ones, and —
   unless the connection is read-only — create, edit, move, archive and restore cards, add lists and add or tick
-  checklist items. Nothing can be deleted through it, and every change reaches open tabs live.
+  checklist items. Nothing can be deleted through it, every card name Claude writes starts with `TBR:` (to be
+  reviewed), and every change reaches open tabs live.
 - **Templates**: A template is a special board that holds only lists (no cards or labels). Creating a new board
   from a template copies its lists, in order, together with the board and list colors *you* chose on the
   template — other users keep their own colors. Templates live in their own section of the boards page, and can

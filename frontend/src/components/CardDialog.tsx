@@ -449,17 +449,10 @@ export default function CardDialog({
       result.checklists = checklistsRes.ok ? await checklistsRes.json() : result.checklists
 
       // A new card inherits its list's own color (the viewer's per-user
-      // choice) so it doesn't stick out — same as a new list inherits its
-      // board's color — but only when the list actually has a non-default
-      // color set.
+      // choice) so it doesn't stick out — the backend's create_card stores
+      // it, so cards made elsewhere (the MCP server) get it too; this is only
+      // the color to show it with right away.
       const appliedColor = !isEdit && listColor ? listColor : null
-      if (appliedColor) {
-        await apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/color`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ color: appliedColor }),
-        }).catch(() => {})
-      }
 
       if (isEdit) onUpdated?.(result)
       else onCreated?.(result, appliedColor)

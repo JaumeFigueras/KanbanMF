@@ -26,7 +26,9 @@ from src.model.board_share import BoardShare
 from src.model.card import Card
 from src.model.checklist import Checklist
 from src.model.label import Label
+from src.model.ui_card_color import UICardColor
 from src.model.ui_list_card_order import UIListCardOrder
+from src.model.ui_list_color import UIListColor
 from src.model.user import User
 from src.schemas.card import CardCreate, CardOrderRead, CardRead, CardUpdate
 from src.schemas.checklist import ChecklistRead
@@ -161,7 +163,11 @@ async def create_card(
     db: AsyncSession,
     client_id: str | None,
 ) -> CardRead:
-    """Create a card inside a list, with ``user`` as its creator."""
+    """Create a card inside a list, with ``user`` as its creator.
+
+    The card starts with the creator's own color for the list, if they gave
+    it one, so it doesn't stick out; without one it keeps the default.
+    """
     board = await get_accessible_board(board_id, user, db)
     reject_if_template(board, "Templates cannot hold cards")
     await get_list(board_id, list_id, db)
@@ -186,6 +192,14 @@ async def create_card(
         assignees=await get_users(board_id, body.assignee_ids, db),
     )
     db.add(card)
+    await db.flush()  # assigns card.id before the color row references it
+
+    list_color = await db.scalar(
+        select(UIListColor.color).where(UIListColor.user_id == user.id, UIListColor.list_id == list_id)
+    )
+    if list_color is not None:
+        db.add(UICardColor(user_id=user.id, card_id=card.id, color=list_color))
+
     await db.commit()
     card_read = await read_card(card.id, db)
 

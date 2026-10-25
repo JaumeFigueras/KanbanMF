@@ -280,8 +280,8 @@ export default function Board() {
   function handleListCreated(list: BoardListRead) {
     setLists(prev => [...prev, list])
     setOrder(prev => [...prev, list.id])
-    // CreateListDialog inherits the board's own color onto a new list
-    // server-side when boardColor is set — mirror that here so the bulk
+    // The backend's create_list gives a new list the board's own color
+    // (the viewer's per-user choice) when it has one — mirror that here so the bulk
     // `colors` map (fetched once at board load) knows about it too, or the
     // new list would render with the default color until the next reload.
     if (boardColor) {
@@ -922,7 +922,6 @@ export default function Board() {
         open={createListOpen}
         onClose={() => setCreateListOpen(false)}
         boardId={boardId ?? ''}
-        boardColor={boardColor}
         onCreated={handleListCreated}
       />
 

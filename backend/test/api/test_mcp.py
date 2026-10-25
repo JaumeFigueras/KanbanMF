@@ -506,8 +506,8 @@ async def test_mcp_10(mcp, db_session_async, world: dict) -> None:
 async def test_mcp_11(mcp, db_session_async, world: dict, notifications: list[dict]) -> None:
     """
     Verify create_card makes the card through the web app's rules (creator
-    as member, notification), reads a date without offset in the user's time
-    zone, places it, and refuses wrong labels, people, lists and boards.
+    as member, notification), names it with the "TBR: " review prefix, reads
+    a date without offset in the user's time zone, places it, and refuses wrong labels, people, lists and boards.
 
     Parameters
     ----------
@@ -546,7 +546,7 @@ async def test_mcp_11(mcp, db_session_async, world: dict, notifications: list[di
     assert any(n["type"] == "card_created" and n["list_id"] == str(todo.id) for n in notifications)
 
     _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
-    assert board["lists"][1]["cards"][0]["name"] == "Book flights"
+    assert board["lists"][1]["cards"][0]["name"] == "TBR: Book flights"
 
     other_label = Label(board_id=world["home"].id, name="Home", color="#00ff00", position=0)
     archived = BoardList(board_id=work.id, name="Old", is_archived=True)
@@ -569,8 +569,9 @@ async def test_mcp_11(mcp, db_session_async, world: dict, notifications: list[di
 @pytest.mark.asyncio
 async def test_mcp_12(mcp, db_session_async, world: dict) -> None:
     """
-    Verify update_card changes only what it is given, marks a card done with
-    end_at, clears fields on request, and refuses an empty or contradictory
+    Verify update_card changes only what it is given, gives a new name the
+    "TBR: " review prefix once, marks a card done with end_at, clears fields
+    on request, and refuses an empty or contradictory
     request.
 
     Parameters
@@ -593,9 +594,13 @@ async def test_mcp_12(mcp, db_session_async, world: dict) -> None:
     is_error, card = await _call(mcp, token, "update_card", **base, name="Renew both passports",
                                  end_at="2026-10-20T10:00:00+00:00", clear=["due_at", "description"])
     assert not is_error
-    assert card["name"] == "Renew both passports" and card["end_at"].startswith("2026-10-20T10:00")
+    assert card["name"] == "TBR: Renew both passports" and card["end_at"].startswith("2026-10-20T10:00")
     assert card["due_at"] is None and not card["description"]
     assert card["labels"][0]["name"] == "Admin"
+
+    # A name that already has the review prefix doesn't get a second one.
+    _, card = await _call(mcp, token, "update_card", **base, name="TBR: Renew the passports")
+    assert card["name"] == "TBR: Renew the passports"
 
     _, overdue = await _call(mcp, token, "list_overdue")
     assert overdue["boards"] == []

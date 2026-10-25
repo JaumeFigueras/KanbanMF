@@ -27,6 +27,10 @@ delete anything: to remove a card it archives it, and you (or Claude) can
 restore it from the board's archive. Everything it changes appears straight
 away for everyone with the board open, as if you had done it yourself.
 
+A card name Claude writes — a new card's, or a new name for an existing card —
+starts with ``TBR:`` (*to be reviewed*), so you can tell which cards to check.
+Once you have, rename the card without it.
+
 Connecting
 ----------
 

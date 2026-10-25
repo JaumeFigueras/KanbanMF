@@ -18,8 +18,11 @@ from src.model.board import Board
 from src.model.board_list import BoardList
 from src.model.card import Card
 from src.model.label import Label
+from src.model.ui_board_color import UIBoardColor
 from src.model.ui_board_list_order import UIBoardListOrder
+from src.model.ui_card_color import UICardColor
 from src.model.ui_list_card_order import UIListCardOrder
+from src.model.ui_list_color import UIListColor
 from src.model.user import User
 
 
@@ -469,3 +472,91 @@ async def test_card_operations_08(
         json={"name": "Wrong list"},
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_card_operations_09(
+    client, db_session_async, test_user: User, board: Board, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify a new card takes its creator's color for the list, not someone
+    else's, and a card in a list without one gets no color.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session against the same test database.
+    test_user : User
+        The board's owner, who creates the cards.
+    board : Board
+        The board the cards are created on.
+    auth_headers : dict[str, str]
+        Authorization header for test_user.
+
+    Raises
+    ------
+    AssertionError
+        If the card in "To do" hasn't exactly test_user's list color, or the
+        card in "Done" has any color.
+    """
+    todo, done = await _lists(db_session_async, board)
+    other = User(email="other@example.com", display_name="Other", is_verified=True)
+    db_session_async.add(other)
+    await db_session_async.flush()
+    db_session_async.add_all([
+        UIListColor(user_id=test_user.id, list_id=todo.id, color="#2e7d32"),
+        UIListColor(user_id=other.id, list_id=todo.id, color="#c62828"),
+    ])
+    await db_session_async.commit()
+
+    colored = await client.post(
+        f"/api/v1/boards/{board.id}/lists/{todo.id}/cards", headers=auth_headers, json={"name": "Green"}
+    )
+    plain = await client.post(
+        f"/api/v1/boards/{board.id}/lists/{done.id}/cards", headers=auth_headers, json={"name": "Plain"}
+    )
+    assert colored.status_code == plain.status_code == 201
+
+    result = await db_session_async.execute(select(UICardColor.card_id, UICardColor.user_id, UICardColor.color))
+    assert result.all() == [(uuid.UUID(colored.json()["id"]), test_user.id, "#2e7d32")]
+
+
+@pytest.mark.asyncio
+async def test_card_operations_10(
+    client, db_session_async, test_user: User, board: Board, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify a new list takes its creator's color for the board, and a list on
+    a board without one gets no color.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session against the same test database.
+    test_user : User
+        The board's owner, who adds the lists.
+    board : Board
+        The board with a color.
+    auth_headers : dict[str, str]
+        Authorization header for test_user.
+
+    Raises
+    ------
+    AssertionError
+        If the list on the colored board hasn't test_user's board color, or
+        the list on the other board has any color.
+    """
+    plain_board = Board(owner_id=test_user.id, name="Plain")
+    db_session_async.add_all([plain_board, UIBoardColor(user_id=test_user.id, board_id=board.id, color="#1565c0")])
+    await db_session_async.commit()
+
+    colored = await client.post(f"/api/v1/boards/{board.id}/lists", headers=auth_headers, json={"name": "Blue"})
+    plain = await client.post(f"/api/v1/boards/{plain_board.id}/lists", headers=auth_headers, json={"name": "Plain"})
+    assert colored.status_code == plain.status_code == 201
+
+    result = await db_session_async.execute(select(UIListColor.list_id, UIListColor.user_id, UIListColor.color))
+    assert result.all() == [(uuid.UUID(colored.json()["id"]), test_user.id, "#1565c0")]
