@@ -41,7 +41,7 @@ sys.path.insert(0, str(_BACKEND))
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+psycopg://docs:docs@localhost:5432/docs"
 )
-os.environ.setdefault("SECRET_KEY", "documentation-build-only")
+os.environ.setdefault("SECRET_KEY", "documentation-build-only-not-a-real-secret-0123456789")
 os.environ.setdefault("SMTP_HOST", "localhost")
 os.environ.setdefault("SMTP_PORT", "25")
 os.environ.setdefault("SMTP_FROM_EMAIL", "docs@example.com")

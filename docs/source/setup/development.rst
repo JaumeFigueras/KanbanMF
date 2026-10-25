@@ -283,6 +283,19 @@ Two settings must be changed before anything will start:
 
       openssl rand -hex 32
 
+   The backend refuses to start (and Alembic to run) with an empty key, one
+   shorter than 32 characters, or the value an example shipped with, such as
+   ``change-me-in-production``: whoever knows the key can sign in as anyone.
+   To put a new one into an existing ``backend/.env``:
+
+   .. code-block:: bash
+
+      sed -i "s/^SECRET_KEY *=.*/SECRET_KEY = $(openssl rand -hex 32)/" backend/.env
+
+   Changing it signs everyone out, since the old access tokens stop
+   verifying (refresh cookies still work, so a page reload signs back in).
+   The test suite and the docs build set keys of their own and don't read it.
+
 Everything else has a usable default. Google OAuth and SMTP are both optional:
 leave ``GOOGLE_CLIENT_ID`` / ``GOOGLE_CLIENT_SECRET`` blank to disable Google
 sign-in, and ``SMTP_HOST`` blank to disable e-mail — see
@@ -423,7 +436,9 @@ Troubleshooting
    A required setting has no value. ``DATABASE_URL``, ``SECRET_KEY`` and
    ``SMTP_PORT`` have no defaults, and the backend refuses to start without
    them. Confirm ``backend/.env`` exists — it is loaded relative to ``backend/``,
-   so a copy left in the repository root is not read.
+   so a copy left in the repository root is not read. A ``secret_key`` error
+   that says "must be a real secret" means the key is short or an example
+   value: see ``SECRET_KEY`` above.
 
 Frontend loads but every API call fails
    The backend isn't running, or isn't on port 8000. The Vite proxy forwards

@@ -5,11 +5,14 @@
 
 Environment variables take precedence over the file. ``DATABASE_URL``,
 ``SECRET_KEY`` and ``SMTP_PORT`` have no default, so the backend refuses to
-start without them.
+start without them. It also refuses a ``SECRET_KEY`` that can't be a real
+secret: shorter than 32 characters, or a value copied from an example.
 """
 
 from pathlib import Path
+from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # config.py -> src/core/ -> src/ -> backend/ -> backend/.env (3 parents, not
@@ -17,6 +20,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # backend/, silently finding no .env there and leaving every setting to its
 # default/missing).
 _ENV_FILE = Path(__file__).parent.parent.parent / ".env"
+
+# HS256 wants a key of at least 32 bytes (RFC 7518, section 3.2);
+# ``openssl rand -hex 32`` gives 64 characters.
+SECRET_KEY_MIN_LENGTH = 32
+# Values from examples and guides, which anyone could sign tokens with.
+_EXAMPLE_SECRET_KEYS = {"change-me-in-production", "changeme", "secret", "your-secret-key"}
 
 
 class Settings(BaseSettings):
@@ -28,6 +37,9 @@ class Settings(BaseSettings):
         env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
+        # A refused value isn't repeated in the error: it may be a secret
+        # (a too-short SECRET_KEY, a password), and errors end up in logs.
+        hide_input_in_errors=True,
     )
 
     # Application
@@ -38,8 +50,11 @@ class Settings(BaseSettings):
     database_url: str
 
     # JWT
+    # Signs every access token: whoever knows it can sign in as anyone.
     secret_key: str
-    algorithm: str = "HS256"
+    # HMAC only: tokens are signed and checked with the same secret, and
+    # nothing here may switch signing off ("none").
+    algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
     access_token_expire_minutes: int = 15
 
     # Google OAuth
@@ -71,6 +86,19 @@ class Settings(BaseSettings):
     # getting flagged as spam). Leave blank to keep using
     # smtp_from_name/smtp_from_email as-is — see src/core/email.py.
     email_sender: str = ""
+
+    @field_validator("secret_key")
+    @classmethod
+    def secret_key_is_secret(cls, v: str) -> str:
+        """Refuse a key anyone could know or guess. It used to be accepted,
+        so a server started with the example's value issued tokens that
+        anybody could forge."""
+        if v.strip().lower() in _EXAMPLE_SECRET_KEYS or len(v) < SECRET_KEY_MIN_LENGTH:
+            raise ValueError(
+                f"SECRET_KEY must be a real secret of at least {SECRET_KEY_MIN_LENGTH} characters, "
+                "not an example value. Generate one with: openssl rand -hex 32"
+            )
+        return v
 
 
 settings = Settings()

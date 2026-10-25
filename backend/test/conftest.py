@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import tempfile
 import pytest
 
@@ -11,7 +12,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import NullPool
 
-from src.model import Base
+# Tests sign their tokens with a key of their own, set before src is imported
+# (an environment variable outranks backend/.env), so they never depend on the
+# developer's key, which the settings would refuse if it were still the
+# example's.
+os.environ["SECRET_KEY"] = "test-suite-only-not-a-real-secret-0123456789abcdef"
+
+from src.model import Base  # noqa: E402
 
 test_folder: Path = Path(__file__).parent
 socket_dir: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory()
