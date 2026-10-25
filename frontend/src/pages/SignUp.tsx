@@ -172,6 +172,7 @@ export default function SignUp() {
               its defaultValue once the preview has loaded (or been dropped). */}
           <Box component="form" action={handleSubmit} noValidate key={invitation?.email ?? 'no-invitation'}>
             <TextField
+              slotProps={{ htmlInput: { maxLength: 100 } }}
               label={t('signUp.displayName')}
               name="displayName"
               fullWidth

@@ -181,6 +181,7 @@ export default function CopyChecklistDialog({
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <TextField
+          slotProps={{ htmlInput: { maxLength: 255 } }}
           label={t('board.checklistName')}
           value={name}
           onChange={(e) => { setName(e.target.value); setNameError(false) }}

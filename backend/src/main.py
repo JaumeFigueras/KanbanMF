@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""The FastAPI application: CORS, the ``/api/v1`` router, the ``/.well-known``
-OAuth discovery documents, the MCP server at ``/mcp``, a health check, and a
-lifespan that starts and stops the scheduler and the MCP session manager with
-the app.
+"""The FastAPI application: CORS, a request-size limit, the ``/api/v1``
+router, the ``/.well-known`` OAuth discovery documents, the MCP server at
+``/mcp``, a health check, and a lifespan that starts and stops the scheduler
+and the MCP session manager with the app.
 """
 
 from contextlib import asynccontextmanager
@@ -17,6 +17,7 @@ from starlette.routing import Route
 from src.api import well_known
 from src.api.mcp_server.server import create_mcp_app, create_mcp_server
 from src.api.v1.router import router
+from src.core.body_limit import BodySizeLimitMiddleware
 from src.core.config import settings
 from src.core.scheduler import shutdown_scheduler, start_scheduler
 
@@ -40,6 +41,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Inside CORS, so a 413 still carries the CORS headers.
+app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],

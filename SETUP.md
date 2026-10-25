@@ -101,6 +101,10 @@ both assume exactly one process: with multiple workers, the scheduler's hourly j
 fire once per worker, and a client's WebSocket could land on a worker that never sees a
 given user's notifications.
 
+The unit also passes `--ws-max-size 4096`: the app never sends anything up its WebSocket
+(it only listens for "something changed" messages), so there's no reason to let a client
+make the backend buffer uvicorn's default of 16 MB per message.
+
 #### Run frontend in production
 
 There's no frontend *process* to run — it's a static single-page app. Build it once per
@@ -157,6 +161,26 @@ Three more paths go to the backend, for the MCP server Claude connects to: `/mcp
 the two OAuth discovery documents `/.well-known/oauth-protected-resource` and
 `/.well-known/oauth-authorization-server`, which the RFCs place at the root of the site. Only
 those two under `/.well-known` — certbot's `acme-challenge` must keep being served from disk.
+
+The vhost also sends security headers on every response (they need `mod_headers`, enabled above):
+HSTS, `X-Frame-Options: DENY` with CSP `frame-ancestors 'none'` (no other site may frame the app — in
+particular the page where users let Claude reach their boards), `nosniff`, `Referrer-Policy: same-origin`,
+`Cross-Origin-Opener-Policy`, a `Permissions-Policy` turning off camera, microphone and the like, and a
+`Content-Security-Policy` that lets the page run scripts only from this site. **Replace
+`kanban.example.com` in the CSP's `wss://` too.** HSTS tells browsers to use only HTTPS for a year: keep
+HTTPS working for that long. To hide Apache's version from response headers as well, set
+`ServerTokens Prod` in `/etc/apache2/conf-available/security.conf` (it's a server-wide setting). Check the
+headers with:
+
+```bash
+curl -sI https://kanban.example.com/ | grep -iE 'strict|frame|content-security|nosniff|referrer'
+```
+
+`LimitRequestBody 1048576` refuses any request body over 1 MiB with `413` before it reaches the
+backend (Apache's own default is 1 GiB). The biggest legitimate body is an avatar (100 KB). The
+backend has the same ceiling of its own (`src/core/body_limit.py`), and each text field its own
+maximum length. Debian also enables `mod_reqtimeout` by default, which drops clients that send a
+request too slowly; leave it on.
 
 Obtain the certificate with certbot's webroot plugin, pointed at the same directory the vhost's
 `:80` block serves ACME challenges from:

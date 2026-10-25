@@ -10,13 +10,16 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.core.people import compute_initials
+from src.core.search import escape_like
 from src.core.rate_limit import PASSWORD_CHANGE_PER_USER
 from src.core.security import hash_password, verify_password
+from src.model.board import Board
+from src.model.board_share import BoardShare
 from src.model.user import User
 from src.model.user_avatar import MAX_AVATAR_SIZE_BYTES, UserAvatar
 from src.model.user_identity import AuthProvider, UserIdentity
@@ -213,10 +216,12 @@ async def upload_my_avatar(
 ) -> None:
     """Upload or replace the current user's avatar (JPEG, PNG, WebP or GIF, max 100 KB).
 
-    The file is read entirely into memory — no temporary files are created.
-    MIME type is determined from magic bytes, not from the client-supplied Content-Type.
+    At most one byte more than the limit is read, so an oversized file is
+    refused without being loaded. (The whole request was already capped at
+    1 MiB, by Apache and by :mod:`src.core.body_limit`.) MIME type is
+    determined from magic bytes, not from the client-supplied Content-Type.
     """
-    data = await file.read()
+    data = await file.read(MAX_AVATAR_SIZE_BYTES + 1)
 
     if len(data) > MAX_AVATAR_SIZE_BYTES:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="File exceeds 100 KB limit")
@@ -256,19 +261,52 @@ async def search_users(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PersonRead]:
-    """Search active users by display name or email, for pickers like the
-    board-share lookahead. Returns at most 10 matches, excluding the caller."""
+    """Find people to share a board with: at most 10 active, verified users,
+    never the caller.
+
+    Two ways to match, so that the search can't be used to explore who has an
+    account:
+
+    - by **name**, only among the people the caller already works with —
+      anyone on a board the caller owns or that is shared with them — and
+      with at least two characters;
+    - by **e-mail**, only the whole address (any case): someone who knows
+      the address can share with its owner, but nobody can list accounts by
+      typing ``@company.com`` or a few letters.
+
+    It used to match any part of any account's name or e-mail address, which
+    let anyone signed in find out who uses the server.
+    """
     term = q.strip()
     if not term:
         return []
-    pattern = f"%{term}%"
+
+    my_boards = select(Board.id).where(
+        Board.is_deleted.is_(False),
+        or_(
+            Board.owner_id == current_user.id,
+            Board.id.in_(select(BoardShare.board_id).where(BoardShare.user_id == current_user.id)),
+        ),
+    )
+    colleagues = select(Board.owner_id).where(Board.id.in_(my_boards)).union(
+        select(BoardShare.user_id).where(BoardShare.board_id.in_(my_boards))
+    )
+    matches = [func.lower(User.email) == term.lower()]
+    if len(term) >= 2:
+        matches.append(
+            and_(
+                User.id.in_(colleagues),
+                User.display_name.ilike(f"%{escape_like(term)}%", escape="\\"),
+            )
+        )
 
     result = await db.execute(
         select(User)
         .where(
             User.id != current_user.id,
             User.is_active.is_(True),
-            or_(User.display_name.ilike(pattern), User.email.ilike(pattern)),
+            User.is_verified.is_(True),
+            or_(*matches),
         )
         .order_by(User.display_name.asc())
         .limit(_SEARCH_RESULT_LIMIT)

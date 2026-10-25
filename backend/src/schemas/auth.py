@@ -5,7 +5,9 @@
 e-mail verification.
 """
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from src.schemas.limits import DISPLAY_NAME_MAX_LENGTH, LOCALE_MAX_LENGTH
 
 # bcrypt only reads the first 72 bytes of a password (and bcrypt 5 refuses
 # longer ones), so that is the ceiling; 8 characters is the usual floor.
@@ -24,9 +26,9 @@ def check_password(value: str) -> str:
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    display_name: str
+    display_name: str = Field(max_length=DISPLAY_NAME_MAX_LENGTH)
     password: str
-    language: str = "en"
+    language: str = Field(default="en", max_length=LOCALE_MAX_LENGTH)
     # Token from a board invitation link (/signup?invite=...). Only checked
     # against the e-mail being registered: the board itself is shared once
     # that address is verified, whether or not the token was sent.

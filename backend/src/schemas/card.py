@@ -8,16 +8,17 @@ order.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.schemas.checklist import ChecklistRead
 from src.schemas.label import LabelRead
+from src.schemas.limits import DESCRIPTION_MAX_LENGTH, NAME_MAX_LENGTH
 from src.schemas.person import PersonRead
 
 
 class CardCreate(BaseModel):
-    name: str
-    description: str | None = None
+    name: str = Field(max_length=NAME_MAX_LENGTH)
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
     start_at: datetime | None = None
     due_at: datetime | None = None
     end_at: datetime | None = None
@@ -41,7 +42,7 @@ class CardCreate(BaseModel):
 
 
 class CardCopyCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=NAME_MAX_LENGTH)
     target_board_id: uuid.UUID
     target_list_id: uuid.UUID
     # Both default to True so a plain copy stays a full copy. They exist for
@@ -94,8 +95,8 @@ class CardOrderUpdate(BaseModel):
 
 
 class CardUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=NAME_MAX_LENGTH)
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX_LENGTH)
     is_archived: bool | None = None
     start_at: datetime | None = None
     due_at: datetime | None = None

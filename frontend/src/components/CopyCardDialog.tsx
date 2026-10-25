@@ -164,6 +164,7 @@ export default function CopyCardDialog({
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <TextField
+          slotProps={{ htmlInput: { maxLength: 255 } }}
           label={t('board.cardName')}
           placeholder={t('board.copyCardNamePlaceholder')}
           value={name}

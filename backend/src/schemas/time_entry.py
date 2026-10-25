@@ -6,7 +6,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from src.schemas.limits import COMMENT_MAX_LENGTH, NAME_MAX_LENGTH
 
 
 def _blank_comment_is_none(v: str | None) -> str | None:
@@ -42,7 +44,7 @@ class TimeEntryStart(BaseModel):
     board_id: uuid.UUID
     list_id: uuid.UUID
     card_id: uuid.UUID
-    comment: str | None = None
+    comment: str | None = Field(default=None, max_length=COMMENT_MAX_LENGTH)
 
     _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 
@@ -55,7 +57,7 @@ class TimeEntryCreate(BaseModel):
     card_id: uuid.UUID
     started_at: datetime
     ended_at: datetime
-    comment: str | None = None
+    comment: str | None = Field(default=None, max_length=COMMENT_MAX_LENGTH)
 
     _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 
@@ -81,12 +83,12 @@ class TimeEntryUpdate(BaseModel):
 
     started_at: datetime | None = None
     ended_at: datetime | None = None
-    board_name: str | None = None
-    card_name: str | None = None
+    board_name: str | None = Field(default=None, max_length=NAME_MAX_LENGTH)
+    card_name: str | None = Field(default=None, max_length=NAME_MAX_LENGTH)
     board_id: uuid.UUID | None = None
     list_id: uuid.UUID | None = None
     card_id: uuid.UUID | None = None
-    comment: str | None = None
+    comment: str | None = Field(default=None, max_length=COMMENT_MAX_LENGTH)
 
     _normalise_comment = field_validator("comment")(_blank_comment_is_none)
 

@@ -66,6 +66,7 @@ export default function EditLabelDialog({ open, onClose, label, saving, error, o
       <DialogContent>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <TextField
+          slotProps={{ htmlInput: { maxLength: 100 } }}
           label={t('board.labelName')}
           value={name}
           onChange={(e) => { setName(e.target.value); setNameError(false) }}

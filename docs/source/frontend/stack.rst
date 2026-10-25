@@ -122,6 +122,15 @@ share an origin:
   ``/mcp`` and the OAuth discovery documents) to the backend
   (:doc:`../setup/production`).
 
+In production the page is served with a Content-Security-Policy
+(``deploy/apache-kanbanmf.conf``): scripts only from this site — no inline
+``<script>``, no ``onclick=``, no ``eval`` — styles from this site or inline
+(Emotion writes them at run time), images from this site or ``blob:``, and
+requests only to this site. The development server sends no such header, so
+something that breaks it only shows in production: a font or script from a
+CDN, an image from another host, or a ``data:`` URL needs the policy changed
+first.
+
 No CORS, no host or port to configure, and the cookie just works. A hardcoded
 ``http://localhost:8000`` would seem to work in development and break in
 production, where the browser can't reach port 8000 at all. New code should

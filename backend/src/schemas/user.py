@@ -9,10 +9,11 @@ import uuid
 from datetime import datetime
 from zoneinfo import available_timezones
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from src.model.user_preferences import DateFormat
 from src.schemas.auth import check_password
+from src.schemas.limits import DISPLAY_NAME_MAX_LENGTH, LOCALE_MAX_LENGTH
 
 
 class UserRead(BaseModel):
@@ -38,7 +39,7 @@ class UserRead(BaseModel):
 class UserUpdate(BaseModel):
     """Allowed fields a user can change about themselves."""
 
-    display_name: str | None = None
+    display_name: str | None = Field(default=None, max_length=DISPLAY_NAME_MAX_LENGTH)
     email: EmailStr | None = None
 
     @field_validator("display_name")
@@ -63,8 +64,8 @@ class UserPreferencesUpdate(BaseModel):
     """Allowed preference fields a user can change."""
 
     initials: str | None = None
-    language_locale: str | None = None
-    number_locale: str | None = None
+    language_locale: str | None = Field(default=None, max_length=LOCALE_MAX_LENGTH)
+    number_locale: str | None = Field(default=None, max_length=LOCALE_MAX_LENGTH)
     date_format: DateFormat | None = None
     timezone: str | None = None
 

@@ -45,6 +45,7 @@ REQUEST_TTL = timedelta(minutes=10)
 UNUSED_CLIENT_TTL = timedelta(days=1)
 CIMD_CACHE_TTL = timedelta(days=1)
 CIMD_MAX_BYTES = 16 * 1024
+REDIRECT_URI_MAX_LENGTH = 2000
 
 # The one scope: what a grant may do is decided on the consent page (the
 # boards, read-only or not), not by scopes.
@@ -105,7 +106,9 @@ def _is_loopback(uri: str) -> bool:
 def valid_redirect_uri(uri: str) -> bool:
     """A redirect URI must be HTTPS, or HTTP on the loopback interface (a
     native app such as Claude Code listening on a local port), and carry no
-    fragment."""
+    fragment. 2,000 characters at most: it is stored, and shown back."""
+    if len(uri) > REDIRECT_URI_MAX_LENGTH:
+        return False
     try:
         parts = urlsplit(uri)
     except ValueError:

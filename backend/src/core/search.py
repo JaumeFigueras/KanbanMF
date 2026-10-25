@@ -33,14 +33,14 @@ from src.schemas.board import SearchBoardMatch, SearchBoardRead, SearchResults
 SEARCH_LIMIT = 200
 
 
-def _escape_like(word: str) -> str:
+def escape_like(word: str) -> str:
     """Escape LIKE's wildcards, so ``%`` and ``_`` in a search match themselves."""
     return word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _contains(column, word: str):
     """SQL condition: the column holds the word, ignoring case and accents."""
-    pattern = f"%{_escape_like(word)}%"
+    pattern = f"%{escape_like(word)}%"
     return func.unaccent(column).ilike(func.unaccent(pattern), escape="\\")
 
 

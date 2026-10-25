@@ -748,3 +748,42 @@ async def test_mcp_15(client, auth_headers, db_session_async, world: dict, notif
             "type": "card_updated", "board_id": str(world["work"].id),
             "list_id": str(world["todo"].id), "origin_client_id": "tab-1",
         }], (method, path)
+
+
+@pytest.mark.asyncio
+async def test_mcp_16(mcp, db_session_async, world: dict) -> None:
+    """
+    Verify the write tools refuse over-long text as a tool error, the same
+    limits as the web app's routes, and write nothing.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+
+    Raises
+    ------
+    AssertionError
+        If an over-long name, description or item is accepted.
+    """
+    work = world["work"]
+    token, _ = await _token(db_session_async, world["user"], [work])
+    is_error, message = await _call(mcp, token, "create_list", board_id=str(work.id), name="l" * 256)
+    assert is_error and "255" in message
+    is_error, _ = await _call(mcp, token, "create_card", board_id=str(work.id), list_id=str(world["todo"].id),
+                              name="Card", description="d" * 20_001)
+    assert is_error
+    base = {"board_id": str(work.id), "card_id": str(world["passport"].id)}
+    is_error, _ = await _call(mcp, token, "update_card", **base, name="n" * 256)
+    assert is_error
+    is_error, _ = await _call(mcp, token, "add_checklist", **base, name="Trip", items=["i" * 501])
+    assert is_error
+
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert all(len(lst["name"]) < 256 for lst in board["lists"])
+    _, card = await _call(mcp, token, "get_card", **base)
+    assert "Trip" not in [c["name"] for c in card["checklists"]] and len(card["name"]) < 256

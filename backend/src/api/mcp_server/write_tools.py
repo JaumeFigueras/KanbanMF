@@ -44,6 +44,7 @@ from src.model.label import Label
 from src.model.mcp_grant import McpGrant
 from src.model.ui_list_card_order import UIListCardOrder
 from src.model.user_preferences import UserPreferences
+from src.schemas.board_list import BoardListCreate
 from src.schemas.card import CardCreate, CardUpdate
 from src.schemas.checklist import ChecklistCreate, ChecklistItemCreate, ChecklistItemUpdate
 
@@ -291,9 +292,8 @@ async def create_list(
     async with open_session() as db:
         grant = await _writable_grant(db)
         board = await reachable_board(grant, board_id, db)
-        if not name.strip():
-            raise ToolError("The list needs a name.")
-        board_list = await list_service.create_list(board.id, name.strip(), grant.user, db, None)
+        body = BoardListCreate(name=name)  # not blank, not too long
+        board_list = await list_service.create_list(board.id, body.name, grant.user, db, None)
         return {"id": str(board_list.id), "name": board_list.name}
 
 

@@ -6,11 +6,13 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from src.schemas.limits import NAME_MAX_LENGTH
 
 
 class BoardListCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=NAME_MAX_LENGTH)
 
     @field_validator("name")
     @classmethod
@@ -34,7 +36,7 @@ class BoardListRead(BaseModel):
 
 
 class BoardListUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=NAME_MAX_LENGTH)
     is_archived: bool | None = None
 
     @field_validator("name")

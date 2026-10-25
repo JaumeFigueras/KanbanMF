@@ -88,6 +88,7 @@ export default function ChangeDisplayNameDialog({
         <Stack spacing={2} sx={{ mt: 1 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <TextField
+            slotProps={{ htmlInput: { maxLength: 100 } }}
             label={t('signUp.displayName')}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}

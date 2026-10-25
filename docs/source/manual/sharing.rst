@@ -25,8 +25,11 @@ On the boards overview, open the board's menu (☰) and choose
    Invitations sent to people who don't have an account yet.
 
 :guilabel:`Add people`
-   Search by name or e-mail address among the people with a KanbanMF account,
-   and pick one to share the board with them straight away.
+   Find someone with a KanbanMF account and pick them to share the board with
+   them straight away. Type part of their name if you already share a board
+   with them (either way round); anyone else is found only by their full
+   e-mail address. That way nobody can use this box to find out who else has
+   an account.
 
 :guilabel:`Invite by email`
    For someone who has no account yet.

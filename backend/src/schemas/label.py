@@ -9,7 +9,9 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from src.schemas.limits import LABEL_NAME_MAX_LENGTH
 
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
@@ -21,7 +23,7 @@ def _validate_color(v: str) -> str:
 
 
 class LabelCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=LABEL_NAME_MAX_LENGTH)
     color: str
 
     @field_validator("name")
@@ -50,7 +52,7 @@ class LabelRead(BaseModel):
 
 
 class LabelUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=LABEL_NAME_MAX_LENGTH)
     color: str | None = None
 
     @field_validator("name")

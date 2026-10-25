@@ -157,8 +157,8 @@ async def test_oauth_02(client) -> None:
     Raises
     ------
     AssertionError
-        If a good registration fails, or a plain-HTTP redirect URI or a
-        confidential client is accepted.
+        If a good registration fails, or a plain-HTTP or over-long redirect
+        URI or a confidential client is accepted.
     """
     response = await client.post("/api/v1/oauth/register", json={
         "client_name": "Claude Code",
@@ -172,6 +172,11 @@ async def test_oauth_02(client) -> None:
     assert response.json()["token_endpoint_auth_method"] == "none"
 
     response = await client.post("/api/v1/oauth/register", json={"redirect_uris": ["http://evil.example/cb"]})
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_redirect_uri"
+
+    response = await client.post("/api/v1/oauth/register",
+                                 json={"redirect_uris": [REDIRECT_URI + "?x=" + "a" * 2_000]})
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_redirect_uri"
 

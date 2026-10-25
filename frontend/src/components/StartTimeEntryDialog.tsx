@@ -77,6 +77,7 @@ export default function StartTimeEntryDialog({ open, onClose, onStarted }: Props
         {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
         <CardPicker active={open} disabled={saving} onChange={setSelection} />
         <TextField
+          slotProps={{ htmlInput: { maxLength: 2000 } }}
           label={t('timeTracker.commentColumn')}
           placeholder={t('timeTracker.commentHint')}
           value={comment}

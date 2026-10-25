@@ -26,7 +26,10 @@ Type=simple
 User=kanbanmf
 Group=kanbanmf
 WorkingDirectory=/home/kanbanmf/KanbanMF/backend
-ExecStart=/home/kanbanmf/KanbanMF/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000
+# --ws-max-size: the app never sends anything up its WebSocket (it only
+# listens), so a 4 KB ceiling per message, instead of uvicorn's 16 MB, costs
+# nothing and stops a client from making the backend buffer large frames.
+ExecStart=/home/kanbanmf/KanbanMF/.venv/bin/uvicorn src.main:app --host 127.0.0.1 --port 8000 --ws-max-size 4096
 Restart=on-failure
 RestartSec=5
 

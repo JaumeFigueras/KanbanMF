@@ -6,11 +6,13 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from src.schemas.limits import CHECKLIST_ITEM_MAX_LENGTH, NAME_MAX_LENGTH
 
 
 class ChecklistItemCreate(BaseModel):
-    text: str
+    text: str = Field(max_length=CHECKLIST_ITEM_MAX_LENGTH)
     is_done: bool = False
 
     @field_validator("text")
@@ -35,7 +37,7 @@ class ChecklistItemRead(BaseModel):
 
 
 class ChecklistItemUpdate(BaseModel):
-    text: str | None = None
+    text: str | None = Field(default=None, max_length=CHECKLIST_ITEM_MAX_LENGTH)
     is_done: bool | None = None
 
     @field_validator("text")
@@ -49,7 +51,7 @@ class ChecklistItemUpdate(BaseModel):
 
 
 class ChecklistCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=NAME_MAX_LENGTH)
 
     @field_validator("name")
     @classmethod
@@ -73,7 +75,7 @@ class ChecklistRead(BaseModel):
 
 
 class ChecklistUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=NAME_MAX_LENGTH)
 
     @field_validator("name")
     @classmethod

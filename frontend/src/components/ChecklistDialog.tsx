@@ -57,6 +57,7 @@ function SortableItemRow({
         <DragIndicator fontSize="small" />
       </IconButton>
       <TextField
+        slotProps={{ htmlInput: { maxLength: 500 } }}
         size="small"
         value={item.text}
         onChange={(e) => onEditText(e.target.value)}
@@ -138,6 +139,7 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <TextField
+          slotProps={{ htmlInput: { maxLength: 255 } }}
           label={t('board.checklistName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -177,6 +179,7 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
 
         <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
           <TextField
+            slotProps={{ htmlInput: { maxLength: 500 } }}
             size="small"
             placeholder={t('board.addChecklistItem')}
             value={newItemText}

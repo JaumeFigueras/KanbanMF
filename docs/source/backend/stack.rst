@@ -208,6 +208,29 @@ client: uvicorn trusts ``X-Forwarded-For`` from ``127.0.0.1`` by default and
 takes the last address in it that isn't the proxy's — the one Apache added —
 so a client can't pick its own address by sending the header.
 
+Request sizes
+~~~~~~~~~~~~~
+
+Nothing used to cap what a request could carry: FastAPI reads a JSON body
+whole before validating it, Starlette parses a multipart upload whole before
+the route runs (the avatar's 100 KB check came after that), and a card's
+description was an unlimited ``Text``. Three layers now:
+
+- **Bodies**: at most 1 MiB, refused with ``413``. Apache refuses it first
+  (``LimitRequestBody`` in the vhost); :mod:`src.core.body_limit` is the
+  backend's own copy, for the dev server and anything else that reaches
+  uvicorn. A declared ``Content-Length`` over the limit is refused before the
+  app runs; a chunked body is counted as it arrives. The biggest legitimate
+  body, an avatar, is a tenth of that.
+- **Fields**: every text a schema accepts has a maximum length, in
+  :mod:`src.schemas.limits`. For the ``String(n)`` columns it is ``n``, which
+  turns what was a ``500`` from the database into a ``422``; the ``Text``
+  columns get one of their own (20,000 characters for a description, 2,000
+  for a time entry's note). The MCP tools build the same schemas, so Claude
+  meets the same limits, and the forms set ``maxLength`` to match.
+- **WebSocket messages**: the app never sends anything up its socket, so the
+  systemd unit runs uvicorn with ``--ws-max-size 4096`` instead of 16 MB.
+
 Each browser or device has its own session; signing out deletes only that
 one. Local accounts can't sign in until their address is verified;
 :mod:`src.core.invitations` turns pending invitations into shares at that

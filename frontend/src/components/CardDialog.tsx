@@ -496,6 +496,7 @@ export default function CardDialog({
           sx={{ mt: 1 }}
         />
         <TextField
+          slotProps={{ htmlInput: { maxLength: 20000 } }}
           label={t('board.cardDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}

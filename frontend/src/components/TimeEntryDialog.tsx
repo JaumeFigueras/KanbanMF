@@ -214,6 +214,7 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
         {isEdit && (
           <>
             <TextField
+              slotProps={{ htmlInput: { maxLength: 255 } }}
               label={t('timeTracker.boardColumn')}
               value={boardName}
               onChange={(e) => setBoardName(e.target.value)}
@@ -223,6 +224,7 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
               sx={{ mt: 2 }}
             />
             <TextField
+              slotProps={{ htmlInput: { maxLength: 255 } }}
               label={t('timeTracker.cardColumn')}
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
@@ -255,6 +257,7 @@ export default function TimeEntryDialog({ open, onClose, entry, numberLocale, on
         {/* Last, and outside the snapshot block: unlike the names above it,
             the note is the user's own text and never comes from a card. */}
         <TextField
+          slotProps={{ htmlInput: { maxLength: 2000 } }}
           label={t('timeTracker.commentColumn')}
           placeholder={t('timeTracker.commentHint')}
           value={comment}
