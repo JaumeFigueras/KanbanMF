@@ -1,4 +1,4 @@
-import { getClientId } from './client'
+import { getClientId, refreshAccessToken } from './client'
 
 const RECONNECT_DELAY_MS = 3000
 
@@ -62,8 +62,17 @@ function clearReconnectTimer() {
   }
 }
 
+// Closed by the backend: the token wasn't accepted.
+const WS_POLICY_VIOLATION = 1008
+
 function openSocket(token: string) {
-  socket = new WebSocket(wsUrl(`/api/v1/ws?token=${encodeURIComponent(token)}`))
+  // The token goes in the first message, not the URL: addresses end up in
+  // the web server's access log.
+  socket = new WebSocket(wsUrl('/api/v1/ws'))
+
+  socket.onopen = () => {
+    socket?.send(JSON.stringify({ type: 'auth', token }))
+  }
 
   socket.onmessage = (event) => {
     try {
@@ -74,8 +83,21 @@ function openSocket(token: string) {
     }
   }
 
-  socket.onclose = () => {
+  socket.onclose = (event) => {
     socket = null
+    // A refused token has most likely expired (say, the computer slept):
+    // get a new one, which reconnects through setWebSocketToken, or signs
+    // out if the session is gone too. After the same delay as a reconnect,
+    // so a token that keeps being refused can't spin refreshes.
+    if (event.code === WS_POLICY_VIOLATION && currentToken) {
+      clearReconnectTimer()
+      reconnectTimer = setTimeout(() => {
+        if (!currentToken) return
+        currentToken = null
+        void refreshAccessToken()
+      }, RECONNECT_DELAY_MS)
+      return
+    }
     // Only reconnect if we're still supposed to be connected (i.e. the user
     // hasn't logged out in the meantime).
     if (currentToken) {
@@ -90,7 +112,7 @@ function openSocket(token: string) {
 // Called whenever the access token changes (login, silent refresh, logout).
 // Connecting is only forced on login/reconnect — a token refresh while the
 // socket is already open doesn't need to interrupt it, since the connection
-// was already authenticated at handshake time.
+// was already authenticated by its first message.
 export function setWebSocketToken(token: string | null) {
   currentToken = token
 
@@ -102,6 +124,7 @@ export function setWebSocketToken(token: string | null) {
   }
 
   if (!socket || socket.readyState === WebSocket.CLOSED) {
+    clearReconnectTimer()
     openSocket(token)
   }
 }

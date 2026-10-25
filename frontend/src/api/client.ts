@@ -43,16 +43,33 @@ export function onAccessTokenChange(listener: TokenListener): () => void {
   return () => listeners.delete(listener)
 }
 
+// The refresh cookie is shared by every tab, and each refresh rotates it:
+// two tabs refreshing at once would both send the same cookie, and the one
+// that lost the race would be signed out. A Web Lock makes the tabs take
+// turns, so the second one sends the cookie the first one just got. (Where
+// the browser has no Web Locks, the refresh simply runs unguarded.)
+function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  if (!navigator.locks) return task()
+  return navigator.locks.request('kanbanmf.refresh', task)
+}
+
 // Rotates the refresh-token cookie for a new access token. Concurrent 401s
 // share a single in-flight refresh instead of each racing their own.
+//
+// The access token lives only in this module's memory, never in
+// localStorage: a script injected into the page can't read it back later,
+// and it isn't left on disk when the browser closes. Each page load gets a
+// fresh one through this refresh.
 export function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/v1/auth/local/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        })
+        const r = await withRefreshLock(() =>
+          fetch(`${API_BASE}/api/v1/auth/local/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+          }),
+        )
         if (!r.ok) {
           setAccessToken(null)
           return null

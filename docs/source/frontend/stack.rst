@@ -87,15 +87,25 @@ Signing in and staying signed in
 --------------------------------
 
 ``AuthProvider`` (``src/context/AuthContext.tsx``) owns the session. On start
-it takes the access token saved in ``localStorage`` and calls
-``/api/v1/users/me``. If the token is still valid, that's it; if it has
-expired, the call is retried after a silent refresh (below); if the refresh
-fails too, the user is signed out. The same call sets the interface language
-from the user's preferences.
+it has no access token: it asks for one with the refresh cookie (below) and,
+if there is a session, calls ``/api/v1/users/me``, which also sets the
+interface language from the user's preferences. No session, and the user is
+signed out.
 
 The tokens themselves are explained in :doc:`../backend/stack`: a 15-minute
 access token the frontend keeps, and a 30-day refresh token in an
-``HTTP-only`` cookie it never sees.
+``HTTP-only`` cookie it never sees. The access token is kept **only in
+memory**, in ``src/api/client.ts`` — never in ``localStorage``, where any
+script running in the page could read it at any time and where it stayed on
+disk after the browser closed. The price is one refresh per page load and per
+tab.
+
+Each refresh rotates the cookie, which every tab shares: two tabs refreshing
+at the same moment would send the same cookie, and the one that lost the race
+would be signed out. ``refreshAccessToken()`` therefore takes a Web Lock
+(``navigator.locks``) around the request, so the tabs take turns and the
+second one sends the cookie the first one just received. Within a tab,
+concurrent callers share one refresh.
 
 Talking to the API
 ------------------
@@ -139,9 +149,13 @@ use ``apiFetch`` with a relative path.
 Real-time updates
 -----------------
 
-``src/api/ws.ts`` keeps one WebSocket per tab, opened with the access token
-when the user signs in, closed when they sign out, and reopened three seconds
-after it drops. Messages say what changed — ``card_moved`` on such board and
+``src/api/ws.ts`` keeps one WebSocket per tab, opened when the user signs in,
+closed when they sign out, and reopened three seconds after it drops. Its
+first message is ``{"type": "auth", "token": ...}`` with the access token:
+the token isn't in the address, which the web server logs. If the backend
+refuses it (close code 1008 — usually a token that expired while the computer
+slept), the client refreshes the token three seconds later, which reconnects
+it, or signs the user out if the session is gone. Messages say what changed — ``card_moved`` on such board and
 list — and are handed to every subscriber.
 
 Pages subscribe with ``subscribeToNotifications()`` and react by refetching:

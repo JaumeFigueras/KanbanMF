@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import i18n from '../i18n'
-import { apiFetch, onAccessTokenChange, setAccessToken } from '../api/client'
+import { apiFetch, onAccessTokenChange, refreshAccessToken, setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 import { AuthContext } from './useAuth'
 
@@ -21,26 +21,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Single place that keeps React state and localStorage in sync with the
+  // Single place that keeps React state and the WebSocket in sync with the
   // module-level token — covers explicit login/logout as well as silent
   // refreshes triggered by apiFetch() elsewhere in the app.
   useEffect(() => {
     return onAccessTokenChange((token) => {
       setAccessTokenState(token)
-      if (token) localStorage.setItem('access_token', token)
-      else localStorage.removeItem('access_token')
       setWebSocketToken(token)
     })
   }, [])
 
   useEffect(() => {
-    async function verifyOrRefresh() {
-      const stored = localStorage.getItem('access_token')
-      setAccessToken(stored)
+    async function signInFromCookie() {
+      // Earlier versions kept the access token in localStorage; don't leave
+      // one behind.
+      try {
+        localStorage.removeItem('access_token')
+      } catch {
+        // storage blocked: nothing to remove
+      }
 
-      // apiFetch already retries once via a silent refresh on a 401, so a
-      // single call here covers both "token still valid" and "token expired
-      // but refresh cookie still good".
+      // The access token is only ever in memory (see api/client.ts), so a
+      // page load starts without one: the refresh cookie, if there's a
+      // session, gets a new one.
+      if (!(await refreshAccessToken())) return
+
       const res = await apiFetch(`${API}/api/v1/users/me`)
       if (res.ok) {
         const data = await res.json()
@@ -51,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null)
     }
 
-    verifyOrRefresh()
+    signInFromCookie()
       .catch(() => setAccessToken(null))
       .finally(() => setLoading(false))
   }, [])

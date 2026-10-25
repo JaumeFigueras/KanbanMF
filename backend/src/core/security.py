@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Password hashing (bcrypt), JWT access tokens, random refresh tokens and the
-SHA-256 hash they are stored and looked up by."""
+"""Password hashing (bcrypt), JWT access tokens (PyJWT), random refresh tokens
+and the SHA-256 hash they are stored and looked up by."""
 
 import hashlib
 import secrets
@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
 
 from src.core.config import settings
 
@@ -20,7 +20,15 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
+    """Whether ``plain`` is the password ``hashed`` was made from.
+
+    bcrypt reads only the first 72 bytes, and bcrypt 5 raises on longer input
+    instead of ignoring the rest — a sign-in with a long password was a 500.
+    New passwords can't be longer (the schemas refuse them), so cutting to 72
+    bytes only matters for an older one, which bcrypt 4 hashed from its first
+    72 bytes: exactly what is compared here.
+    """
+    return bcrypt.checkpw(plain.encode()[:72], hashed.encode())
 
 
 def hash_token(token: str) -> str:
@@ -50,7 +58,7 @@ def decode_access_token(token: str) -> str | None:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         return payload.get("sub")
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
 
 

@@ -21,8 +21,8 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[uuid.UUID, set[WebSocket]] = {}
 
-    async def connect(self, user_id: uuid.UUID, websocket: WebSocket) -> None:
-        await websocket.accept()
+    def connect(self, user_id: uuid.UUID, websocket: WebSocket) -> None:
+        """Register an accepted, authenticated socket as one of the user's."""
         self._connections.setdefault(user_id, set()).add(websocket)
 
     def disconnect(self, user_id: uuid.UUID, websocket: WebSocket) -> None:

@@ -141,9 +141,10 @@ Signing in, by either route, opens a ``UserSession`` and returns two tokens:
 
 Access token
    A JWT signed with ``SECRET_KEY``, valid for 15 minutes. The frontend sends
-   it as ``Authorization: Bearer`` on every request, and as a query parameter
-   when it opens the WebSocket (browsers can't set headers on one). Being
-   short-lived, a leaked one isn't useful for long.
+   it as ``Authorization: Bearer`` on every request, and as the first message
+   on the WebSocket (browsers can't set headers on one; it used to go in the
+   URL, which Apache's access log records). The frontend keeps it only in
+   memory. Being short-lived, a leaked one isn't useful for long.
 
 Refresh token
    A random string valid for 30 days, sent only as an ``HTTP-only``,
@@ -228,8 +229,10 @@ description was an unlimited ``Text``. Three layers now:
   columns get one of their own (20,000 characters for a description, 2,000
   for a time entry's note). The MCP tools build the same schemas, so Claude
   meets the same limits, and the forms set ``maxLength`` to match.
-- **WebSocket messages**: the app never sends anything up its socket, so the
-  systemd unit runs uvicorn with ``--ws-max-size 4096`` instead of 16 MB.
+- **WebSocket messages**: the app sends only its sign-in message (a few
+  hundred bytes) up the socket, so the systemd unit runs uvicorn with
+  ``--ws-max-size 4096`` instead of 16 MB. A connection that hasn't signed in
+  within 10 seconds is closed.
 
 Each browser or device has its own session; signing out deletes only that
 one. Local accounts can't sign in until their address is verified;

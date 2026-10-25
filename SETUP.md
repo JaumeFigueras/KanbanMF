@@ -101,9 +101,10 @@ both assume exactly one process: with multiple workers, the scheduler's hourly j
 fire once per worker, and a client's WebSocket could land on a worker that never sees a
 given user's notifications.
 
-The unit also passes `--ws-max-size 4096`: the app never sends anything up its WebSocket
-(it only listens for "something changed" messages), so there's no reason to let a client
-make the backend buffer uvicorn's default of 16 MB per message.
+The unit also passes `--ws-max-size 4096`: the app sends only one short message up its
+WebSocket (the access token, as it connects; after that it only listens for "something
+changed" messages), so there's no reason to let a client make the backend buffer
+uvicorn's default of 16 MB per message.
 
 #### Run frontend in production
 

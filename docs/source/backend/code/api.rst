@@ -68,7 +68,7 @@ router under its prefix. The prefixes follow how the data is nested:
      - public: optional features (e-mail)
    * - ``/ws``
      - :mod:`~src.api.v1.ws`
-     - the notification WebSocket, ``?token=<access token>``
+     - the notification WebSocket; its first message carries the access token
 
 Every route except the public ones and the sign-in flow needs a valid access
 token. The shared dependencies are in :mod:`src.api.deps`: the database

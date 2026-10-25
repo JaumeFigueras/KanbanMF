@@ -6,6 +6,8 @@ registration gives nothing to sign in with, and the API, the WebSocket and
 the MCP server all refuse an unverified account; and that the e-mail address
 can't be changed behind the owner's back."""
 
+import json
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
@@ -125,29 +127,32 @@ async def test_auth_verification_02(client, test_user: User, auth_headers: dict[
 
 
 class _FakeSocket:
-    """Stands in for the WebSocket: records whether the endpoint accepted or
-    closed it, and disconnects as soon as the endpoint waits for a message,
-    so a wrongly accepted connection can't hang the test."""
+    """Stands in for the WebSocket: sends ``token`` as its first message,
+    records whether the endpoint closed it, and disconnects as soon as the
+    endpoint waits for another message, so a wrongly accepted connection
+    can't hang the test."""
 
-    def __init__(self) -> None:
-        self.accepted = False
+    def __init__(self, token: str) -> None:
+        self.messages = [json.dumps({"type": "auth", "token": token})]
         self.closed_with: int | None = None
 
     async def accept(self) -> None:
-        self.accepted = True
+        pass
 
     async def close(self, code: int = 1000) -> None:
         self.closed_with = code
 
     async def receive_text(self) -> str:
+        if self.messages:
+            return self.messages.pop(0)
         raise WebSocketDisconnect()
 
 
 @pytest.mark.asyncio
 async def test_auth_verification_03(db_session_async, monkeypatch) -> None:
     """
-    Verify the WebSocket accepts a verified user and closes the connection of
-    an unverified one without accepting it.
+    Verify the WebSocket accepts a verified user's token and closes the
+    connection of an unverified one.
 
     Parameters
     ----------
@@ -170,13 +175,13 @@ async def test_auth_verification_03(db_session_async, monkeypatch) -> None:
         async_sessionmaker(db_session_async.bind, class_=AsyncSession, expire_on_commit=False),
     )
 
-    socket = _FakeSocket()
-    await ws_module.websocket_endpoint(socket, token=create_access_token(verified.id))
-    assert socket.accepted and socket.closed_with is None
+    socket = _FakeSocket(create_access_token(verified.id))
+    await ws_module.websocket_endpoint(socket)
+    assert socket.closed_with is None
 
-    socket = _FakeSocket()
-    await ws_module.websocket_endpoint(socket, token=create_access_token(unverified.id))
-    assert not socket.accepted and socket.closed_with == status.WS_1008_POLICY_VIOLATION
+    socket = _FakeSocket(create_access_token(unverified.id))
+    await ws_module.websocket_endpoint(socket)
+    assert socket.closed_with == status.WS_1008_POLICY_VIOLATION
 
 
 @pytest.mark.asyncio
