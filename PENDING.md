@@ -89,7 +89,7 @@ From the review of 2026-10-25 (details in PROMPTS.md), most severe first.
 - ✓ 16. Nothing refuses the example `SECRET_KEY`
 - ✓ 17. `react-router` advisory (RSC mode only, not used here): `npm audit fix` (also fixed 9 newer advisories in
   build tools and the Vite dev server)
-- 18. New `pip-audit` advisories (2026-10-25, after the review): `urllib3` 2.7.0 (fixed in 2.8.0) and `certifi`
+- ✓ 18. New `pip-audit` advisories (2026-10-25, after the review): `urllib3` 2.7.0 (fixed in 2.8.0) and `certifi`
   2026.7.22 (fixed in 2026.10.19), both indirect (`requests`, `httpx`): `pip install -U urllib3 certifi`
 
 ## Bugs

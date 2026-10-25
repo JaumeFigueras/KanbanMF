@@ -37,6 +37,13 @@ PyJWT>=2.10.1
 bcrypt>=4.0.0
 authlib>=1.7.2
 httpx>=0.28.1
+# Indirect dependencies (httpx and requests), pinned to a floor because
+# `pip install -r` leaves an installed version alone while it still satisfies
+# its parent: without these, a server would keep the versions with known
+# advisories (certifi: the CA list httpx trusts for Google and Claude's client
+# documents; urllib3: requests, used by Sphinx and the tests).
+certifi>=2026.10.19
+urllib3>=2.8.0
 fastapi-mail>=1.6.5
 python-dotenv>=1.2.2
 uvicorn[standard]>=0.34.0
