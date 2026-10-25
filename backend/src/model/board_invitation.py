@@ -5,7 +5,6 @@
 that has no account yet.
 """
 
-import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -23,10 +22,6 @@ if TYPE_CHECKING:
 
 # How long an invitation stays pending before it's ignored and cleaned up.
 INVITATION_TTL = timedelta(days=30)
-
-
-def _generate_token() -> str:
-    return secrets.token_urlsafe(32)
 
 
 def _default_expiry() -> datetime:
@@ -47,9 +42,11 @@ class BoardInvitation(Base):
     ``(board_id, email)`` unique constraint still blocks duplicates that
     differ only in case.
 
-    ``token`` goes into the link in the invitation e-mail. It only lets the
-    sign-up page show the invitation and pre-fill the address; access is
-    granted by the verified e-mail match, never by the token alone.
+    The token in the invitation e-mail's link only lets the sign-up page
+    show the invitation and pre-fill the address; access is granted by the
+    verified e-mail match, never by the token alone. Only its SHA-256 is
+    stored (``hashed_token``), like every other token here, so the table
+    can't be read for working links.
     """
 
     __tablename__ = "board_invitations"
@@ -93,12 +90,11 @@ class BoardInvitation(Base):
         comment="Language the invitation e-mail was written in (en, ca).",
     )
 
-    token: Mapped[str] = mapped_column(
+    hashed_token: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
         unique=True,
-        default=_generate_token,
-        comment="Random token for the sign-up link in the invitation e-mail.",
+        comment="SHA-256 (hex) of the random token in the invitation e-mail's sign-up link.",
     )
 
     created_at: Mapped[datetime] = mapped_column(

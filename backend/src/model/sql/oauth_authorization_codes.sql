@@ -11,4 +11,3 @@ CREATE TABLE oauth_authorization_codes (
 )
 WITH (OIDS = FALSE);
 ALTER TABLE public.oauth_authorization_codes OWNER TO kanbanmf_user;
-GRANT SELECT on public.oauth_authorization_codes to kanbanmf_remoteuser;

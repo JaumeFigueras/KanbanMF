@@ -85,6 +85,10 @@ from src.model.oauth_authorization_request import OAuthAuthorizationRequest
 from src.model.oauth_authorization_code import OAuthAuthorizationCode
 from src.model.oauth_token import OAuthToken
 
+# Tables that hold credentials (password hashes, session and OAuth token
+# hashes): the read-only debugging user gets no SELECT on them.
+_NO_REMOTE_READ = {"user_identities", "user_sessions", "oauth_tokens", "oauth_authorization_codes"}
+
 
 # Each entry is either an ORM model class or a list of [EnumClass, ..., OrmModelClass].
 # When a list is given, the enum CREATE TYPE statements are written before the table DDL,
@@ -164,7 +168,8 @@ def main(e: Engine):  # pragma: no cover
         for idx in model.__table__.indexes:
             table_sql += CreateIndex(idx).compile(dialect=postgresql.dialect()).__str__() + ";\n"
         table_sql += f"ALTER TABLE public.{model.__tablename__} OWNER TO kanbanmf_user;\n"
-        table_sql += f"GRANT SELECT on public.{model.__tablename__} to kanbanmf_remoteuser;"
+        if model.__tablename__ not in _NO_REMOTE_READ:
+            table_sql += f"GRANT SELECT on public.{model.__tablename__} to kanbanmf_remoteuser;"
 
         sql_str += table_sql
         print(sql_str)

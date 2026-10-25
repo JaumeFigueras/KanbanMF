@@ -72,7 +72,9 @@ def fake_google(monkeypatch):
 async def test_auth_google_01(client) -> None:
     """
     Verify GET /auth/google/ redirects to Google with a random state, and sets
-    the same value as an HTTP-only cookie scoped to the Google auth routes.
+    the same value as an HTTP-only cookie scoped to the Google auth routes. It
+    asks for no offline access: Google only signs the user in, so there is no
+    refresh token to keep.
 
     Parameters
     ----------
@@ -83,15 +85,18 @@ async def test_auth_google_01(client) -> None:
     ------
     AssertionError
         If the redirect lacks a state, or the cookie doesn't match it or isn't
-        HTTP-only, Secure, SameSite=Lax and limited to /api/v1/auth/google.
+        HTTP-only, Secure, SameSite=Lax and limited to /api/v1/auth/google, or
+        offline access is requested.
     """
     response = await client.get("/api/v1/auth/google/")
 
     assert response.status_code == 307
     location = urlparse(response.headers["location"])
     assert location.geturl().startswith(settings.google_auth_url)
-    state = parse_qs(location.query)["state"][0]
+    query = parse_qs(location.query)
+    state = query["state"][0]
     assert len(state) >= 32
+    assert "access_type" not in query
 
     set_cookie = response.headers["set-cookie"]
     assert set_cookie.startswith(f"google_oauth_state={state};")

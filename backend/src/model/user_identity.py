@@ -30,15 +30,18 @@ class UserIdentity(Base):
 
     LOCAL provider:
         - hashed_password is set.
-        - verification_token and verification_token_expiry are set until
-          the user verifies their email, then cleared.
-        - provider_user_id, access_token, refresh_token, token_expiry are None.
+        - hashed_verification_token and verification_token_expiry are set
+          until the user verifies their email, then cleared.
+        - provider_user_id is None.
 
     GOOGLE provider:
         - provider_user_id (Google's 'sub' field) is set.
-        - access_token, refresh_token, token_expiry are set.
-        - hashed_password, verification_token, verification_token_expiry are None.
+        - hashed_password, hashed_verification_token, verification_token_expiry are None.
         - User is considered verified automatically.
+
+    Google's own access and refresh tokens are not kept: Google is only used
+    to sign in, and a stored token would let whoever read the table act on
+    the user's Google account.
     """
     __tablename__ = "user_identities"
 
@@ -69,18 +72,6 @@ class UserIdentity(Base):
         nullable=True,
         comment="Google's unique user ID ('sub' field in the ID token)."
     )
-    access_token: Mapped[Optional[str]] = mapped_column(
-        String(2048),
-        nullable=True
-    )
-    refresh_token: Mapped[Optional[str]] = mapped_column(
-        String(2048),
-        nullable=True
-    )
-    token_expiry: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True
-    )
 
     # --- Local auth fields (nullable for Google accounts) ---
     hashed_password: Mapped[Optional[str]] = mapped_column(
@@ -90,10 +81,11 @@ class UserIdentity(Base):
     )
 
     # Email verification (only used for local accounts)
-    verification_token: Mapped[Optional[str]] = mapped_column(
-        String(255),
+    hashed_verification_token: Mapped[Optional[str]] = mapped_column(
+        String(64),
         nullable=True,
-        comment="One-time token sent by email. Cleared after successful verification."
+        unique=True,
+        comment="SHA-256 (hex) of the one-time token sent by email. Cleared after successful verification."
     )
     verification_token_expiry: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),

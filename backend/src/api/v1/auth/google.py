@@ -65,8 +65,6 @@ async def google_login() -> RedirectResponse:
         "redirect_uri": settings.google_redirect_uri,
         "response_type": "code",
         "scope": _GOOGLE_SCOPES,
-        "access_type": "offline",
-        "prompt": "consent",
         "state": state,
     }
     redirect = RedirectResponse(url=f"{settings.google_auth_url}?{urlencode(params)}")
@@ -159,9 +157,9 @@ async def google_callback(
     if token_response.status_code != 200:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to exchange Google token")
 
-    token_data = token_response.json()
-    google_access_token: str = token_data["access_token"]
-    google_refresh_token: str | None = token_data.get("refresh_token")
+    # Used once, for the profile below, and never stored: Google only signs
+    # the user in (no offline access is asked for, so no refresh token).
+    google_access_token: str = token_response.json()["access_token"]
 
     # --- 2. Fetch Google user profile ---
     async with httpx.AsyncClient() as client:
@@ -210,14 +208,8 @@ async def google_callback(
             user_id=user.id,
             provider=AuthProvider.GOOGLE,
             provider_user_id=google_sub,
-            access_token=google_access_token,
-            refresh_token=google_refresh_token,
         )
         db.add(identity)
-    else:
-        identity.access_token = google_access_token
-        if google_refresh_token:
-            identity.refresh_token = google_refresh_token
 
     # --- 4b. Ensure UserPreferences exists — local registration always
     # creates one, but a Google signup previously didn't, which left the

@@ -4,6 +4,7 @@
 """Tests for board invitations: the owner's routes, the public sign-up preview,
 registering from an invitation link, and turning invitations into shares."""
 
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -15,7 +16,7 @@ from src.api.v1 import invitations as invitations_api
 from src.api.v1.auth import local as local_auth
 from src.core import invitations as invitations_core
 from src.core.config import settings
-from src.core.security import create_access_token
+from src.core.security import create_access_token, hash_token
 from src.model.board import Board
 from src.model.board_invitation import BoardInvitation
 from src.model.board_share import BoardShare
@@ -23,6 +24,12 @@ from src.model.user import User
 from src.model.user_identity import UserIdentity
 
 PAST = datetime.now(timezone.utc) - timedelta(days=1)
+
+
+def _invitation(token: str | None = None, **kwargs) -> BoardInvitation:
+    """An invitation whose link carries ``token`` (a random one if not given).
+    Only its SHA-256 is stored, as the route does."""
+    return BoardInvitation(hashed_token=hash_token(token or secrets.token_urlsafe(32)), **kwargs)
 
 
 @pytest_asyncio.fixture
@@ -121,10 +128,12 @@ async def test_board_invitations_02(
         "email": "new.person@example.com",
         "inviter_name": "Test User",
         "board_name": "Roadmap",
-        "token": invitation.token,
+        "token": sent[0]["token"],
         "expires_in_days": 30,
         "language": "ca",
     }]
+    # The e-mail carries the token; the table only its SHA-256.
+    assert len(sent[0]["token"]) >= 32 and invitation.hashed_token == hash_token(sent[0]["token"])
 
     r = await client.get(f"/api/v1/boards/{board.id}/invitations", headers=auth_headers)
     assert r.status_code == 200
@@ -145,7 +154,7 @@ async def test_board_invitations_03(
     AssertionError
         If a non-owner can use any of the invitation routes.
     """
-    invitation = BoardInvitation(board_id=board.id, email="x@example.com", invited_by_id=board.owner_id, language="en")
+    invitation = _invitation(board_id=board.id, email="x@example.com", invited_by_id=board.owner_id, language="en")
     db_session_async.add(invitation)
     await db_session_async.commit()
     headers = {"Authorization": f"Bearer {create_access_token(other_user.id)}"}
@@ -333,11 +342,11 @@ async def test_board_invitations_10(
     other_board = Board(owner_id=test_user.id, name="Other")
     db_session_async.add(other_board)
     await db_session_async.flush()
-    kept = BoardInvitation(board_id=board.id, email="kept@example.com", invited_by_id=test_user.id, language="en")
-    expired = BoardInvitation(
+    kept = _invitation(board_id=board.id, email="kept@example.com", invited_by_id=test_user.id, language="en")
+    expired = _invitation(
         board_id=board.id, email="old@example.com", invited_by_id=test_user.id, language="en", expires_at=PAST
     )
-    elsewhere = BoardInvitation(
+    elsewhere = _invitation(
         board_id=other_board.id, email="kept@example.com", invited_by_id=test_user.id, language="en"
     )
     db_session_async.add_all([kept, expired, elsewhere])
@@ -365,24 +374,28 @@ async def test_board_invitations_11(client, db_session_async, test_user: User, b
     AssertionError
         If the preview is wrong or an unusable invitation is described.
     """
-    valid = BoardInvitation(board_id=board.id, email="a@example.com", invited_by_id=test_user.id, language="en")
-    expired = BoardInvitation(
-        board_id=board.id, email="b@example.com", invited_by_id=test_user.id, language="en", expires_at=PAST
+    valid = _invitation(
+        "valid-token", board_id=board.id, email="a@example.com", invited_by_id=test_user.id, language="en"
+    )
+    expired = _invitation(
+        "expired-token", board_id=board.id, email="b@example.com", invited_by_id=test_user.id, language="en",
+        expires_at=PAST,
     )
     deleted_board = Board(owner_id=test_user.id, name="Gone", is_deleted=True)
     db_session_async.add(deleted_board)
     await db_session_async.flush()
-    on_deleted = BoardInvitation(
-        board_id=deleted_board.id, email="c@example.com", invited_by_id=test_user.id, language="en"
+    on_deleted = _invitation(
+        "deleted-token", board_id=deleted_board.id, email="c@example.com", invited_by_id=test_user.id, language="en"
     )
     db_session_async.add_all([valid, expired, on_deleted])
     await db_session_async.commit()
 
-    r = await client.get(f"/api/v1/invitations/{valid.token}")
+    r = await client.get("/api/v1/invitations/valid-token")
     assert r.status_code == 200
     assert r.json() == {"email": "a@example.com", "board_name": "Roadmap", "inviter_name": "Test User"}
 
-    for token in ("not-a-token", expired.token, on_deleted.token):
+    # The stored hash itself is no link either.
+    for token in ("not-a-token", "expired-token", "deleted-token", valid.hashed_token):
         assert (await client.get(f"/api/v1/invitations/{token}")).status_code == 404
 
 
@@ -402,12 +415,14 @@ async def test_board_invitations_12(
         If the token checks fail, access is granted before verification, or
         verification doesn't turn the invitation into a share.
     """
+    links: list[str] = []
+
     async def _fake_verification(**kwargs) -> None:
-        pass
+        links.append(kwargs["token"])
 
     monkeypatch.setattr(local_auth, "send_verification_email", _fake_verification)
-    invitation = BoardInvitation(
-        board_id=board.id, email="guest@example.com", invited_by_id=test_user.id, language="en"
+    invitation = _invitation(
+        "guest-token", board_id=board.id, email="guest@example.com", invited_by_id=test_user.id, language="en"
     )
     db_session_async.add(invitation)
     await db_session_async.commit()
@@ -417,20 +432,17 @@ async def test_board_invitations_12(
     assert r.status_code == 400
     r = await client.post(
         "/api/v1/auth/local/register",
-        json={**payload, "email": "someone@example.com", "invitation_token": invitation.token},
+        json={**payload, "email": "someone@example.com", "invitation_token": "guest-token"},
     )
     assert r.status_code == 422
 
-    r = await client.post("/api/v1/auth/local/register", json={**payload, "invitation_token": invitation.token})
+    r = await client.post("/api/v1/auth/local/register", json={**payload, "invitation_token": "guest-token"})
     assert r.status_code == 201
     assert await _shares(db_session_async) == []
     assert len(await _invitations(db_session_async)) == 1
 
     guest = (await db_session_async.execute(select(User).where(User.email.ilike("guest@example.com")))).scalar_one()
-    identity = (
-        await db_session_async.execute(select(UserIdentity).where(UserIdentity.user_id == guest.id))
-    ).scalar_one()
-    r = await client.post("/api/v1/auth/local/verify-email", json={"token": identity.verification_token})
+    r = await client.post("/api/v1/auth/local/verify-email", json={"token": links[0]})
     assert r.status_code == 204
 
     assert await _shares(db_session_async) == [(board.id, guest.id)]
@@ -448,12 +460,14 @@ async def test_board_invitations_13(client, db_session_async, test_user: User, b
     AssertionError
         If the board isn't shared after verification.
     """
+    links: list[str] = []
+
     async def _fake_verification(**kwargs) -> None:
-        pass
+        links.append(kwargs["token"])
 
     monkeypatch.setattr(local_auth, "send_verification_email", _fake_verification)
     db_session_async.add(
-        BoardInvitation(board_id=board.id, email="guest@example.com", invited_by_id=test_user.id, language="en")
+        _invitation(board_id=board.id, email="guest@example.com", invited_by_id=test_user.id, language="en")
     )
     await db_session_async.commit()
 
@@ -463,7 +477,7 @@ async def test_board_invitations_13(client, db_session_async, test_user: User, b
     )
     assert r.status_code == 201
     identity = (await db_session_async.execute(select(UserIdentity))).scalar_one()
-    await client.post("/api/v1/auth/local/verify-email", json={"token": identity.verification_token})
+    await client.post("/api/v1/auth/local/verify-email", json={"token": links[0]})
 
     assert await _shares(db_session_async) == [(board.id, identity.user_id)]
 
@@ -489,9 +503,9 @@ async def test_board_invitations_14(db_session_async, test_user: User, board: Bo
     db_session_async.add(BoardShare(board_id=already.id, user_id=other_user.id))
     for b in (board, already, deleted):
         db_session_async.add(
-            BoardInvitation(board_id=b.id, email="other@example.com", invited_by_id=test_user.id, language="en")
+            _invitation(board_id=b.id, email="other@example.com", invited_by_id=test_user.id, language="en")
         )
-    expired = BoardInvitation(
+    expired = _invitation(
         board_id=expired_board.id, email="other@example.com", invited_by_id=test_user.id,
         language="en", expires_at=PAST,
     )
@@ -518,8 +532,8 @@ async def test_board_invitations_15(db_session_async, test_user: User, board: Bo
     AssertionError
         If a pending invitation is deleted or an expired one survives.
     """
-    kept = BoardInvitation(board_id=board.id, email="a@example.com", invited_by_id=test_user.id, language="en")
-    gone = BoardInvitation(
+    kept = _invitation(board_id=board.id, email="a@example.com", invited_by_id=test_user.id, language="en")
+    gone = _invitation(
         board_id=board.id, email="b@example.com", invited_by_id=test_user.id, language="en", expires_at=PAST
     )
     db_session_async.add_all([kept, gone])

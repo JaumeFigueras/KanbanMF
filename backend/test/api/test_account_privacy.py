@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from src.api.v1.auth import local as local_module
 from src.core.rate_limit import USER_LOOKUP_PER_USER
-from src.core.security import hash_password, verify_password
+from src.core.security import hash_password, hash_token, verify_password
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_preferences import UserPreferences
@@ -61,7 +61,7 @@ async def _account(db, email: str, verified: bool, link_expires_in: timedelta | 
     await db.flush()
     db.add(UserIdentity(
         user_id=user.id, provider=AuthProvider.LOCAL, hashed_password=hash_password(PASSWORD),
-        verification_token=None if verified else "old-token",
+        hashed_verification_token=None if verified else hash_token("old-token"),
         verification_token_expiry=None if verified else datetime.now(timezone.utc) + link_expires_in,
     ))
     db.add(UserPreferences(user_id=user.id, language_locale="en", number_locale="en"))
@@ -147,7 +147,7 @@ async def test_account_privacy_02(client, db_session_async, mail) -> None:
     assert response.status_code == 201
     assert mail.sent == [("pending", "pending@example.com")]
     identity = await _identity(db_session_async, pending.id)
-    assert identity.verification_token == "old-token"
+    assert identity.hashed_verification_token == hash_token("old-token")
     assert verify_password(PASSWORD, identity.hashed_password)
 
 
@@ -179,7 +179,7 @@ async def test_account_privacy_03(client, db_session_async, mail) -> None:
     assert [m[0] for m in mail.sent] == ["verify"]
 
     identity = await _identity(db_session_async, stale.id)
-    assert identity.verification_token == mail.sent[0][2] != "old-token"
+    assert identity.hashed_verification_token == hash_token(mail.sent[0][2]) != hash_token("old-token")
     assert identity.verification_token_expiry > datetime.now(timezone.utc)
     assert verify_password(OTHER_PASSWORD, identity.hashed_password)
     users = (await db_session_async.execute(select(User).where(User.email == "stale@example.com"))).scalars().all()

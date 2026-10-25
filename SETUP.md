@@ -29,6 +29,20 @@ createdb -p 5445 -E UTF8 -O kanbanmf_user kanbanmf_db
 exit
 ```
 
+If you created the remote user, give it read access once the schema exists (after `alembic upgrade head`,
+below) — but not to the four tables that hold credentials: password hashes (`user_identities`) and the hashes of
+session and OAuth tokens. Run it again after a migration that adds tables (`GRANT ... ON ALL TABLES` covers only
+the tables that exist):
+
+```bash
+sudo -u postgres psql -p 5445 -d kanbanmf_db <<'SQL'
+GRANT CONNECT ON DATABASE kanbanmf_db TO kanbanmf_remoteuser;
+GRANT USAGE ON SCHEMA public TO kanbanmf_remoteuser;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO kanbanmf_remoteuser;
+REVOKE SELECT ON user_identities, user_sessions, oauth_tokens, oauth_authorization_codes FROM kanbanmf_remoteuser;
+SQL
+```
+
 The search uses PostgreSQL's `unaccent` extension (it comes with PostgreSQL; nothing to install). The migrations
 create it, and since PostgreSQL 13 the database owner — `kanbanmf_user` above — is allowed to, so with this setup
 there's nothing to do. With PostgreSQL 12 or older, or a database the application's user doesn't own, create it

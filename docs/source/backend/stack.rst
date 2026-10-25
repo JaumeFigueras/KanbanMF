@@ -127,7 +127,7 @@ Authentication
 
 A person is one ``User``, identified by their e-mail address. How they sign
 in is a ``UserIdentity``: a ``local`` one with a bcrypt password hash, a
-``google`` one with Google's tokens, or both — signing in with Google with the
+``google`` one with Google's id for the user, or both — signing in with Google with the
 address of an existing local account adds a Google identity to the same user.
 Only an address Google reports as verified (``email_verified``) is accepted.
 When the existing account was never verified, nobody had proved the address
@@ -170,6 +170,16 @@ a second on purpose, so the routes run it in a worker thread
 request meanwhile. A password must have 8 characters to 72 bytes — bcrypt
 reads no further — checked by the schemas and, for a quicker answer, by the
 forms.
+
+Every token the server hands out — refresh tokens, the e-mail verification
+link, board invitation links, OAuth codes and tokens — is stored only as its
+SHA-256 (:func:`src.core.security.hash_token`) and looked up by it, so a copy
+of the database, a backup or the read-only debugging user holds no working
+link or session. Google's own access and refresh tokens aren't stored at
+all: Google only signs the user in, so the sign-in asks for no offline access
+and the access token is used once, to read the profile, and dropped. (Both
+used to be stored as they were; a migration hashed the pending links in
+place, so links already sent kept working, and dropped Google's tokens.)
 
 Rate limits
 ~~~~~~~~~~~
@@ -518,7 +528,7 @@ Notifications
 
 Invitations
    ``BoardInvitation``: a share waiting for an account with that e-mail
-   address, with a random token for the sign-up link and a 30-day expiry.
+   address, with the SHA-256 of the sign-up link's token and a 30-day expiry.
 
 Connected apps
    ``OAuthClient``, ``McpGrant`` and ``McpGrantBoard``,

@@ -53,7 +53,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 from sqlalchemy import delete  # noqa: E402
 
 from src.core.database import AsyncSessionLocal, engine  # noqa: E402
-from src.core.security import hash_password  # noqa: E402
+from src.core.security import hash_password, hash_token  # noqa: E402
 from src.model import (  # noqa: E402
     BoardInvitation, McpGrant, McpGrantBoard, OAuthClient, User, UserIdentity, UserPreferences,
 )
@@ -225,7 +225,7 @@ async def add_invitation(board_id: str, inviter_id: str, email: str, lang: str) 
     async with AsyncSessionLocal() as db:
         db.add(BoardInvitation(
             board_id=board_id, email=email, invited_by_id=inviter_id, language=lang,
-            token=secrets.token_urlsafe(32),
+            hashed_token=hash_token(secrets.token_urlsafe(32)),
             expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         ))
         await db.commit()

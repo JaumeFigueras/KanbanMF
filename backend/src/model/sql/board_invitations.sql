@@ -5,7 +5,7 @@ CREATE TABLE board_invitations (
 	email VARCHAR(255) NOT NULL, 
 	invited_by_id UUID NOT NULL, 
 	language VARCHAR(10) NOT NULL, 
-	token VARCHAR(64) NOT NULL, 
+	hashed_token VARCHAR(64) NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	PRIMARY KEY (id), 
@@ -13,7 +13,7 @@ CREATE TABLE board_invitations (
 	CONSTRAINT ck_board_invitations_email_lowercase CHECK (email = lower(email)), 
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE, 
 	FOREIGN KEY(invited_by_id) REFERENCES users (id) ON DELETE CASCADE, 
-	UNIQUE (token)
+	UNIQUE (hashed_token)
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_board_invitations_id ON board_invitations (id);

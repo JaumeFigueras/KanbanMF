@@ -83,7 +83,7 @@ From the review of 2026-10-25 (details in PROMPTS.md), most severe first.
 - ✓ 10. Passwords over 72 bytes give a 500 (bcrypt 5)
 - ✓ 11. `python-jose`/`ecdsa` unmaintained with unfixed advisories: move to PyJWT
 - ✓ 12. Login timing and register/invite replies reveal which e-mails have accounts
-- 13. Google tokens and verification/invitation tokens stored in plain text; `kanbanmf_remoteuser` reads every table
+- ✓ 13. Google tokens and verification/invitation tokens stored in plain text; `kanbanmf_remoteuser` reads every table
 - 14. Archived boards still reachable through the API by shared users
 - 15. Changing the password doesn't end other sessions
 - 16. Nothing refuses the example `SECRET_KEY`

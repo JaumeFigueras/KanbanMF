@@ -9,6 +9,7 @@ invitation link it was opened from.
 """
 
 import logging
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -21,6 +22,7 @@ from src.api.v1.boards import _person_read
 from src.core.access import get_accessible_board, reject_if_template
 from src.core.email import email_enabled, send_board_invitation_email
 from src.core.rate_limit import INVITATION_PER_USER
+from src.core.security import hash_token
 from src.core.ws_manager import manager
 from src.core.ws_notify import board_notification
 from src.model.board import Board
@@ -132,11 +134,14 @@ async def create_board_invitation(
             detail="E-mail sending is not configured",
         )
 
+    # Only the hash is stored; the token itself exists only in the e-mail.
+    token = secrets.token_urlsafe(32)
     invitation = BoardInvitation(
         board_id=board_id,
         email=body.email,
         invited_by_id=current_user.id,
         language=body.language,
+        hashed_token=hash_token(token),
     )
     db.add(invitation)
     await db.flush()
@@ -148,7 +153,7 @@ async def create_board_invitation(
             email=invitation.email,
             inviter_name=current_user.display_name,
             board_name=board.name,
-            token=invitation.token,
+            token=token,
             expires_in_days=INVITATION_TTL.days,
             language=invitation.language,
         )
@@ -211,7 +216,7 @@ async def get_invitation_preview(token: str, db: AsyncSession = Depends(get_db))
         .join(Board, Board.id == BoardInvitation.board_id)
         .join(User, User.id == BoardInvitation.invited_by_id)
         .where(
-            BoardInvitation.token == token,
+            BoardInvitation.hashed_token == hash_token(token),
             BoardInvitation.expires_at > datetime.now(timezone.utc),
             Board.is_deleted.is_(False),
         )

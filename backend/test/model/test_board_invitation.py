@@ -3,6 +3,7 @@
 
 """Tests for the BoardInvitation ORM model, covering defaults and constraints."""
 
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.core.security import hash_token
 from src.model.board import Board
 from src.model.board_invitation import INVITATION_TTL, BoardInvitation
 from src.model.user import User
@@ -37,6 +39,7 @@ def _make_invitation(board: Board, **kwargs) -> BoardInvitation:
         email="guest@example.com",
         invited_by_id=board.owner_id,
         language="en",
+        hashed_token=hash_token(secrets.token_urlsafe(32)),
     )
     defaults.update(kwargs)
     return BoardInvitation(**defaults)
@@ -64,13 +67,13 @@ def test_board_invitation_01(db_session: Session) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 02 – Minimal creation fills id, token, created_at and expires_at
+# 02 – Minimal creation fills id, created_at and expires_at
 # ---------------------------------------------------------------------------
 
 def test_board_invitation_02(db_session: Session) -> None:
     """
     Verify an invitation persists with only the required fields and gets a
-    UUID, a random token and a 30-day expiry by default.
+    UUID and a 30-day expiry by default, and keeps the token's hash as given.
 
     Parameters
     ----------
@@ -91,18 +94,18 @@ def test_board_invitation_02(db_session: Session) -> None:
     after = datetime.now(timezone.utc)
 
     assert isinstance(invitation.id, uuid.UUID)
-    assert invitation.token and len(invitation.token) >= 32
+    assert len(invitation.hashed_token) == 64
     assert invitation.created_at is not None
     assert before + INVITATION_TTL <= invitation.expires_at <= after + INVITATION_TTL
 
 
 # ---------------------------------------------------------------------------
-# 03 – Tokens are unique per invitation
+# 03 – Token hashes are unique per invitation
 # ---------------------------------------------------------------------------
 
 def test_board_invitation_03(db_session: Session) -> None:
     """
-    Verify two invitations get different tokens, and a reused token is rejected.
+    Verify two invitations can't share a token hash.
 
     Parameters
     ----------
@@ -112,16 +115,16 @@ def test_board_invitation_03(db_session: Session) -> None:
     Raises
     ------
     AssertionError
-        If generated tokens collide or a duplicate token is accepted.
+        If a duplicate token hash is accepted.
     """
     board = _make_board(db_session)
     first = _make_invitation(board, email="a@example.com")
     second = _make_invitation(board, email="b@example.com")
     db_session.add_all([first, second])
     db_session.commit()
-    assert first.token != second.token
+    assert first.hashed_token != second.hashed_token
 
-    db_session.add(_make_invitation(board, email="c@example.com", token=first.token))
+    db_session.add(_make_invitation(board, email="c@example.com", hashed_token=first.hashed_token))
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
@@ -265,7 +268,7 @@ def test_board_invitation_08(db_session: Session) -> None:
 # 09 – Required fields can't be NULL
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("field", ["board_id", "email", "invited_by_id", "language"])
+@pytest.mark.parametrize("field", ["board_id", "email", "invited_by_id", "language", "hashed_token"])
 def test_board_invitation_09(db_session: Session, field: str) -> None:
     """
     Verify each required column rejects NULL.

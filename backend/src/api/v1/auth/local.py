@@ -23,7 +23,7 @@ from src.api.deps import get_current_user, get_db, get_refresh_token_from_cookie
 from src.core.email import send_account_exists_email, send_verification_email
 from src.core.invitations import accept_pending_invitations
 from src.core.rate_limit import LOGIN_PER_ACCOUNT, LOGIN_PER_IP, REGISTER_PER_IP, client_ip
-from src.core.security import create_access_token, hash_password, verify_password
+from src.core.security import create_access_token, hash_password, hash_token, verify_password
 from src.core.sessions import find_session, open_session
 from src.model.board_invitation import BoardInvitation
 from src.model.user import User
@@ -89,7 +89,7 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
     if body.invitation_token is not None:
         invitation_result = await db.execute(
             select(BoardInvitation.email).where(
-                BoardInvitation.token == body.invitation_token,
+                BoardInvitation.hashed_token == hash_token(body.invitation_token),
                 BoardInvitation.expires_at > datetime.now(timezone.utc),
             )
         )
@@ -137,7 +137,7 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
         identity = UserIdentity(user_id=user.id, provider=AuthProvider.LOCAL)
         db.add(identity)
     identity.hashed_password = hashed_password
-    identity.verification_token = verification_token
+    identity.hashed_verification_token = hash_token(verification_token)
     identity.verification_token_expiry = expiry
     db.add(UserPreferences(user_id=user.id, language_locale=language_locale, number_locale=number_locale))
 
@@ -264,13 +264,14 @@ async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_
     """Confirm a user's email address using the one-time token sent on registration.
 
     Steps:
-    1. Find the UserIdentity with the matching token.
+
+    1. Find the UserIdentity by the token's SHA-256 (only the hash is stored).
     2. Check that the token has not expired.
     3. Set User.is_verified = True and clear the token fields.
     4. Share every board the address has a pending invitation to.
     """
     result = await db.execute(
-        select(UserIdentity).where(UserIdentity.verification_token == body.token)
+        select(UserIdentity).where(UserIdentity.hashed_verification_token == hash_token(body.token))
     )
     identity = result.scalar_one_or_none()
 
@@ -284,7 +285,7 @@ async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_
     user = user_result.scalar_one()
     user.is_verified = True
 
-    identity.verification_token = None
+    identity.hashed_verification_token = None
     identity.verification_token_expiry = None
 
     await db.commit()

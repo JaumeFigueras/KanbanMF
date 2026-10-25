@@ -15,4 +15,3 @@ CREATE TABLE user_sessions (
 WITH (OIDS = FALSE);
 CREATE INDEX ix_user_sessions_user_id ON user_sessions (user_id);
 ALTER TABLE public.user_sessions OWNER TO kanbanmf_user;
-GRANT SELECT on public.user_sessions to kanbanmf_remoteuser;

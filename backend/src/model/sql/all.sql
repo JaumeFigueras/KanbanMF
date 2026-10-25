@@ -50,20 +50,17 @@ CREATE TABLE user_identities (
 	user_id UUID NOT NULL, 
 	provider authprovider NOT NULL, 
 	provider_user_id VARCHAR(255), 
-	access_token VARCHAR(2048), 
-	refresh_token VARCHAR(2048), 
-	token_expiry TIMESTAMP WITH TIME ZONE, 
 	hashed_password VARCHAR(255), 
-	verification_token VARCHAR(255), 
+	hashed_verification_token VARCHAR(64), 
 	verification_token_expiry TIMESTAMP WITH TIME ZONE, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	PRIMARY KEY (id), 
-	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+	UNIQUE (hashed_verification_token)
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_user_identities_user_id ON user_identities (user_id);
 ALTER TABLE public.user_identities OWNER TO kanbanmf_user;
-GRANT SELECT on public.user_identities to kanbanmf_remoteuser;
 
 CREATE TABLE user_sessions (
 	id UUID NOT NULL, 
@@ -81,7 +78,6 @@ CREATE TABLE user_sessions (
 WITH (OIDS = FALSE);
 CREATE INDEX ix_user_sessions_user_id ON user_sessions (user_id);
 ALTER TABLE public.user_sessions OWNER TO kanbanmf_user;
-GRANT SELECT on public.user_sessions to kanbanmf_remoteuser;
 
 CREATE TABLE boards (
 	id UUID NOT NULL, 
@@ -120,7 +116,7 @@ CREATE TABLE board_invitations (
 	email VARCHAR(255) NOT NULL, 
 	invited_by_id UUID NOT NULL, 
 	language VARCHAR(10) NOT NULL, 
-	token VARCHAR(64) NOT NULL, 
+	hashed_token VARCHAR(64) NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	expires_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	PRIMARY KEY (id), 
@@ -128,7 +124,7 @@ CREATE TABLE board_invitations (
 	CONSTRAINT ck_board_invitations_email_lowercase CHECK (email = lower(email)), 
 	FOREIGN KEY(board_id) REFERENCES boards (id) ON DELETE CASCADE, 
 	FOREIGN KEY(invited_by_id) REFERENCES users (id) ON DELETE CASCADE, 
-	UNIQUE (token)
+	UNIQUE (hashed_token)
 )
 WITH (OIDS = FALSE);
 CREATE INDEX ix_board_invitations_id ON board_invitations (id);
@@ -520,7 +516,6 @@ CREATE TABLE oauth_authorization_codes (
 )
 WITH (OIDS = FALSE);
 ALTER TABLE public.oauth_authorization_codes OWNER TO kanbanmf_user;
-GRANT SELECT on public.oauth_authorization_codes to kanbanmf_remoteuser;
 
 CREATE TABLE oauth_tokens (
 	id UUID NOT NULL, 
@@ -540,4 +535,3 @@ CREATE TABLE oauth_tokens (
 WITH (OIDS = FALSE);
 CREATE INDEX ix_oauth_tokens_grant_id ON oauth_tokens (grant_id);
 ALTER TABLE public.oauth_tokens OWNER TO kanbanmf_user;
-GRANT SELECT on public.oauth_tokens to kanbanmf_remoteuser;

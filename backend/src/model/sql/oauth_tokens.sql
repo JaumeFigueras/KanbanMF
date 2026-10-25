@@ -17,4 +17,3 @@ CREATE TABLE oauth_tokens (
 WITH (OIDS = FALSE);
 CREATE INDEX ix_oauth_tokens_grant_id ON oauth_tokens (grant_id);
 ALTER TABLE public.oauth_tokens OWNER TO kanbanmf_user;
-GRANT SELECT on public.oauth_tokens to kanbanmf_remoteuser;

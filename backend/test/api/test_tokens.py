@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """Tests for src.core.security: access tokens signed and checked with PyJWT
-(which replaced the unmaintained python-jose), and password checks that never
-hand bcrypt more than the 72 bytes it reads."""
+(which replaced the unmaintained python-jose), password checks that never
+hand bcrypt more than the 72 bytes it reads, and e-mail verification tokens
+stored only as their SHA-256."""
 
 import base64
 import hashlib
@@ -15,9 +16,11 @@ import bcrypt
 import jwt
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 
+from src.api.v1.auth import local as local_module
 from src.core.config import settings
-from src.core.security import create_access_token, decode_access_token, hash_password, verify_password
+from src.core.security import create_access_token, decode_access_token, hash_password, hash_token, verify_password
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 
@@ -131,3 +134,44 @@ async def test_tokens_04(client, local_user: User) -> None:
     response = await client.post("/api/v1/auth/local/login",
                                  json={"email": local_user.email, "password": LONG_PASSWORD})
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_tokens_05(client, db_session_async, monkeypatch) -> None:
+    """
+    Verify registration stores only the SHA-256 of the verification token:
+    the token from the e-mail verifies the address, and the stored value,
+    should someone read it from the table, doesn't.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session on the test database.
+    monkeypatch : pytest.MonkeyPatch
+        Captures the verification e-mail instead of sending it.
+
+    Raises
+    ------
+    AssertionError
+        If the token is stored as sent, or the stored hash verifies.
+    """
+    links: list[str] = []
+
+    async def capture(**kwargs) -> None:
+        links.append(kwargs["token"])
+
+    monkeypatch.setattr(local_module, "send_verification_email", capture)
+    response = await client.post("/api/v1/auth/local/register", json={
+        "email": "new@example.com", "display_name": "New", "password": "a-good-password",
+    })
+    assert response.status_code == 201
+    [token] = links
+    stored = (await db_session_async.execute(select(UserIdentity.hashed_verification_token))).scalar_one()
+    assert stored == hash_token(token) != token
+
+    response = await client.post("/api/v1/auth/local/verify-email", json={"token": stored})
+    assert response.status_code == 400
+    response = await client.post("/api/v1/auth/local/verify-email", json={"token": token})
+    assert response.status_code == 204
