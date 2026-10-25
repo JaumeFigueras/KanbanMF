@@ -10,6 +10,7 @@ import {
   InputAdornment,
   Stack,
   TextField,
+  Typography,
 } from '@mui/material'
 import { Visibility, VisibilityOff } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
@@ -133,6 +134,9 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
             slotProps={{ input: { endAdornment: visibilityAdornment(showConfirm, () => setShowConfirm((v) => !v)) } }}
             fullWidth
           />
+          <Typography variant="body2" color="text.secondary">
+            {t('boards.changePasswordSignsOut')}
+          </Typography>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

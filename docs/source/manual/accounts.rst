@@ -89,6 +89,11 @@ Change password
    Asks for your current password and the new one, twice. An account that
    only ever signed in with Google has no password here to change.
 
+   Changing it signs you out on every other device and browser — useful if
+   you think someone else knows the old one — while you stay signed in where
+   you made the change. Claude's connections (see :doc:`claude`) are not
+   affected; remove them under :guilabel:`Connected apps` if you need to.
+
 Change / Remove avatar
    Upload a picture to use instead of your initials, or remove the current
    one. JPEG, PNG, WebP and GIF are accepted, up to 100 KB.

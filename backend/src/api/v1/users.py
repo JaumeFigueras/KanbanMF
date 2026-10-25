@@ -8,7 +8,7 @@ account deletion, and the user search used by the share dialog.
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import and_, func, or_, select
@@ -19,6 +19,8 @@ from src.core.people import compute_initials
 from src.core.rate_limit import PASSWORD_CHANGE_PER_USER, USER_LOOKUP_PER_USER
 from src.core.search import escape_like
 from src.core.security import hash_password, verify_password
+from src.core.sessions import end_other_sessions, find_session
+from src.core.ws_manager import manager
 from src.model.board import Board
 from src.model.board_share import BoardShare
 from src.model.user import User
@@ -151,8 +153,18 @@ async def change_my_password(
     body: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    refresh_token: str | None = Cookie(default=None),
 ) -> None:
-    """Change the current user's password (local accounts only).
+    """Change the current user's password (local accounts only), and sign out
+    every other device.
+
+    Changing a password is what someone does when they think another person
+    knows it, so every session except the one making the change (found by its
+    refresh cookie) is deleted, and the user's WebSockets are closed: the
+    other devices are signed out at their next refresh, within seconds for an
+    open page. The browser making the change keeps its session; without a
+    cookie, every session goes. Connected apps (Claude) aren't touched: they
+    are separate permissions, listed and revoked under Connected apps.
 
     Limited per user, so a stolen session can't be used to guess the current
     password at speed.
@@ -176,7 +188,10 @@ async def change_my_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     identity.hashed_password = await run_in_threadpool(hash_password, body.new_password)
+    this_session = await find_session(refresh_token, db, user_id=current_user.id) if refresh_token else None
+    await end_other_sessions(current_user.id, this_session, db)
     await db.commit()
+    await manager.close_all(current_user.id)
 
 
 def _avatar_response(avatar: UserAvatar, request: Request) -> Response:

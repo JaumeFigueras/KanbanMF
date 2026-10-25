@@ -33,6 +33,17 @@ class ConnectionManager:
         if not connections:
             self._connections.pop(user_id, None)
 
+    async def close_all(self, user_id: uuid.UUID) -> None:
+        """Close every connection of a user with 1008, the code for a refused
+        token. The frontend answers it by refreshing its token: a browser
+        whose session still exists gets a new one and reconnects, and one
+        whose session is gone is signed out."""
+        for websocket in list(self._connections.pop(user_id, ())):
+            try:
+                await websocket.close(code=1008)
+            except Exception:
+                pass
+
     async def notify(self, user_id: uuid.UUID, message: dict) -> None:
         """Send a JSON message to every live connection for a single user."""
         for websocket in list(self._connections.get(user_id, ())):

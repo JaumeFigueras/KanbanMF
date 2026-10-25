@@ -47,6 +47,7 @@ import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isUndated, sort
 import { apiFetch } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
+const BOARD_ACCESS_EVENT_TYPES = new Set(['board_archived', 'board_unshared', 'board_deleted'])
 const LIST_EVENT_TYPES = new Set([
   'list_created',
   'list_reordered',
@@ -145,7 +146,7 @@ export default function Board() {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   )
 
-  useEffect(() => {
+  const fetchBoard = useCallback(() => {
     if (!boardId) return
     apiFetch(`/api/v1/boards/${boardId}`)
       .then(r => {
@@ -158,6 +159,21 @@ export default function Board() {
       .then(data => { if (data) setBoard(data) })
       .catch(() => {})
   }, [boardId])
+
+  useEffect(() => { fetchBoard() }, [fetchBoard])
+
+  // Archiving a board takes it away from the people it's shared with (only
+  // the owner can open an archived board), as does unsharing or deleting
+  // it: fetch it again, which shows the "no access" page to anyone who has
+  // lost it, and refreshes the owner's copy.
+  useEffect(() => {
+    if (!boardId) return
+    return subscribeToNotifications((notification) => {
+      if (notification.board_id !== boardId) return
+      if (!BOARD_ACCESS_EVENT_TYPES.has(notification.type)) return
+      fetchBoard()
+    })
+  }, [boardId, fetchBoard])
 
   // Needed to tell whether *this* viewer is the board owner — permanently
   // deleting a list or card in the archive view is an owner-only action.

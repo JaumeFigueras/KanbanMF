@@ -452,23 +452,9 @@ async def get_board(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BoardRead:
-    """Fetch a single board. User must be the owner or a shared member."""
-    result = await db.execute(
-        select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
-    )
-    board = result.scalar_one_or_none()
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
-
-    if board.owner_id != current_user.id:
-        share_result = await db.execute(
-            select(BoardShare.board_id).where(
-                BoardShare.board_id == board_id,
-                BoardShare.user_id == current_user.id,
-            )
-        )
-        if share_result.scalar_one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    """Fetch a single board: the owner's, or one shared with the user and not
+    archived (see :func:`~src.core.access.get_accessible_board`)."""
+    board = await get_accessible_board(board_id, current_user, db)
 
     owner_name = current_user.display_name
     pref_owner_id = current_user.id

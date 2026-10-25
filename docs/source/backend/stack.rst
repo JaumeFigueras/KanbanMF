@@ -122,6 +122,13 @@ Errors are plain ``HTTPException``\s: ``401`` for a missing or expired token,
 shared user managing labels), ``404`` when it doesn't exist or they can't see
 it, ``400``/``409``/``422`` for invalid requests.
 
+Every route on a board's contents loads the board through
+:func:`~src.core.access.get_accessible_board`: the owner always gets it, and
+someone it is shared with only while it isn't archived — archiving takes the
+board away from them until it is restored. That used to be left to the
+frontend, which hid archived boards from shared users while the API still let
+them read and change everything on them.
+
 Authentication
 --------------
 
@@ -277,7 +284,13 @@ description was an unlimited ``Text``. Three layers now:
   within 10 seconds is closed.
 
 Each browser or device has its own session; signing out deletes only that
-one. Local accounts can't sign in until their address is verified;
+one. Changing the password deletes all the others
+(:func:`~src.core.sessions.end_other_sessions`) — it is what someone does when
+they think another person knows the password — and closes the user's
+WebSockets with ``1008``. The frontend answers that code by refreshing its
+token, so a browser whose session survives reconnects, and every other one is
+signed out within seconds instead of when its access token expires. Connected
+apps are separate permissions and stay. Local accounts can't sign in until their address is verified;
 :mod:`src.core.invitations` turns pending invitations into shares at that
 moment, and on every Google sign-in, since Google has verified the address.
 

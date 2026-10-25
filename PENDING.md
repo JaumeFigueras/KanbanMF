@@ -84,8 +84,8 @@ From the review of 2026-10-25 (details in PROMPTS.md), most severe first.
 - ✓ 11. `python-jose`/`ecdsa` unmaintained with unfixed advisories: move to PyJWT
 - ✓ 12. Login timing and register/invite replies reveal which e-mails have accounts
 - ✓ 13. Google tokens and verification/invitation tokens stored in plain text; `kanbanmf_remoteuser` reads every table
-- 14. Archived boards still reachable through the API by shared users
-- 15. Changing the password doesn't end other sessions
+- ✓ 14. Archived boards still reachable through the API by shared users
+- ✓ 15. Changing the password doesn't end other sessions
 - 16. Nothing refuses the example `SECRET_KEY`
 - 17. `react-router` advisory (RSC mode only, not used here): `npm audit fix`
 - 18. New `pip-audit` advisories (2026-10-25, after the review): `urllib3` 2.7.0 (fixed in 2.8.0) and `certifi`

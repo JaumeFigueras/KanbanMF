@@ -99,6 +99,11 @@ Archiving hides a board from the overview — for you and for everyone it is
 shared with — without losing anything. To see your archived boards, click
 :guilabel:`Show Archived Boards` at the bottom of the overview.
 
+While a board is archived, only you can open it: the people it is shared with
+can't see or change it until you restore it. Anyone who has it open when you
+archive it is told they no longer have access. Restoring it gives everyone
+their access back, with nothing to share again.
+
 .. figure:: img/archived-boards.png
    :alt: The Archived Boards section with one board.
 

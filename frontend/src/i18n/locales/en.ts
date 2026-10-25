@@ -51,6 +51,7 @@ const en = {
     userProfile: 'User profile',
     changeDisplayName: 'Change display name and initials',
     changePassword: 'Change password',
+    changePasswordSignsOut: 'This signs you out on every other device and browser. You stay signed in here.',
     uploadAvatar: 'Upload avatar',
     changeToDark: 'Change to Dark Theme',
     changeToLight: 'Change to Light Theme',

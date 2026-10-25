@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.api.v1.auth import local as local_module
 from src.core import sessions as sessions_module
 from src.core.security import hash_password, hash_token
+from src.core.ws_manager import manager
 from src.model.user import User
 from src.model.user_identity import AuthProvider, UserIdentity
 from src.model.user_session import UserSession
@@ -265,3 +266,102 @@ async def test_auth_sessions_05(client, ana: User, monkeypatch) -> None:
     )
     assert login.status_code == 200
     assert health_time < 0.3
+
+
+class _Socket:
+    """Stands in for an open WebSocket: records the code it was closed with."""
+
+    def __init__(self) -> None:
+        self.closed_with: int | None = None
+
+    async def close(self, code: int = 1000) -> None:
+        self.closed_with = code
+
+
+async def _change_password(client, access: str, cookie: str | None, new: str):
+    client.cookies.clear()
+    headers = {"Authorization": f"Bearer {access}"}
+    if cookie is not None:
+        headers["Cookie"] = f"refresh_token={cookie}"
+    return await client.put("/api/v1/users/me/password", headers=headers,
+                            json={"old_password": PASSWORD, "new_password": new})
+
+
+@pytest.mark.asyncio
+async def test_auth_sessions_06(client, db_session_async, ana: User) -> None:
+    """
+    Verify changing the password signs out every other device — their
+    refresh tokens stop working and the user's WebSockets are closed with
+    1008 — while the browser that made the change stays signed in, and
+    nobody else's sessions are touched.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session on the test database.
+    ana : User
+        A verified local account.
+
+    Raises
+    ------
+    AssertionError
+        If another device can still refresh, the changing browser can't, or
+        a socket stays open.
+    """
+    ana_id = ana.id
+    laptop, phone, stolen = await _login(client), await _login(client), await _login(client)
+    bob = User(email="bob@example.com", display_name="Bob", is_active=True, is_verified=True)
+    db_session_async.add(bob)
+    await db_session_async.flush()
+    db_session_async.add(UserSession(user_id=bob.id, hashed_refresh_token=hash_token("bob-token"),
+                                     expires_at=datetime.now(timezone.utc) + timedelta(days=1)))
+    await db_session_async.commit()
+    refreshed = await _refresh(client, laptop)
+    laptop, access = _cookie(refreshed), refreshed.json()["access_token"]
+    socket = _Socket()
+    manager.connect(ana_id, socket)
+
+    response = await _change_password(client, access, laptop, "a-brand-new-password")
+    assert response.status_code == 204
+
+    assert (await _refresh(client, phone)).status_code == 401
+    assert (await _refresh(client, stolen)).status_code == 401
+    assert (await _refresh(client, laptop)).status_code == 200
+    assert (await _refresh(client, "bob-token")).status_code == 200
+    assert socket.closed_with == 1008
+    assert ana_id not in manager._connections
+
+
+@pytest.mark.asyncio
+async def test_auth_sessions_07(client, db_session_async, ana: User) -> None:
+    """
+    Verify a password change whose refresh cookie isn't one of the user's
+    sessions (as with none at all) keeps no session of the user.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session on the test database.
+    ana : User
+        A verified local account.
+
+    Raises
+    ------
+    AssertionError
+        If any of the user's sessions survives.
+    """
+    ana_id = ana.id
+    refreshed = await _refresh(client, await _login(client))
+    access = refreshed.json()["access_token"]
+
+    response = await _change_password(client, access, "not-a-session", "a-brand-new-password")
+    assert response.status_code == 204
+    db_session_async.expire_all()
+    sessions = (await db_session_async.execute(
+        select(UserSession).where(UserSession.user_id == ana_id)
+    )).scalars().all()
+    assert sessions == []

@@ -51,6 +51,7 @@ const ca = {
     userProfile: "Perfil d'usuari",
     changeDisplayName: 'Canvia el nom visible i les inicials',
     changePassword: 'Canvia la contrasenya',
+    changePasswordSignsOut: "Això tanca la sessió a tots els altres dispositius i navegadors; la d'aquí continua oberta.",
     uploadAvatar: "Puja un avatar",
     changeToDark: 'Canvia al tema fosc',
     changeToLight: 'Canvia al tema clar',

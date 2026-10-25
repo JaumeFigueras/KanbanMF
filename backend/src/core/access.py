@@ -20,10 +20,14 @@ from src.model.user import User
 
 
 async def get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSession) -> Board:
-    """Return the live board if the user owns it or it is shared with them.
+    """Return the live board if the user owns it, or if it is shared with them
+    and not archived.
 
     Raises 404 when the board doesn't exist or is deleted, 403 when the user
-    has no access to it.
+    has no access to it. Archiving a board takes it away from the people it
+    is shared with until the owner restores it: only the owner can open an
+    archived board. (It used to be hidden from them only by the frontend,
+    while the API still let them read and change it.)
     """
     result = await db.execute(
         select(Board).where(Board.id == board_id, Board.is_deleted.is_(False))
@@ -38,7 +42,7 @@ async def get_accessible_board(board_id: uuid.UUID, user: User, db: AsyncSession
                 BoardShare.user_id == user.id,
             )
         )
-        if share.scalar_one_or_none() is None:
+        if share.scalar_one_or_none() is None or board.is_archived:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return board
 
