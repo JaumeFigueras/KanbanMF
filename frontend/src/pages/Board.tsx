@@ -215,6 +215,17 @@ export default function Board() {
     fetchLists()
   }, [fetchLists])
 
+  // Just the colors, for a card created elsewhere (another tab, or Claude
+  // through the MCP server): the backend gave it the list's color, which
+  // the `colors` map fetched at load doesn't know about yet.
+  const fetchColors = useCallback(() => {
+    if (!boardId) return
+    apiFetch(`/api/v1/boards/${boardId}/colors`)
+      .then(r => r.ok ? r.json() as Promise<BoardColorsRead> : null)
+      .then(fetchedColors => { if (fetchedColors) setColors(fetchedColors) })
+      .catch(() => {})
+  }, [boardId])
+
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's.
   const fetchCardsForList = useCallback((listId: string) => {
@@ -266,8 +277,9 @@ export default function Board() {
       if (!CARD_EVENT_TYPES.has(notification.type)) return
       if (isOwnNotification(notification)) return
       if (notification.list_id) fetchCardsForList(notification.list_id)
+      if (notification.type === 'card_created') fetchColors()
     })
-  }, [boardId, fetchCardsForList])
+  }, [boardId, fetchCardsForList, fetchColors])
 
   // Merge lists with the stored order: ordered first, then any unordered remainders
   const sortedLists = useMemo(() => {

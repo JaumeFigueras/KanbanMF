@@ -127,7 +127,9 @@ deploy and let Apache serve the output directory directly:
 
 ```bash
 cd frontend
-npm install
+# npm ci, not npm install: it installs exactly what package-lock.json says and
+# never rewrites it, so the checkout stays clean and git pull keeps working.
+npm ci
 npm run build
 # Output lands in frontend/dist/ — this is what the Apache DocumentRoot
 # below points at. Re-run this (and reload nothing else) on every deploy
