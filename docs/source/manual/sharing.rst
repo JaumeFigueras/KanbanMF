@@ -29,7 +29,9 @@ On the boards overview, open the board's menu (☰) and choose
    them straight away. Type part of their name if you already share a board
    with them (either way round); anyone else is found only by their full
    e-mail address. That way nobody can use this box to find out who else has
-   an account.
+   an account. For the same reason, full addresses can only be looked up a
+   limited number of times an hour (about a hundred); past that the box says
+   "Too many attempts" for a while.
 
 :guilabel:`Invite by email`
    For someone who has no account yet.

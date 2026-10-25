@@ -266,3 +266,93 @@ async def send_board_invitation_email(
     )
 
     await FastMail(_conf).send_message(message)
+
+
+_EXISTS_SUBJECTS: dict[str, str] = {
+    "en": "Your KanbanMF account",
+    "ca": "El teu compte de KanbanMF",
+}
+
+# No name in these: whoever asked typed it, and they may not be the owner.
+_EXISTS_BODIES: dict[str, str] = {
+    "en": """\
+Hello,
+
+Someone, probably you, tried to create a KanbanMF account with this email address, but it already has one.
+
+To sign in, go to:
+
+{signin_url}
+
+If you signed up with Google, use "Continue with Google" there.
+
+If it wasn't you, you can safely ignore this email: nothing has changed in your account.
+
+Best regards,
+The KanbanMF Team
+""",
+    "ca": """\
+Hola,
+
+Algú, probablement tu, ha intentat crear un compte de KanbanMF amb aquesta adreça de correu, però ja en té un.
+
+Per iniciar la sessió, ves a:
+
+{signin_url}
+
+Si et vas registrar amb Google, fes servir "Continua amb Google".
+
+Si no has estat tu, pots ignorar aquest correu: el teu compte no ha canviat.
+
+Salutacions,
+L'equip de KanbanMF
+""",
+}
+
+_PENDING_BODIES: dict[str, str] = {
+    "en": """\
+Hello,
+
+Someone, probably you, tried to create a KanbanMF account with this email address, but an account with it is already waiting to be verified.
+
+Use the link in the first email we sent: it works for 24 hours after it was sent. Once it has expired, you can register again.
+
+If it wasn't you, you can safely ignore this email.
+
+Best regards,
+The KanbanMF Team
+""",
+    "ca": """\
+Hola,
+
+Algú, probablement tu, ha intentat crear un compte de KanbanMF amb aquesta adreça de correu, però ja n'hi ha un que espera la verificació.
+
+Fes servir l'enllaç del primer correu que vam enviar: funciona durant 24 hores des que es va enviar. Quan hagi caducat, et podràs tornar a registrar.
+
+Si no has estat tu, pots ignorar aquest correu.
+
+Salutacions,
+L'equip de KanbanMF
+""",
+}
+
+
+async def send_account_exists_email(email: str, pending: bool, language: str = "en") -> None:
+    """Answer a registration for an address that already has an account.
+
+    The sign-up page says the same thing either way ("check your email"), so
+    it can't be used to find out who has an account; this e-mail, which only
+    the address's owner reads, says what actually happened. ``pending``: the
+    account is still waiting for its verification link.
+    """
+    lang = language if language in _EXISTS_BODIES else "en"
+    bodies = _PENDING_BODIES if pending else _EXISTS_BODIES
+
+    message = MessageSchema(
+        subject=_EXISTS_SUBJECTS[lang],
+        recipients=[email],
+        body=bodies[lang].format(signin_url=f"{settings.frontend_url}/signin"),
+        subtype=MessageType.plain,
+    )
+
+    await FastMail(_conf).send_message(message)

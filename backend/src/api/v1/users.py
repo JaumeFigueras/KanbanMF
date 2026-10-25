@@ -5,6 +5,7 @@
 account deletion, and the user search used by the share dialog.
 """
 
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
@@ -15,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db
 from src.core.people import compute_initials
+from src.core.rate_limit import PASSWORD_CHANGE_PER_USER, USER_LOOKUP_PER_USER
 from src.core.search import escape_like
-from src.core.rate_limit import PASSWORD_CHANGE_PER_USER
 from src.core.security import hash_password, verify_password
 from src.model.board import Board
 from src.model.board_share import BoardShare
@@ -28,6 +29,8 @@ from src.schemas.person import PersonRead
 from src.schemas.user import ChangePasswordRequest, UserRead, UserUpdate, UserPreferencesUpdate
 
 _SEARCH_RESULT_LIMIT = 10
+# Something, @, something with a dot: what a complete e-mail address looks like.
+_WHOLE_ADDRESS = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
@@ -275,11 +278,16 @@ async def search_users(
       typing ``@company.com`` or a few letters.
 
     It used to match any part of any account's name or e-mail address, which
-    let anyone signed in find out who uses the server.
+    let anyone signed in find out who uses the server. A search that looks
+    like a whole address counts towards a per-user limit
+    (:mod:`src.core.rate_limit`), so a list of addresses can't be checked one
+    after another; over it, ``429``.
     """
     term = q.strip()
     if not term:
         return []
+    if _WHOLE_ADDRESS.match(term):
+        USER_LOOKUP_PER_USER.hit(str(current_user.id))
 
     my_boards = select(Board.id).where(
         Board.is_deleted.is_(False),

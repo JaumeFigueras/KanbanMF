@@ -78,10 +78,10 @@ export default function SignUp() {
         }),
       })
 
+      // 201 whether or not the address already has an account, so the page
+      // can't tell anyone who uses the server; the e-mail says which it was.
       if (res.status === 201) {
         setSuccess(true)
-      } else if (res.status === 409) {
-        setApiError(t('signUp.emailTaken'))
       } else if (res.status === 429) {
         setApiError(t('common.tooManyAttempts'))
       } else if (invitation && (res.status === 400 || res.status === 422)) {

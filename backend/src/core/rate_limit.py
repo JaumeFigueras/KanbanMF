@@ -84,6 +84,10 @@ REGISTER_PER_IP = RateLimit("register per IP", 5, HOUR)
 PASSWORD_CHANGE_PER_USER = RateLimit("password change per user", 10, 15 * MINUTE)
 # Each invitation e-mails a stranger in this server's name.
 INVITATION_PER_USER = RateLimit("invitation per user", 30, HOUR)
+# Looking a whole e-mail address up in the share dialog's search says whether
+# it has an account. Typing one address makes a few lookups (the search runs
+# as you type), so this allows dozens of addresses an hour, not a list.
+USER_LOOKUP_PER_USER = RateLimit("e-mail lookup per user", 100, HOUR)
 # Dynamic Client Registration is open to anyone and stores a row each time.
 OAUTH_REGISTER_PER_IP = RateLimit("OAuth client registration per IP", 20, HOUR)
 

@@ -22,6 +22,12 @@ After **Create account**, KanbanMF sends you an e-mail with a verification
 link. Click it to activate the account; until then you can't sign in. The
 link is valid for 24 hours — if it expires, sign up again to get a new one.
 
+If the address already has an account, the page says the same, "check your
+e-mail": the e-mail is what tells you that you already have an account, and
+where to sign in. (The page doesn't say it, so that nobody can use it to find
+out who has an account.) Signing up again while the first link still works
+doesn't send a new one either: the e-mail reminds you to use the first.
+
 If someone invited you
 ~~~~~~~~~~~~~~~~~~~~~~
 

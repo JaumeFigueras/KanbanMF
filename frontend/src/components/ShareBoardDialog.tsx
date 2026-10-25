@@ -56,6 +56,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   const [emailEnabled, setEmailEnabled] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<PersonSummary[]>([])
+  const [searchLimited, setSearchLimited] = useState(false)
   const [searching, setSearching] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<PersonSummary | null>(null)
   // How many cards removing removeTarget will archive and replace; null
@@ -149,7 +150,12 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
     if (!term) return
     const handle = setTimeout(() => {
       apiFetch(`/api/v1/users/search?q=${encodeURIComponent(term)}`)
-        .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
+        .then((r) => {
+          // Whole e-mail addresses are looked up a limited number of times
+          // per hour, so the search can't be used to check a list of them.
+          setSearchLimited(r.status === 429)
+          return r.ok ? r.json() as Promise<PersonSummary[]> : []
+        })
         .then(setSearchResults)
         .catch(() => setSearchResults([]))
         .finally(() => setSearching(false))
@@ -381,7 +387,11 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
             onInputChange={(_, value) => handleSearchTermChange(value)}
             onChange={(_, value) => handleSelect(value)}
             value={null}
-            noOptionsText={searchTerm.trim() ? t('boards.noUsersFound') : t('boards.searchUserPlaceholder')}
+            noOptionsText={
+              !searchTerm.trim() ? t('boards.searchUserPlaceholder')
+                : searchLimited ? t('common.tooManyAttempts')
+                  : t('boards.noUsersFound')
+            }
             renderOption={(props, option) => (
               <Box component="li" {...props} key={option.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <PersonAvatar person={option} size={28} />

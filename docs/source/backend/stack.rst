@@ -201,6 +201,9 @@ with ``Retry-After``, before any bcrypt work or e-mail.
    * - ``POST /oauth/register``
      - 20 per IP per hour
      - filling the clients table
+   * - ``GET /users/search`` with a whole e-mail address
+     - 100 per user per hour
+     - checking a list of addresses for accounts
 
 The per-account login limit means someone guessing an account's password also
 locks its owner out for up to 15 minutes; that is the price of not letting
@@ -208,6 +211,35 @@ them guess. The IP is ``request.client.host``, which behind Apache is the real
 client: uvicorn trusts ``X-Forwarded-For`` from ``127.0.0.1`` by default and
 takes the last address in it that isn't the proxy's — the one Apache added —
 so a client can't pick its own address by sending the header.
+
+Who has an account
+~~~~~~~~~~~~~~~~~~
+
+None of the public routes tells a stranger whether an address has an
+account:
+
+- **Sign-in** answers ``401 Invalid credentials`` for an unknown address,
+  an account without a password (Google only) and a wrong password alike,
+  and takes as long for each: with no password to check, it checks against a
+  dummy bcrypt hash of the same cost. It used to answer an unknown address at
+  once, a third of a second faster. "Not verified" and "disabled" come only
+  after the right password.
+- **Registration** answers ``201`` with the same body either way, after the
+  same work (one bcrypt hash, one e-mail). It used to answer ``409``. The
+  e-mail, which only the address's owner reads, says what happened: a
+  verification link for a new account, or "you already have an account" —
+  or, when an earlier sign-up is still waiting for its link, "use the first
+  link". An unverified account whose link has expired is taken over by the
+  next registration (new name, password and link), so nobody can hold an
+  address by signing it up first; one whose link still works is left alone,
+  so a second sign-up can't swap in its own password before the owner
+  clicks.
+
+Signed-in users can still learn that a *given* address has an account,
+because sharing needs it: the share dialog finds people by their whole
+address, and inviting an address that has an account answers ``409
+user_exists`` so the dialog can offer to share instead. Both are limited per
+user (see the table above), so a list of addresses can't be checked.
 
 Request sizes
 ~~~~~~~~~~~~~

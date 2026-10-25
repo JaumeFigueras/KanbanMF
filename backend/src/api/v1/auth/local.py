@@ -16,11 +16,11 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from starlette.concurrency import run_in_threadpool
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_user, get_db, get_refresh_token_from_cookie
-from src.core.email import send_verification_email
+from src.core.email import send_account_exists_email, send_verification_email
 from src.core.invitations import accept_pending_invitations
 from src.core.rate_limit import LOGIN_PER_ACCOUNT, LOGIN_PER_IP, REGISTER_PER_IP, client_ip
 from src.core.security import create_access_token, hash_password, verify_password
@@ -56,25 +56,35 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)) -> RegisterResponse:
-    """Create a new local account.
+    """Create a new local account, or tell the address's owner it has one.
 
-    Steps:
-    1. Reject duplicate email, and an invitation token for another address.
-    2. Create User row (is_verified=False).
-    3. Create UserIdentity(local) with hashed password and a verification token.
-    4. Send verification email.
+    The reply is the same whether or not the address already has an account
+    — 201 and "check your email" — and so is the work behind it (one bcrypt
+    hash, one e-mail), so neither the answer nor its timing tells a stranger
+    who uses the server. It used to be a 409. What happened goes by e-mail,
+    which only the address's owner reads:
 
-    Nothing to sign in with is returned: the account can't be used until the
-    address is verified, or anyone could act in the name of an address they
-    don't own (e.g. send board invitations from this server as it).
+    - **no account**: the account is created unverified and the verification
+      link sent;
+    - **an unverified account whose link has expired**: nobody proved the
+      address within 24 hours, so this registration takes the account over —
+      new name, password, language and link. Otherwise anyone could keep an
+      address from ever registering by signing it up first;
+    - **any other account** (verified, or waiting for a link that still
+      works): nothing changes, and the e-mail says an account already exists
+      (:func:`~src.core.email.send_account_exists_email`). A pending
+      registration can't be replaced while its link works, or a second
+      sign-up could swap in its own password before the owner clicks.
+
+    An invitation token for another address is still refused (400/422): that
+    reveals nothing about accounts. Nothing to sign in with is returned: the
+    account can't be used until the address is verified, or anyone could act
+    in the name of an address they don't own.
 
     Limited per IP address, since every registration e-mails whatever
     address was typed (:mod:`src.core.rate_limit`).
     """
     REGISTER_PER_IP.hit(client_ip(request))
-    existing = await db.execute(select(User).where(User.email == body.email))
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     if body.invitation_token is not None:
         invitation_result = await db.execute(
@@ -92,28 +102,44 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
                 detail="The e-mail doesn't match the invitation",
             )
 
-    user = User(email=body.email, display_name=body.display_name, is_active=True, is_verified=False)
-    db.add(user)
-    await db.flush()  # populate user.id before referencing it
+    lang = body.language if body.language in _LOCALE_MAP else "en"
+    # Hashed whichever way it goes, so every answer takes bcrypt's time.
+    hashed_password = await run_in_threadpool(hash_password, body.password)
+
+    user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    identity = None
+    if user is not None:
+        identity = (await db.execute(
+            select(UserIdentity).where(UserIdentity.user_id == user.id, UserIdentity.provider == AuthProvider.LOCAL)
+        )).scalar_one_or_none()
+        pending = (
+            not user.is_verified
+            and identity is not None
+            and identity.verification_token_expiry is not None
+            and identity.verification_token_expiry > datetime.now(timezone.utc)
+        )
+        if user.is_verified or pending:
+            await send_account_exists_email(email=user.email, pending=pending, language=lang)
+            return RegisterResponse(email=body.email)
 
     verification_token = secrets.token_urlsafe(32)
-    identity = UserIdentity(
-        user_id=user.id,
-        provider=AuthProvider.LOCAL,
-        hashed_password=await run_in_threadpool(hash_password, body.password),
-        verification_token=verification_token,
-        verification_token_expiry=datetime.now(timezone.utc) + timedelta(hours=24),
-    )
-    db.add(identity)
-
-    lang = body.language if body.language in _LOCALE_MAP else "en"
+    expiry = datetime.now(timezone.utc) + timedelta(hours=24)
     language_locale, number_locale = _LOCALE_MAP[lang]
-    preferences = UserPreferences(
-        user_id=user.id,
-        language_locale=language_locale,
-        number_locale=number_locale,
-    )
-    db.add(preferences)
+    if user is None:
+        user = User(email=body.email, display_name=body.display_name, is_active=True, is_verified=False)
+        db.add(user)
+        await db.flush()  # populate user.id before referencing it
+    else:
+        # An unverified account nobody verified in time: start it over.
+        user.display_name = body.display_name
+        await db.execute(delete(UserPreferences).where(UserPreferences.user_id == user.id))
+    if identity is None:
+        identity = UserIdentity(user_id=user.id, provider=AuthProvider.LOCAL)
+        db.add(identity)
+    identity.hashed_password = hashed_password
+    identity.verification_token = verification_token
+    identity.verification_token_expiry = expiry
+    db.add(UserPreferences(user_id=user.id, language_locale=language_locale, number_locale=number_locale))
 
     await db.commit()
 
@@ -124,7 +150,14 @@ async def register(body: RegisterRequest, request: Request, db: AsyncSession = D
         language=lang,
     )
 
-    return RegisterResponse(email=user.email)
+    return RegisterResponse(email=body.email)
+
+
+# A bcrypt hash of a random password nobody knows, at hash_password's cost
+# (bcrypt's default, 12 rounds). Sign-in checks the password against it when
+# the address has no local password, so an unknown address takes as long to
+# refuse as a wrong password does.
+_DUMMY_PASSWORD_HASH = "$2b$12$GxmRs0Bk6LQ2ShbYIQ3S0.2qkCEd4BJg5WjyCBDIt6f48oTKNPbFm"
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -134,10 +167,16 @@ async def login(
     """Authenticate with email + password.
 
     Steps:
+
     1. Look up the User and their local UserIdentity.
-    2. Verify the password.
+    2. Verify the password — against a dummy hash when there is no local
+       password, so the answer takes the same time and an address without an
+       account can't be told from a wrong password. (It used to answer at
+       once, which gave accounts away.)
     3. Create a UserSession (refresh token stored hashed).
     4. Return JWT access token + set refresh token as HTTP-only cookie.
+
+    "Disabled" and "not verified" are only said after the right password.
 
     Attempts are limited per IP address and per account before anything is
     looked up (:mod:`src.core.rate_limit`), so guessing a password costs the
@@ -148,7 +187,7 @@ async def login(
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    identity_result = None
+    identity = None
     if user:
         identity_result = await db.execute(
             select(UserIdentity).where(
@@ -156,16 +195,11 @@ async def login(
                 UserIdentity.provider == AuthProvider.LOCAL,
             )
         )
+        identity = identity_result.scalar_one_or_none()
 
-    identity = identity_result.scalar_one_or_none() if identity_result else None
-
-    # Use constant-time comparison even on "user not found" to avoid timing attacks
-    if (
-        user is None
-        or identity is None
-        or not identity.hashed_password
-        or not await run_in_threadpool(verify_password, body.password, identity.hashed_password)
-    ):
+    stored_hash = identity.hashed_password if identity is not None and identity.hashed_password else None
+    password_ok = await run_in_threadpool(verify_password, body.password, stored_hash or _DUMMY_PASSWORD_HASH)
+    if user is None or stored_hash is None or not password_ok:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not user.is_active:
