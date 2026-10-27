@@ -1,0 +1,76 @@
+# Build the documentation (English and Catalan, with the language switcher)
+# and publish it on GitHub Pages, on every push to main that touches it.
+#
+# One-time set-up: in the repository's Settings → Pages, set "Source" to
+# "GitHub Actions".
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    # Only what the build reads: the pages themselves, the backend (autodoc
+    # imports it, and its requirements are the docs' too), the deploy/ files
+    # and Markdown files the pages include, and this workflow.
+    paths:
+      - "docs/**"
+      - "backend/**"
+      - "deploy/**"
+      - "README.md"
+      - "SETUP.md"
+      - "PENDING.md"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces a run still queued.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      # The architecture diagrams are Graphviz (sphinx.ext.graphviz).
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      # The root Makefile runs everything from .venv/, as in development.
+      - name: Install the docs' dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r backend/requirements.txt
+
+      # Every language into docs/build/site/<lang>/, warnings as errors.
+      - name: Build
+        run: make docs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

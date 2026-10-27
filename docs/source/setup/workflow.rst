@@ -173,6 +173,21 @@ Check that a push rebuilds both projects. If the Catalan one doesn't, connect
 it to the repository the same way as the main one (its *Integrations*
 settings), or it will only rebuild when triggered by hand.
 
+Publishing on GitHub Pages
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``.github/workflows/docs.yml`` builds the same site as ``make docs`` (both
+languages side by side, with the local switcher) and publishes it on GitHub
+Pages, at ``https://<owner>.github.io/KanbanMF/``. It runs on every push to
+``main`` that changes something the build reads (``docs/``, ``backend/``,
+``deploy/``, the included Markdown files, the ``Makefile`` or the workflow
+itself), and can be started by hand from the *Actions* tab. A warning fails
+the build, and the published site stays as it was.
+
+It needs one setting, once: in the repository's *Settings → Pages*, set
+*Source* to **GitHub Actions**. GitHub Pages has no PDF; that is Read the
+Docs' only.
+
 The PDF
 ~~~~~~~
 
