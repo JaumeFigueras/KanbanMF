@@ -5,6 +5,8 @@
 #   make screenshots     reseed the demo data and retake the manual's screenshots
 #   make test            run the backend test suite (TEST_ARGS="-k oauth" to narrow it)
 #   make test-cov        the same, with a coverage report in backend/test/coverage-reports
+#   make test-frontend   run the frontend test suite (TEST_ARGS="src/utils" to narrow it)
+#   make test-frontend-cov  the same, with a coverage report in frontend/coverage-reports
 #   make run backend     run the API dev server (auto-reloads)
 #   make run frontend    run the Vite dev server (HMR)
 #   make deploy          update a production checkout: pull, migrate, restart, build
@@ -18,10 +20,10 @@ VENV := $(CURDIR)/.venv/bin
 # one here and let the no-op rule below swallow it.
 TARGET := $(word 2,$(MAKECMDGOALS))
 
-.PHONY: help docs docs-po screenshots test test-cov run backend frontend deploy
+.PHONY: help docs docs-po screenshots test test-cov test-frontend test-frontend-cov run backend frontend deploy
 
 help:
-	@sed -n '3,10p' $(MAKEFILE_LIST) | sed 's/^# \?//'
+	@sed -n '3,12p' $(MAKEFILE_LIST) | sed 's/^# \?//'
 
 docs:
 	$(MAKE) -C docs site SPHINXBUILD="$(VENV)/sphinx-build"
@@ -53,6 +55,17 @@ test:
 test-cov:
 	cd backend && $(VENV)/python -m pytest -q $(TEST_ARGS) --cov=./src \
 		--cov-report=term:skip-covered --cov-report=html:./test/coverage-reports ./test
+
+# The frontend's tests (Vitest, in jsdom, with the backend faked by MSW; see
+# frontend/src/test/): no dev server or database needed. TEST_ARGS goes to
+# Vitest, e.g. make test-frontend TEST_ARGS="src/utils -t cardSort".
+test-frontend:
+	cd frontend && npm run test -- $(TEST_ARGS)
+
+# Coverage of src/, summarised in the terminal (files below 100 %) and as
+# browsable HTML in frontend/coverage-reports/index.html (gitignored).
+test-frontend-cov:
+	cd frontend && npm run test:cov -- $(TEST_ARGS)
 
 run:
 ifeq ($(TARGET),backend)

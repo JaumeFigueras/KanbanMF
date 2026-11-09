@@ -45,7 +45,7 @@
 Plan of 2026-10-25 (details in PROMPTS.md). Vitest + React Testing Library + jsdom + MSW; one behaviour per test;
 run and fix each phase before the next.
 
-- 0. Set-up: Vitest in `vite.config.ts`, `src/test/` (setup, MSW server, `renderWithProviders`), `npm test`,
+- ✓ 0. Set-up: Vitest in `vite.config.ts`, `src/test/` (setup, MSW server, `renderWithProviders`), `npm test`,
   `make test-frontend`, coverage to `frontend/coverage-reports/` (gitignored); first test: en/ca translation keys match
 - 1. `src/utils/` (pure functions)
 - 2. `src/api/` (`apiFetch` refresh-and-retry, `ws.ts`)
