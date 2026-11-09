@@ -30,6 +30,7 @@
 ## UI
 
 - ✓ Order for cards with no due date when selected order is due date
+- Add tags in the time tracker start/add entry dropdown
 - Optimize Mobile view
 - Add logo, favicon and application name (instead of frontend)
 - Add change color to board menu

@@ -19,7 +19,9 @@ Tracking a task
 
 Click :guilabel:`Start`, then choose the board, the list and the card you are
 going to work on. Boards and lists you have tracked time on most in the last
-three months are offered first. Add a comment if you like — what this
+three months are offered first. Each card is shown with its labels, in
+alphabetical order (the first three, then how many more), so cards with the
+same name can be told apart. Add a comment if you like — what this
 stretch of work is about — and click :guilabel:`Start`.
 
 The task appears under :guilabel:`Currently tracking`, with a running clock.

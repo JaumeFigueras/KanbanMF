@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
+import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
 import type { TimeTrackerOption } from '../types/timeTracker'
 import { apiFetch } from '../api/client'
+import { labelSummary } from '../utils/labelList'
+import LabelChips from './LabelChips'
 
 export interface CardSelection {
   boardId: string
@@ -41,6 +43,10 @@ export default function CardPicker({
   const [boardId, setBoardId] = useState(initialBoardId)
   const [listId, setListId] = useState(initialListId)
   const [cardId, setCardId] = useState('')
+  // The card menu is kept as wide as its field (measured when it opens), so
+  // long names and label rows wrap instead of stretching it across the page.
+  const cardFieldRef = useRef<HTMLDivElement>(null)
+  const [cardMenuWidth, setCardMenuWidth] = useState<number>()
 
   // Keeps the effect below from re-firing just because the parent re-rendered
   // and handed over a new inline callback — same reason MainAppBar does it.
@@ -122,15 +128,37 @@ export default function CardPicker({
         </Typography>
       )}
 
-      <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={disabled || cards.length === 0}>
+      {/* Cards with the same name are told apart by their labels: chips in
+          the open menu (alphabetical, at most 3 plus "+N"), the same as text
+          in the closed field, where a row of chips wouldn't fit. */}
+      <FormControl
+        ref={cardFieldRef}
+        fullWidth
+        size="small"
+        sx={{ mt: 2 }}
+        disabled={disabled || cards.length === 0}
+      >
         <InputLabel>{t('board.targetCard')}</InputLabel>
         <Select
           label={t('board.targetCard')}
           value={cardId}
           onChange={(e) => setCardId(e.target.value)}
+          onOpen={() => setCardMenuWidth(cardFieldRef.current?.clientWidth)}
+          renderValue={(id) => {
+            const card = cards.find(c => c.id === id)
+            if (!card) return ''
+            const summary = labelSummary(card.labels)
+            return summary ? `${card.name} ${summary}` : card.name
+          }}
+          MenuProps={{ slotProps: { paper: { sx: { width: cardMenuWidth } } } }}
         >
           {cards.map(c => (
-            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+            <MenuItem key={c.id} value={c.id} sx={{ whiteSpace: 'normal' }}>
+              <Box sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                {c.name}
+                <LabelChips labels={c.labels} max={3} sx={{ mt: 0.5 }} />
+              </Box>
+            </MenuItem>
           ))}
         </Select>
       </FormControl>

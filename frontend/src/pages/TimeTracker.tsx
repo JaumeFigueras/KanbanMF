@@ -3,7 +3,6 @@ import {
   AppBar,
   Box,
   Button,
-  Chip,
   IconButton,
   FormControl,
   InputLabel,
@@ -36,8 +35,8 @@ import MainAppBar from '../components/MainAppBar'
 import StartTimeEntryDialog from '../components/StartTimeEntryDialog'
 import TimeEntryDialog from '../components/TimeEntryDialog'
 import DeleteTimeEntryDialog from '../components/DeleteTimeEntryDialog'
+import LabelChips from '../components/LabelChips'
 import type { TimeEntryRead } from '../types/timeTracker'
-import { contrastColor } from '../utils/labelColor'
 import { decimalHours, durationSeconds, formatDuration, formatRunning } from '../utils/duration'
 import { findOverlappingEntryIds } from '../utils/overlap'
 import { intlCodeFor, type DateFormat } from '../utils/locale'
@@ -349,18 +348,7 @@ export default function TimeTracker() {
                     {running.comment}
                   </Typography>
                 )}
-                {running.labels.length > 0 && (
-                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                    {running.labels.map((label) => (
-                      <Chip
-                        key={`${label.name}-${label.color}`}
-                        label={label.name}
-                        size="small"
-                        sx={{ bgcolor: label.color, color: contrastColor(label.color) }}
-                      />
-                    ))}
-                  </Box>
-                )}
+                <LabelChips labels={running.labels} sx={{ mt: 0.5 }} />
               </Box>
               <Typography variant="h4" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                 {formatRunning(durationSeconds(running.started_at, null, now))}
@@ -437,16 +425,7 @@ export default function TimeTracker() {
                       <TableCell>{entry.board_name}</TableCell>
                       <TableCell>{entry.card_name}</TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                          {entry.labels.map((label) => (
-                            <Chip
-                              key={`${label.name}-${label.color}`}
-                              label={label.name}
-                              size="small"
-                              sx={{ bgcolor: label.color, color: contrastColor(label.color) }}
-                            />
-                          ))}
-                        </Box>
+                        <LabelChips labels={entry.labels} />
                       </TableCell>
                       <TableCell sx={{ whiteSpace: 'pre-wrap', minWidth: 160 }}>
                         {entry.comment}
