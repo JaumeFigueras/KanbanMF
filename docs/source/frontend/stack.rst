@@ -186,8 +186,9 @@ the change and already shows it.
      ws -> ignore [style=dashed];
    }
 
-The tab id is a random UUID in ``sessionStorage`` — not ``localStorage`` — so
-two tabs of the same browser count as two clients.
+The tab id is a random UUID kept in memory, new on every page load, so two
+tabs of the same browser count as two clients — even a duplicated tab, which
+gets a copy of the other one's ``sessionStorage``.
 
 Drag and drop
 -------------
@@ -222,9 +223,11 @@ each other (``src/utils/colorTint.ts``). Pickers offer the fixed palette in
 What the browser keeps
 ----------------------
 
-``localStorage``: the access token, the theme, each board's card sort mode,
-and which sections of the boards page are folded. ``sessionStorage``: the
-tab's client id. Everything else comes from the server on every load.
+``localStorage``: the theme, each board's card sort mode, and which sections
+of the boards page are folded. ``sessionStorage``: the page to come back to
+after signing in. The access token and the tab's client id stay in memory
+only, so every page load starts without them. Everything else comes from the
+server on every load.
 
 Internationalisation
 --------------------

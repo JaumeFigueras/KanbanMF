@@ -24,8 +24,8 @@ component state. What is shared lives in two contexts and two API modules.
    the token once and retries. Also ``refreshAccessToken()`` (one refresh at
    a time, shared by concurrent callers), the access token itself with
    ``setAccessToken()`` and ``onAccessTokenChange()``, and ``getClientId()``,
-   the tab's id from ``sessionStorage``. ``API_BASE`` is empty on purpose:
-   every URL is relative.
+   the page's id, kept in memory. ``API_BASE`` is empty on purpose: every URL
+   is relative.
 
 ``ws.ts``
    The notification WebSocket: ``setWebSocketToken()`` opens or closes it as

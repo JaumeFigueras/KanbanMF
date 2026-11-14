@@ -4,7 +4,6 @@
 // this same-origin (no CORS) and means the API never needs its own public
 // hostname or port.
 const API_BASE = ''
-const CLIENT_ID_KEY = 'kanbanmf.client_id'
 
 type TokenListener = (token: string | null) => void
 
@@ -12,21 +11,17 @@ let currentAccessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 const listeners = new Set<TokenListener>()
 
-// Identifies this browser tab so WebSocket notifications can be told apart
-// from a mutation the same tab just made itself. sessionStorage (not
-// localStorage) is deliberate: each tab/window gets its own id, so two tabs
-// open on the same computer still count as distinct origins.
-let cachedClientId: string | null = null
+// Identifies this page load so WebSocket notifications can be told apart
+// from a change it just made itself. Kept in memory only, so every tab, and
+// every reload, gets its own: not in sessionStorage, which a duplicated tab
+// gets a copy of — the two tabs would then share an id and ignore each
+// other's changes. Nothing needs it to outlive the page, which refetches
+// everything when it loads.
+let clientId: string | null = null
 
 export function getClientId(): string {
-  if (cachedClientId) return cachedClientId
-  let id = sessionStorage.getItem(CLIENT_ID_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    sessionStorage.setItem(CLIENT_ID_KEY, id)
-  }
-  cachedClientId = id
-  return id
+  if (!clientId) clientId = crypto.randomUUID()
+  return clientId
 }
 
 export function getAccessToken(): string | null {
