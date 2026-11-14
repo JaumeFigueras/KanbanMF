@@ -50,7 +50,9 @@ run and fix each phase before the next.
 - ✓ 1. `src/utils/` (pure functions): all 13 modules at 100 %; fixed on the way: unreadable white text on
   due-date chips and mid-tone labels (one rule now, `contrast.ts`), and emoji passwords that passed the form's
   8-character check but not the backend's
-- 2. `src/api/` (`apiFetch` refresh-and-retry, `ws.ts`)
+- ✓ 2. `src/api/` (`apiFetch` refresh-and-retry, `ws.ts`): all 3 modules at 100 %; fixed on the way: a duplicated tab
+  shared the other's client id (now one per page load, in memory), a config fetch that failed with an error status
+  was kept until a reload, and a late close event after a quick sign-out and sign-in left two sockets open
 - 3. `src/context/` and the route guards (incl. `returnTo`)
 - 4. Small dialogs, one file each
 - 5. Card pieces (`CardFace`, `CardItem`, `CardDialog`)
