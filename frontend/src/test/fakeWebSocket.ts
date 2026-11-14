@@ -2,6 +2,9 @@
 // so signing in — which opens the notification socket (api/ws.ts) — never
 // tries to reach a server. It records what was opened and sent; tests that
 // need a live socket can drive it with open(), receive() and serverClose().
+//
+// Closing works as in a browser: close() only starts the closing handshake
+// (CLOSING), and the close event comes afterwards, here in a microtask.
 export class FakeWebSocket {
   static readonly CONNECTING = 0
   static readonly OPEN = 1
@@ -32,10 +35,11 @@ export class FakeWebSocket {
     this.sent.push(data)
   }
 
-  close() {
-    if (this.readyState === FakeWebSocket.CLOSED) return
-    this.readyState = FakeWebSocket.CLOSED
-    this.onclose?.(new CloseEvent('close'))
+  // Without a code, a browser reports 1005 ("no status received").
+  close(code = 1005) {
+    if (this.readyState === FakeWebSocket.CLOSING || this.readyState === FakeWebSocket.CLOSED) return
+    this.readyState = FakeWebSocket.CLOSING
+    queueMicrotask(() => this.finishClose(code))
   }
 
   // Test-side controls: what the server would do.
@@ -48,8 +52,15 @@ export class FakeWebSocket {
     this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(data) }))
   }
 
-  serverClose() {
+  // The server ends the connection: 1006 is a dropped connection, 1008 the
+  // backend refusing the token.
+  serverClose(code = 1006) {
+    if (this.readyState === FakeWebSocket.CLOSED) return
+    this.finishClose(code)
+  }
+
+  private finishClose(code: number) {
     this.readyState = FakeWebSocket.CLOSED
-    this.onclose?.(new CloseEvent('close'))
+    this.onclose?.(new CloseEvent('close', { code }))
   }
 }

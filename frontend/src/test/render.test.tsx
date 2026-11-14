@@ -92,6 +92,31 @@ describe('the clock', () => {
   })
 })
 
+describe('the fake WebSocket', () => {
+  it('closes like a browser: closing at once, the close event a moment later', async () => {
+    const socket = new FakeWebSocket('ws://localhost:5173/api/v1/ws')
+    const codes: number[] = []
+    socket.onclose = (event) => codes.push(event.code)
+    socket.close()
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSING)
+    expect(codes).toEqual([])
+    await Promise.resolve()
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED)
+    expect(codes).toEqual([1005])
+  })
+
+  it('can be closed by the server, with a dropped connection by default', () => {
+    const dropped = new FakeWebSocket('ws://localhost:5173/api/v1/ws')
+    const refused = new FakeWebSocket('ws://localhost:5173/api/v1/ws')
+    const codes: number[] = []
+    dropped.onclose = (event) => codes.push(event.code)
+    refused.onclose = (event) => codes.push(event.code)
+    dropped.serverClose()
+    refused.serverClose(1008)
+    expect(codes).toEqual([1006, 1008])
+  })
+})
+
 describe('the fake backend', () => {
   it('fails a request that no test declared', async () => {
     await expect(fetch('/api/v1/nobody-declared-this')).rejects.toThrow()
