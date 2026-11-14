@@ -17,6 +17,10 @@ Small pure helpers, with no React in them:
    Blends a colour into a background as an opaque colour, so tints can nest
    (a card on a coloured list) without bleeding into each other.
 
+``contrast.ts``
+   WCAG relative luminance, and whether dark or white text contrasts more
+   with a colour: the one rule the due-date chips and the labels share.
+
 ``dueDateColor.ts``
    The due-date colour scale, green to dark red, with dark or white text on
    top, whichever contrasts more.
@@ -26,7 +30,7 @@ Small pure helpers, with no React in them:
    decimal hours for the CSV.
 
 ``labelColor.ts``
-   Black or white text for a label's colour.
+   Black or white text for a label's colour, whichever contrasts more.
 
 ``locale.ts``
    The date and number locales (``en``, ``en_GB``, ``ca_ES``) with their
