@@ -18,7 +18,8 @@ Small pure helpers, with no React in them:
    (a card on a coloured list) without bleeding into each other.
 
 ``dueDateColor.ts``
-   The due-date colour scale, green to dark red, with readable text on top.
+   The due-date colour scale, green to dark red, with dark or white text on
+   top, whichever contrasts more.
 
 ``duration.ts``
    Durations as ``H:MM``, as ``H:MM:SS`` for the running task, and as

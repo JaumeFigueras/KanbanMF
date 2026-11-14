@@ -1,7 +1,7 @@
 // Checks the test harness itself (setup.ts, server.ts, render.tsx), so a
 // broken helper shows up here rather than as puzzling failures elsewhere.
 import { useEffect, useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { useTheme } from '@mui/material'
 import { useParams } from 'react-router-dom'
@@ -76,6 +76,19 @@ describe('renderWithProviders', () => {
     renderWithProviders(<WhereAmI />)
     expect(i18n.language).toBe('en')
     expect(screen.getByText(/^Start/)).toBeInTheDocument()
+  })
+})
+
+describe('the clock', () => {
+  it('can be fixed by a test', () => {
+    vi.setSystemTime('2000-01-01T12:00:00Z')
+    expect(new Date().getFullYear()).toBe(2000)
+  })
+
+  // Relies on running right after the test above (tests in a file run in
+  // order): setup.ts must have put the real clock back in between.
+  it('is real again in the next test', () => {
+    expect(new Date().getFullYear()).toBeGreaterThan(2000)
   })
 })
 

@@ -26,6 +26,9 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup()
   server.resetHandlers()
+  // A clock a test fixed (vi.setSystemTime) or fake timers it started stop
+  // here, so they can't leak into the next test.
+  vi.useRealTimers()
   // The access token and the socket live in module state (api/client.ts,
   // api/ws.ts), which outlives a single test.
   setAccessToken(null)

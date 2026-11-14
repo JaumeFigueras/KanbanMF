@@ -13,7 +13,7 @@ function mix(a: RGB, b: RGB, t: number): RGB {
   return [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * clamped)) as RGB
 }
 
-// Relative luminance (WCAG) — used to pick readable text color for a background.
+// Relative luminance (WCAG), from 0 for black to 1 for white.
 function luminance([r, g, b]: RGB): number {
   const [rr, gg, bb] = [r, g, b].map((c) => {
     const s = c / 255
@@ -39,8 +39,16 @@ export function dueDateStyle(dueAt: Dayjs): DueDateStyle {
   else if (daysUntil <= 10) rgb = mix(GREEN, YELLOW, (10 - daysUntil) / 5)
   else rgb = GREEN
 
+  // The text takes whichever of dark and white contrasts more with the
+  // background (WCAG contrast ratio, (lighter + 0.05) / (darker + 0.05)).
+  // White only wins on dark backgrounds, below a luminance of about 0.18,
+  // such as the overdue dark red; on red, orange and green, dark text is far
+  // easier to read.
+  const background = luminance(rgb)
+  const contrastWithWhite = 1.05 / (background + 0.05)
+  const contrastWithDark = (background + 0.05) / 0.05
   return {
     background: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
-    color: luminance(rgb) > 0.5 ? 'rgba(0, 0, 0, 0.87)' : '#fff',
+    color: contrastWithDark >= contrastWithWhite ? 'rgba(0, 0, 0, 0.87)' : '#fff',
   }
 }
