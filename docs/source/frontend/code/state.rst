@@ -36,4 +36,5 @@ component state. What is shared lives in two contexts and two API modules.
 
 ``config.ts``
    ``fetchAppConfig()``: the public server configuration (whether e-mail
-   sending is available), fetched once per page load.
+   sending is available), fetched once per page load; after a failure, the
+   next caller asks again.

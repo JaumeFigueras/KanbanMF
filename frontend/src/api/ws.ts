@@ -68,13 +68,14 @@ const WS_POLICY_VIOLATION = 1008
 function openSocket(token: string) {
   // The token goes in the first message, not the URL: addresses end up in
   // the web server's access log.
-  socket = new WebSocket(wsUrl('/api/v1/ws'))
+  const ws = new WebSocket(wsUrl('/api/v1/ws'))
+  socket = ws
 
-  socket.onopen = () => {
-    socket?.send(JSON.stringify({ type: 'auth', token }))
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'auth', token }))
   }
 
-  socket.onmessage = (event) => {
+  ws.onmessage = (event) => {
     try {
       const notification = JSON.parse(event.data) as BoardNotification
       listeners.forEach((listener) => listener(notification))
@@ -83,29 +84,29 @@ function openSocket(token: string) {
     }
   }
 
-  socket.onclose = (event) => {
+  ws.onclose = (event) => {
+    // A close event arrives a moment after close(): by then a sign-out may
+    // have let go of this socket, and a sign-in opened the next one. Only
+    // the current socket's closing may touch the state or reconnect. So a
+    // sign-out never gets past here, and it cancels the timers below too:
+    // whenever they fire, the user is still signed in.
+    if (socket !== ws) return
     socket = null
+    clearReconnectTimer()
     // A refused token has most likely expired (say, the computer slept):
     // get a new one, which reconnects through setWebSocketToken, or signs
     // out if the session is gone too. After the same delay as a reconnect,
     // so a token that keeps being refused can't spin refreshes.
-    if (event.code === WS_POLICY_VIOLATION && currentToken) {
-      clearReconnectTimer()
+    if (event.code === WS_POLICY_VIOLATION) {
       reconnectTimer = setTimeout(() => {
-        if (!currentToken) return
         currentToken = null
         void refreshAccessToken()
       }, RECONNECT_DELAY_MS)
       return
     }
-    // Only reconnect if we're still supposed to be connected (i.e. the user
-    // hasn't logged out in the meantime).
-    if (currentToken) {
-      clearReconnectTimer()
-      reconnectTimer = setTimeout(() => {
-        if (currentToken) openSocket(currentToken)
-      }, RECONNECT_DELAY_MS)
-    }
+    // Any other close: the connection dropped, so try again with the
+    // current token.
+    reconnectTimer = setTimeout(() => setWebSocketToken(currentToken), RECONNECT_DELAY_MS)
   }
 }
 
