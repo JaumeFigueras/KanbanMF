@@ -20,6 +20,7 @@ function applyLanguage(locale: string) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loggedOut, setLoggedOut] = useState(false)
 
   // Single place that keeps React state and the WebSocket in sync with the
   // module-level token — covers explicit login/logout as well as silent
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   function login(token: string) {
+    setLoggedOut(false)
     setAccessToken(token)
   }
 
@@ -69,12 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await apiFetch(`${API}/api/v1/auth/local/logout`, { method: 'POST' })
     } finally {
+      setLoggedOut(true)
       setAccessToken(null)
     }
   }
 
   return (
-    <AuthContext.Provider value={{ accessToken, loading, login, logout }}>
+    <AuthContext.Provider value={{ accessToken, loading, loggedOut, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

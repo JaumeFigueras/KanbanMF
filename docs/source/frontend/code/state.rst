@@ -9,7 +9,8 @@ component state. What is shared lives in two contexts and two API modules.
 
 ``AuthContext.tsx`` and ``useAuth.ts``
    ``AuthProvider`` checks the session on load, exposes ``accessToken``,
-   ``loading``, ``login()`` and ``logout()``, hands the token to the
+   ``loading``, ``loggedOut`` (whether this page signed out on purpose, until
+   the next sign-in), ``login()`` and ``logout()``, hands the token to the
    WebSocket client, and applies the user's language. ``useAuth()`` reads it.
 
 ``ThemeToggleContext.tsx`` and ``useThemeToggle.ts``

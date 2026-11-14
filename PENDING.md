@@ -53,12 +53,17 @@ run and fix each phase before the next.
 - ✓ 2. `src/api/` (`apiFetch` refresh-and-retry, `ws.ts`): all 3 modules at 100 %; fixed on the way: a duplicated tab
   shared the other's client id (now one per page load, in memory), a config fetch that failed with an error status
   was kept until a reload, and a late close event after a quick sign-out and sign-in left two sockets open
-- 3. `src/context/` and the route guards (incl. `returnTo`)
+- ✓ 3. `src/context/` and the route guards: both contexts, `ProtectedRoute`, `PublicRoute` and `App.tsx` (route
+  table, `/` redirect) at 100 %; fixed on the way: signing out remembered the page you were on, so the next sign-in
+  on that tab, perhaps someone else's, went back to it (now `AuthContext` has a `loggedOut` flag)
 - 4. Small dialogs, one file each
 - 5. Card pieces (`CardFace`, `CardItem`, `CardDialog`)
 - 6. Pages (`SignIn`, `SignUp`, `VerifyEmail`, `OAuthConsent`, `Boards`, `Board`, `OverdueTasks`, `SearchResults`,
   `TimeTracker`); found in phase 1: `Board` takes the sort mode from `localStorage` unchecked, `SignUp` reads any 422
-  as an expired invitation
+  as an expired invitation; found in phase 3: a browser that blocks site data gets a blank page (`ThemeToggleProvider`,
+  `returnTo`, `Board` and `Boards` read storage without a `try`), and signing out without a connection only signs out
+  the page — the refresh cookie stays valid, so a reload signs back in, and `logout()` rejects, so `MainAppBar` never
+  reaches `/signin`; warn the user there
 - 7. End-to-end with Playwright against the dev servers (drag and drop, two-tab real time, OAuth consent)
 - 8. Docs (`setup/workflow.rst`, CLAUDE.md); `frontend/code/utils.rst` lacks `labelList.ts` and `password.ts`
 

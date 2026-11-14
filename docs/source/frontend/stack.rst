@@ -83,6 +83,14 @@ the app and comes back to ``/`` through the backend. This is what takes Claude's
 connection request through sign-in to the consent page, and it also brings an
 expired session back to the board it was on.
 
+Signing out is not an expired session: the next sign-in on that tab, perhaps
+someone else's, starts at ``/boards``. ``logout()`` sets the context's
+``loggedOut`` flag, and ``ProtectedRoute`` remembers nothing while it is set
+(the next ``login()`` clears it). The flag is needed because the order of
+events can't be relied on: React Router applies the navigation to ``/signin``
+as a transition, after the render in which the token is already gone, so
+``ProtectedRoute`` first sees the page it is on with no session.
+
 Signing in and staying signed in
 --------------------------------
 
