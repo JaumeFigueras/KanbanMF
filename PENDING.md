@@ -47,15 +47,18 @@ run and fix each phase before the next.
 
 - ✓ 0. Set-up: Vitest in `vite.config.ts`, `src/test/` (setup, MSW server, `renderWithProviders`), `npm test`,
   `make test-frontend`, coverage to `frontend/coverage-reports/` (gitignored); first test: en/ca translation keys match
-- 1. `src/utils/` (pure functions)
+- ✓ 1. `src/utils/` (pure functions): all 13 modules at 100 %; fixed on the way: unreadable white text on
+  due-date chips and mid-tone labels (one rule now, `contrast.ts`), and emoji passwords that passed the form's
+  8-character check but not the backend's
 - 2. `src/api/` (`apiFetch` refresh-and-retry, `ws.ts`)
 - 3. `src/context/` and the route guards (incl. `returnTo`)
 - 4. Small dialogs, one file each
 - 5. Card pieces (`CardFace`, `CardItem`, `CardDialog`)
 - 6. Pages (`SignIn`, `SignUp`, `VerifyEmail`, `OAuthConsent`, `Boards`, `Board`, `OverdueTasks`, `SearchResults`,
-  `TimeTracker`)
+  `TimeTracker`); found in phase 1: `Board` takes the sort mode from `localStorage` unchecked, `SignUp` reads any 422
+  as an expired invitation
 - 7. End-to-end with Playwright against the dev servers (drag and drop, two-tab real time, OAuth consent)
-- 8. Docs (`setup/workflow.rst`, CLAUDE.md)
+- 8. Docs (`setup/workflow.rst`, CLAUDE.md); `frontend/code/utils.rst` lacks `labelList.ts` and `password.ts`
 
 ## Security
 
