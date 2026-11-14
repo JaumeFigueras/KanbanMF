@@ -2,7 +2,8 @@
 // valid object with plain defaults; pass only what the test is about:
 //
 //   makeCard({ name: 'Homepage layout', labels: [makeLabel({ name: 'Bug' })] })
-import type { BoardListRead, BoardRead, CardRead, LabelRead } from '../types/board'
+import type { BoardListRead, BoardRead, CardRead, LabelRead, PersonSummary } from '../types/board'
+import type { TimeEntryRead } from '../types/timeTracker'
 
 const CREATED = '2026-01-15T10:00:00Z'
 
@@ -111,6 +112,33 @@ export function makeCard(overrides: Partial<CardRead> = {}): CardRead {
     assignees: [],
     checklists: [],
     replaced_by_id: null,
+    created_at: CREATED,
+    updated_at: CREATED,
+    ...overrides,
+  }
+}
+
+// Someone on a board, as the API summarises them (owner, members, shares).
+export function makePerson(overrides: Partial<PersonSummary> = {}): PersonSummary {
+  return {
+    id: nextId('user'),
+    display_name: 'Liam Chen',
+    initials: null,
+    has_avatar: false,
+    ...overrides,
+  }
+}
+
+// A finished time entry: an hour on a card, with no note.
+export function makeTimeEntry(overrides: Partial<TimeEntryRead> = {}): TimeEntryRead {
+  return {
+    id: nextId('entry'),
+    started_at: '2026-01-15T09:00:00Z',
+    ended_at: '2026-01-15T10:00:00Z',
+    board_name: 'Website redesign',
+    card_name: 'Homepage layout',
+    labels: [],
+    comment: null,
     created_at: CREATED,
     updated_at: CREATED,
     ...overrides,

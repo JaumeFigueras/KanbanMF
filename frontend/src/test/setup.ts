@@ -1,12 +1,20 @@
 // Runs before every test file (vite.config.ts → test.setupFiles).
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
+import { File as NodeFile } from 'node:buffer'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import i18n from '../i18n'
 import { setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 import { FakeWebSocket } from './fakeWebSocket'
 import { server } from './server'
+
+// jsdom brings its own FormData and File, which Node's fetch (and so MSW)
+// can't send: a file upload failed before reaching the fake backend. Node's
+// own classes go back in their place (fetch checks files against the global
+// File), so an upload goes through as it does in a browser.
+vi.stubGlobal('File', NodeFile)
+vi.stubGlobal('FormData', (await new Response(new URLSearchParams()).formData()).constructor)
 
 // A request no handler matches fails the test instead of going to the
 // network (or hanging): every endpoint a test touches is one it declared.

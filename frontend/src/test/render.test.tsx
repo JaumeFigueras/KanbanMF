@@ -41,6 +41,12 @@ describe('renderWithProviders', () => {
     expect(screen.getByText('Start / b-42 / light')).toBeInTheDocument()
   })
 
+  it('keeps the providers on a rerender', () => {
+    const { rerender } = renderWithProviders(<p>first</p>, { theme: 'dark' })
+    rerender(<WhereAmI />)
+    expect(screen.getByText('Start / - / dark')).toBeInTheDocument()
+  })
+
   it('applies the dark theme on request', () => {
     renderWithProviders(<WhereAmI />, { theme: 'dark' })
     expect(screen.getByText('Start / - / dark')).toBeInTheDocument()

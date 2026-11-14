@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { CssBaseline, ThemeProvider } from '@mui/material'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render, type RenderResult } from '@testing-library/react'
@@ -29,30 +29,38 @@ export type RenderWithProvidersResult = RenderResult & { user: UserEvent }
 // Renders a component the way the app does (MUI theme, router, optionally a
 // signed-in session; i18n is set up by setup.ts) and returns React Testing
 // Library's result plus a user-event instance for clicking and typing.
+//
+// The providers are a wrapper, so rerender() keeps them: rerender(<Dialog
+// open={false} />) and then rerender(<Dialog open />) closes and reopens a
+// dialog the way its parent page would.
 export function renderWithProviders(
   ui: ReactElement,
   { route = '/', path, theme = 'light', auth = false }: RenderOptions = {},
 ): RenderWithProvidersResult {
-  let tree = path ? (
-    <Routes>
-      <Route path={path} element={ui} />
-    </Routes>
-  ) : ui
-
   if (auth) {
     const user = makeUser(auth === true ? {} : auth)
     server.use(
       http.post('/api/v1/auth/local/refresh', () => HttpResponse.json({ access_token: TEST_ACCESS_TOKEN })),
       http.get('/api/v1/users/me', () => HttpResponse.json(user)),
     )
-    tree = <AuthProvider>{tree}</AuthProvider>
   }
 
-  const result = render(
-    <ThemeProvider theme={theme === 'dark' ? darkTheme : lightTheme}>
-      <CssBaseline />
-      <MemoryRouter initialEntries={[route]}>{tree}</MemoryRouter>
-    </ThemeProvider>,
-  )
+  function Providers({ children }: { children: ReactNode }) {
+    const routed = path ? (
+      <Routes>
+        <Route path={path} element={children} />
+      </Routes>
+    ) : children
+    return (
+      <ThemeProvider theme={theme === 'dark' ? darkTheme : lightTheme}>
+        <CssBaseline />
+        <MemoryRouter initialEntries={[route]}>
+          {auth ? <AuthProvider>{routed}</AuthProvider> : routed}
+        </MemoryRouter>
+      </ThemeProvider>
+    )
+  }
+
+  const result = render(ui, { wrapper: Providers })
   return { ...result, user: userEvent.setup() }
 }

@@ -116,3 +116,7 @@ From the review of 2026-10-25 (details in PROMPTS.md), most severe first.
 - Recurring tasks
 - ✓ Usage order in Time Tracker
 - Delete account
+- Save the display name and the initials together: `ChangeDisplayNameDialog` sends two requests (`PUT /users/me`
+  and `PUT /users/me/preferences`), so when one fails half the change is kept, the dialog says it failed, and the
+  page shows the old values until a reload. Needs one backend endpoint that saves both (found in phase 4 of the
+  frontend tests)
