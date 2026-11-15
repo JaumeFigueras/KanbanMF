@@ -1,6 +1,6 @@
 // Runs before every test file (vite.config.ts → test.setupFiles).
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { File as NodeFile } from 'node:buffer'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import i18n from '../i18n'
@@ -8,6 +8,13 @@ import { setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 import { FakeWebSocket } from './fakeWebSocket'
 import { server } from './server'
+
+// How long waitFor and findBy… wait before failing: Testing Library's default
+// of 1 s is tight for the heaviest dialogs (the time entry's date fields, the
+// card picker's three loads in a row) once every file runs in parallel, and
+// more so with coverage. A wait that succeeds still ends as soon as it does.
+// It stays below the 15 s each test gets (vite.config.ts → testTimeout).
+configure({ asyncUtilTimeout: 10_000 })
 
 // jsdom brings its own FormData and File, which Node's fetch (and so MSW)
 // can't send: a file upload failed before reaching the fake backend. Node's
