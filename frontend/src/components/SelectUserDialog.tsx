@@ -74,7 +74,12 @@ export default function SelectUserDialog({ open, onClose, title, candidates, sel
                 borderColor: checked.has(person.id) ? 'primary.main' : 'divider',
               }}
             >
-              <Checkbox checked={checked.has(person.id)} size="small" sx={{ p: 0 }} />
+              <Checkbox
+                checked={checked.has(person.id)}
+                size="small"
+                sx={{ p: 0 }}
+                slotProps={{ input: { 'aria-label': person.display_name } }}
+              />
               <PersonAvatar person={person} />
               <Typography variant="body2">{person.display_name}</Typography>
             </Box>

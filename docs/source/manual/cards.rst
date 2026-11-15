@@ -174,6 +174,7 @@ Labels belong to a board: every board has its own set. Click
    A board's labels.
 
 The board's owner manages them here: :guilabel:`Create New Label` (a name
-and a colour), the pencil to edit one, the bin to delete it, and the handle
-to drag them into another order. Everyone with
-access to the board can attach the labels to cards, from the card dialog.
+and a colour), the pencil to edit one, the bin to delete it (it asks first,
+since that also takes the label off every card), and the handle to drag them
+into another order. Everyone with access to the board can attach the labels
+to cards, from the card dialog.

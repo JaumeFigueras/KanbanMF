@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Alert,
   Autocomplete,
@@ -53,6 +53,10 @@ export default function LanguageLocalizationDialog({
   onSaved,
 }: Props) {
   const { t } = useTranslation()
+  // Each select is named by its label only when the two are linked by id.
+  const languageLabelId = useId()
+  const localeLabelId = useId()
+  const formatLabelId = useId()
 
   // i18n code ("en" | "ca") for the language selector
   const [langCode, setLangCode] = useState(BACKEND_TO_I18N[currentLanguageLocale] ?? 'en')
@@ -117,8 +121,9 @@ export default function LanguageLocalizationDialog({
           {error && <Alert severity="error">{error}</Alert>}
 
           <FormControl fullWidth size="small">
-            <InputLabel>{t('boards.displayLanguage')}</InputLabel>
+            <InputLabel id={languageLabelId}>{t('boards.displayLanguage')}</InputLabel>
             <Select
+              labelId={languageLabelId}
               label={t('boards.displayLanguage')}
               value={langCode}
               onChange={(e) => setLangCode(e.target.value)}
@@ -130,8 +135,9 @@ export default function LanguageLocalizationDialog({
           </FormControl>
 
           <FormControl fullWidth size="small">
-            <InputLabel>{t('boards.dateTimeLocale')}</InputLabel>
+            <InputLabel id={localeLabelId}>{t('boards.dateTimeLocale')}</InputLabel>
             <Select
+              labelId={localeLabelId}
               label={t('boards.dateTimeLocale')}
               value={numberLocale}
               onChange={(e) => setNumberLocale(e.target.value as DateLocaleCode)}
@@ -143,8 +149,9 @@ export default function LanguageLocalizationDialog({
           </FormControl>
 
           <FormControl fullWidth size="small">
-            <InputLabel>{t('boards.dateDisplayFormat')}</InputLabel>
+            <InputLabel id={formatLabelId}>{t('boards.dateDisplayFormat')}</InputLabel>
             <Select
+              labelId={formatLabelId}
               label={t('boards.dateDisplayFormat')}
               value={dateFormat}
               onChange={(e) => setDateFormat(e.target.value as DateFormat)}

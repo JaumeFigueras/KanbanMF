@@ -80,6 +80,7 @@ const en = {
     avatarTypeError: 'Only image files are allowed (JPEG, PNG, WebP, GIF).',
     avatarSizeError: 'File is too large. Maximum size is 100 KB.',
     noFileSelected: 'Please select an image file.',
+    avatarPreview: 'Avatar preview',
     changeBoardName: 'Change Name',
     changeBoardColor: 'Change Color',
     resetColorToDefault: 'Reset to default',
@@ -190,6 +191,9 @@ const en = {
     editLabel: 'Edit label',
     deleteLabel: 'Delete label',
     moveLabel: 'Move label',
+    deleteLabelConfirmTitle: 'Delete label?',
+    deleteLabelConfirmMessage: 'Delete the label "{{name}}"? It will be taken off every card on this board.',
+    labelsLoadError: "The labels couldn't be loaded. Please close this and try again.",
     createCard: 'Create Card',
     editCard: 'Edit Card',
     changeCardColor: 'Change Color',
@@ -384,6 +388,8 @@ const en = {
     add: 'Add',
     delete: 'Delete',
     hexColor: 'Hex color code',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
   },
 } as const
 

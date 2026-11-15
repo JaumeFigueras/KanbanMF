@@ -33,8 +33,8 @@ The board
    ``CardListColumn``, the read-only column of the overdue and search pages.
 
 Labels, checklists and people
-   ``ManageLabelsDialog`` and ``EditLabelDialog`` (the board's labels),
-   ``CardLabelPickerDialog`` (a card's labels), ``ChecklistDialog``,
+   ``ManageLabelsDialog``, ``EditLabelDialog`` and ``DeleteLabelDialog``
+   (the board's labels), ``CardLabelPickerDialog`` (a card's labels), ``ChecklistDialog``,
    ``CopyChecklistDialog``, ``SelectUserDialog`` (members and assignees),
    ``PersonAvatar``.
 

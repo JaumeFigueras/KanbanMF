@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -25,7 +27,11 @@ interface Props {
 
 export default function CardLabelPickerDialog({ open, onClose, boardId, selectedIds, onSave }: Props) {
   const { t } = useTranslation()
-  const [labels, setLabels] = useState<LabelRead[]>([])
+  // null until this opening's labels have loaded. Until then the dialog
+  // can't tell "no labels" from "not here yet", and saving would take every
+  // label off the card, so Save waits.
+  const [labels, setLabels] = useState<LabelRead[] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [checked, setChecked] = useState<Set<string>>(new Set())
 
   // Reset the form each time the dialog opens. Done while rendering rather
@@ -33,15 +39,19 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
   const [wasOpen, setWasOpen] = useState(false)
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setChecked(new Set(selectedIds))
+    if (open) {
+      setChecked(new Set(selectedIds))
+      setLabels(null)
+      setLoadFailed(false)
+    }
   }
 
   useEffect(() => {
     if (!open) return
     apiFetch(`/api/v1/boards/${boardId}/labels`)
-      .then(r => r.ok ? r.json() as Promise<LabelRead[]> : [])
+      .then(r => r.ok ? r.json() as Promise<LabelRead[]> : Promise.reject())
       .then(setLabels)
-      .catch(() => {})
+      .catch(() => setLoadFailed(true))
   }, [open, boardId])
 
   function toggle(id: string) {
@@ -53,8 +63,8 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
     })
   }
 
-  function handleSave() {
-    onSave(labels.filter(l => checked.has(l.id)))
+  function handleSave(loaded: LabelRead[]) {
+    onSave(loaded.filter(l => checked.has(l.id)))
     onClose()
   }
 
@@ -62,11 +72,17 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>{t('board.selectLabels')}</DialogTitle>
       <DialogContent>
-        {labels.length === 0 && (
+        {loadFailed && <Alert severity="error">{t('board.labelsLoadError')}</Alert>}
+        {labels === null && !loadFailed && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
+        {labels?.length === 0 && (
           <Typography variant="body2" color="text.secondary">{t('board.noLabels')}</Typography>
         )}
         <Stack spacing={1} sx={{ mt: 1 }}>
-          {labels.map(label => (
+          {labels?.map(label => (
             <Box
               key={label.id}
               onClick={() => toggle(label.id)}
@@ -81,7 +97,11 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
                 pr: 1,
               }}
             >
-              <Checkbox checked={checked.has(label.id)} size="small" />
+              <Checkbox
+                checked={checked.has(label.id)}
+                size="small"
+                slotProps={{ input: { 'aria-label': label.name } }}
+              />
               <Box
                 sx={{
                   flexGrow: 1,
@@ -107,7 +127,12 @@ export default function CardLabelPickerDialog({ open, onClose, boardId, selected
         <Button onClick={onClose} color="error">
           {t('common.cancel')}
         </Button>
-        <Button onClick={handleSave} color="success" variant="contained">
+        <Button
+          onClick={labels ? () => handleSave(labels) : undefined}
+          disabled={!labels}
+          color="success"
+          variant="contained"
+        >
           {t('common.save')}
         </Button>
       </DialogActions>

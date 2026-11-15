@@ -96,7 +96,12 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
   function visibilityAdornment(visible: boolean, toggle: () => void) {
     return (
       <InputAdornment position="end">
-        <IconButton onClick={toggle} edge="end" tabIndex={-1}>
+        <IconButton
+          onClick={toggle}
+          edge="end"
+          tabIndex={-1}
+          aria-label={visible ? t('common.hidePassword') : t('common.showPassword')}
+        >
           {visible ? <VisibilityOff /> : <Visibility />}
         </IconButton>
       </InputAdornment>

@@ -31,7 +31,11 @@ export default function ColorPicker({ value, onChange }: Props) {
   const [hexInput, setHexInput] = useState(value)
 
   function handleHexChange(raw: string) {
-    const normalized = `#${raw.replace(/^#+/, '')}`
+    // The field can't be emptied (clearing it leaves the #), so a colour
+    // pasted with its own # lands after that one; spaces often come along
+    // too. Both are dropped, and anything past six digits. (A maxlength
+    // would make the browser cut the paste short instead.)
+    const normalized = `#${raw.replace(/[#\s]/g, '').slice(0, 6)}`
     setHexInput(normalized)
     if (HEX_RE.test(normalized)) onChange(normalized)
   }
@@ -61,7 +65,7 @@ export default function ColorPicker({ value, onChange }: Props) {
           onChange={(e) => handleHexChange(e.target.value)}
           error={!HEX_RE.test(hexInput)}
           slotProps={{
-            htmlInput: { maxLength: 7, style: { textTransform: 'uppercase' }, 'aria-label': t('common.hexColor') },
+            htmlInput: { style: { textTransform: 'uppercase' }, 'aria-label': t('common.hexColor') },
           }}
           sx={{ width: 120 }}
         />

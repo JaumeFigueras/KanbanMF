@@ -80,6 +80,7 @@ const ca = {
     avatarTypeError: 'Només es permeten imatges (JPEG, PNG, WebP, GIF).',
     avatarSizeError: "El fitxer és massa gran. La mida màxima és 100 KB.",
     noFileSelected: 'Selecciona un fitxer d\'imatge.',
+    avatarPreview: 'Previsualització de l\'avatar',
     changeBoardName: 'Canvia el nom',
     changeBoardColor: 'Canvia el color',
     resetColorToDefault: 'Restableix el predeterminat',
@@ -190,6 +191,9 @@ const ca = {
     editLabel: 'Edita l\'etiqueta',
     deleteLabel: 'Elimina l\'etiqueta',
     moveLabel: 'Mou l\'etiqueta',
+    deleteLabelConfirmTitle: 'Eliminar l\'etiqueta?',
+    deleteLabelConfirmMessage: 'Vols eliminar l\'etiqueta "{{name}}"? Es traurà de totes les targetes d\'aquest tauler.',
+    labelsLoadError: 'No s\'han pogut carregar les etiquetes. Tanca aquesta finestra i torna-ho a provar.',
     createCard: 'Crea una tarja',
     editCard: 'Edita la tarja',
     changeCardColor: 'Canvia el color',
@@ -384,6 +388,8 @@ const ca = {
     add: 'Afegeix',
     delete: 'Elimina',
     hexColor: 'Codi hexadecimal del color',
+    showPassword: 'Mostra la contrasenya',
+    hidePassword: 'Amaga la contrasenya',
   },
 } as const
 

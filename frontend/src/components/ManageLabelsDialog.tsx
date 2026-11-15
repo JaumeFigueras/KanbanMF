@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import { apiFetch } from '../api/client'
 import { contrastColor } from '../utils/labelColor'
+import DeleteLabelDialog from './DeleteLabelDialog'
 import EditLabelDialog from './EditLabelDialog'
 
 interface Props {
@@ -117,6 +118,10 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   const [editingLabel, setEditingLabel] = useState<LabelRead | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The label the delete confirmation asks about. Kept after it closes, so
+  // its text doesn't change while it fades out.
+  const [labelToDelete, setLabelToDelete] = useState<LabelRead | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const jsonHeaders = { 'Content-Type': 'application/json' }
   const API = `/api/v1/boards/${boardId}/labels`
@@ -136,10 +141,10 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
   useEffect(() => {
     if (!open) return
     apiFetch(API)
-      .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() : Promise.reject())
       .then(setLabels)
-      .catch(err => setError(String(err)))
-  }, [open, boardId, API])
+      .catch(() => setError(t('board.labelsLoadError')))
+  }, [open, boardId, API, t])
 
   function openCreateForm() {
     setEditingLabel(null)
@@ -162,16 +167,12 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
         headers: jsonHeaders,
         body: JSON.stringify({ name: form.name, color: form.color }),
       })
-      if (r.ok) {
-        const created: LabelRead = await r.json()
-        setLabels(prev => [...prev, created])
-        setFormOpen(false)
-      } else {
-        const body = await r.json().catch(() => ({}))
-        setError(body.detail ?? `HTTP ${r.status}`)
-      }
-    } catch (err) {
-      setError(String(err))
+      if (!r.ok) throw new Error()
+      const created: LabelRead = await r.json()
+      setLabels(prev => [...prev, created])
+      setFormOpen(false)
+    } catch {
+      setError(t('common.saveError'))
     } finally {
       setSaving(false)
     }
@@ -186,30 +187,20 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
         headers: jsonHeaders,
         body: JSON.stringify({ name: form.name, color: form.color }),
       })
-      if (r.ok) {
-        const updated: LabelRead = await r.json()
-        setLabels(prev => prev.map(l => l.id === updated.id ? updated : l))
-        setFormOpen(false)
-      } else {
-        const body = await r.json().catch(() => ({}))
-        setError(body.detail ?? `HTTP ${r.status}`)
-      }
-    } catch (err) {
-      setError(String(err))
+      if (!r.ok) throw new Error()
+      const updated: LabelRead = await r.json()
+      setLabels(prev => prev.map(l => l.id === updated.id ? updated : l))
+      setFormOpen(false)
+    } catch {
+      setError(t('common.saveError'))
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDelete(labelId: string) {
-    setError(null)
-    const r = await apiFetch(`${API}/${labelId}`, { method: 'DELETE' })
-    if (r.ok) {
-      setLabels(prev => prev.filter(l => l.id !== labelId))
-    } else {
-      const body = await r.json().catch(() => ({}))
-      setError(body.detail ?? `HTTP ${r.status}`)
-    }
+  function askToDelete(label: LabelRead) {
+    setLabelToDelete(label)
+    setDeleteOpen(true)
   }
 
   const labelSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
@@ -264,7 +255,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
                     key={label.id}
                     label={label}
                     onEdit={() => openEditForm(label)}
-                    onRemove={() => handleDelete(label.id)}
+                    onRemove={() => askToDelete(label)}
                     editLabel={t('board.editLabel')}
                     removeLabel={t('board.deleteLabel')}
                     dragLabel={t('board.moveLabel')}
@@ -292,11 +283,24 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
 
       <EditLabelDialog
         open={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          // A cancelled form's error is about nothing any more; the list
+          // behind it would show it otherwise, since they share it.
+          setFormOpen(false)
+          setError(null)
+        }}
         label={editingLabel}
         saving={saving}
         error={error}
         onSave={form => editingLabel ? handleEdit(editingLabel, form) : handleCreate(form)}
+      />
+
+      <DeleteLabelDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        boardId={boardId}
+        label={labelToDelete}
+        onDeleted={id => setLabels(prev => prev.filter(l => l.id !== id))}
       />
     </>
   )

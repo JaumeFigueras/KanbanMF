@@ -47,7 +47,8 @@ export default function ChangeDisplayNameDialog({
 
   function validate(): string | null {
     if (!displayName.trim()) return t('boards.displayNameRequired')
-    if (initials && !/^[a-zA-Z0-9]{1,3}$/.test(initials.trim())) return t('boards.initialsInvalid')
+    // Any letters or digits, accented ones too ("ÀG"), as the backend takes.
+    if (initials && !/^[\p{L}\p{N}]{1,3}$/u.test(initials.trim())) return t('boards.initialsInvalid')
     return null
   }
 

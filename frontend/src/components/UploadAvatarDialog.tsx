@@ -132,7 +132,7 @@ export default function UploadAvatarDialog({
             <Box
               component="img"
               src={preview}
-              alt="preview"
+              alt={t('boards.avatarPreview')}
               sx={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '2px solid', borderColor: 'divider' }}
             />
           ) : (
