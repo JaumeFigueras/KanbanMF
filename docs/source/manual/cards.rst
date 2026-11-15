@@ -66,7 +66,9 @@ Card name and Description
    when work begins and must come before the end date. The *due date* is the
    deadline: it drives the colour on the card, the overdue tasks page and the
    e-mail reminders. The *end date* records when the card was finished, and
-   marks it as done. The bin icon next to a date removes it.
+   marks it as done. The bin icon next to a date removes it. A date needs its
+   time too: if one is typed only in part, or doesn't exist (31 February),
+   **Save** says which and saves nothing, until you complete it or remove it.
 
 :guilabel:`People`
    The *creator* is whoever made the card. Add *members* — the people
@@ -80,6 +82,11 @@ Card name and Description
 
 Nothing is saved until you click **Save** — that includes ticking checklist
 items in the dialog. **Cancel** discards every change.
+
+The card is saved first, then each change to its checklists. If one of those
+fails, the dialog says the card was saved but some checklist changes weren't,
+and stays open: click **Save** again to save the rest. **Cancel** then keeps
+what was already saved.
 
 Checklists
 ----------

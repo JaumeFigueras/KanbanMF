@@ -101,6 +101,14 @@ class Shooter:
         technology (aria-hidden), which is when the screenshot is taken."""
         return (within or self.page).locator(f'[aria-label="{self.t(key)}"]').first
 
+    def labelled_with(self, key: str, within: Locator | Page | None = None, **values: str) -> Locator:
+        """Like labelled(), for a label naming something: its {{placeholders}}
+        filled in, e.g. a card's menu, "Menu for <card name>"."""
+        label = self.t(key)
+        for name, value in values.items():
+            label = label.replace("{{" + name + "}}", value)
+        return (within or self.page).locator(f"[aria-label={json.dumps(label)}]").first
+
     def menu_item(self, key: str) -> Locator:
         return self.page.get_by_role("menuitem", name=self.t(key))
 
@@ -393,7 +401,7 @@ def list_menu(s: Shooter) -> None:
 def card_menu(s: Shooter) -> None:
     s.open_board()
     card = s.card_face(s.text["cards"][5][1])
-    s.labelled("board.cardMenu", card).click()
+    s.labelled_with("board.cardMenuNamed", card, name=s.text["cards"][5][1]).click()
     s.settle(300)
     s.save("card-menu", card, s.menu())
     s.escape()
@@ -412,7 +420,7 @@ def card_dialog(s: Shooter) -> None:
 def copy_card(s: Shooter) -> None:
     s.open_board()
     card = s.card_face(s.text["cards"][5][1])
-    s.labelled("board.cardMenu", card).click()
+    s.labelled_with("board.cardMenuNamed", card, name=s.text["cards"][5][1]).click()
     s.menu_item("board.copyCard").click()
     s.settle()
     s.save("copy-card", s.dialog())

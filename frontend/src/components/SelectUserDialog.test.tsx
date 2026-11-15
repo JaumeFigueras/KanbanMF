@@ -11,30 +11,36 @@ const NOAH = makePerson({ id: 'user-3', display_name: 'Noah Garcia' })
 
 function renderDialog({
   candidates = [LIAM, EMMA, NOAH],
+  loadFailed = false,
   selectedIds = ['user-2'],
-}: { candidates?: PersonSummary[]; selectedIds?: string[] } = {}) {
+}: { candidates?: PersonSummary[] | null; loadFailed?: boolean; selectedIds?: string[] } = {}) {
   const onClose = vi.fn()
   const onSave = vi.fn()
-  const dialog = (open: boolean, ids: string[]) => (
+  const dialog = (open: boolean, ids: string[], people: PersonSummary[] | null) => (
     <SelectUserDialog
       open={open}
       onClose={onClose}
       title="Select Members"
-      candidates={candidates}
+      candidates={people}
+      loadFailed={loadFailed}
       selectedIds={ids}
       onSave={onSave}
     />
   )
-  const result = renderWithProviders(dialog(true, selectedIds))
+  const result = renderWithProviders(dialog(true, selectedIds, candidates))
   // Closes the dialog and opens it again, as the card dialog does, with the
   // card's people as they are by then.
   let shown = selectedIds
   function reopen(ids: string[]) {
-    result.rerender(dialog(false, shown))
+    result.rerender(dialog(false, shown, candidates))
     shown = ids
-    result.rerender(dialog(true, ids))
+    result.rerender(dialog(true, ids, candidates))
   }
-  return { ...result, onClose, onSave, reopen }
+  // The board's people arriving while it's open.
+  function arrive(people: PersonSummary[]) {
+    result.rerender(dialog(true, shown, people))
+  }
+  return { ...result, onClose, onSave, reopen, arrive }
 }
 
 function box(name: string) {
@@ -85,6 +91,35 @@ describe('SelectUserDialog', () => {
   it('says so when there is nobody to choose', () => {
     renderDialog({ candidates: [], selectedIds: [] })
     expect(screen.getByText('No users available yet.')).toBeInTheDocument()
+  })
+
+  it("waits for the board's people: a spinner, no word of nobody, and no Save", () => {
+    renderDialog({ candidates: null })
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
+    expect(screen.queryByText('No users available yet.')).not.toBeInTheDocument()
+    expect(button('Save')).toBeDisabled()
+    expect(button('Cancel')).toBeEnabled()
+  })
+
+  it('offers them, ticked as chosen, and can be saved, once they arrive', async () => {
+    const { user, onSave, arrive } = renderDialog({ candidates: null })
+
+    arrive([LIAM, EMMA])
+
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(box('Emma Wilson')).toBeChecked()
+    await user.click(button('Save'))
+    expect(onSave).toHaveBeenCalledWith([EMMA])
+  })
+
+  it("says the board's people couldn't be loaded, and offers no Save", () => {
+    renderDialog({ candidates: null, loadFailed: true })
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "The board's people couldn't be loaded. Please close this and try again.",
+    )
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(screen.queryByText('No users available yet.')).not.toBeInTheDocument()
+    expect(button('Save')).toBeDisabled()
   })
 
   it('reopens with the people chosen by then, forgetting unsaved ticks', async () => {

@@ -67,7 +67,7 @@ export default function CardFace({ card, numberLocale, dateFormat, headerActions
             // Sized to match IconButton's own box (22px icon + 5px padding on
             // each side) so it lines up with the buttons next to it.
             <Box sx={{ width: 33, height: 33, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle sx={{ fontSize: 22, color: 'success.main' }} />
+              <CheckCircle titleAccess={t('board.cardDone')} sx={{ fontSize: 22, color: 'success.main' }} />
             </Box>
           )}
 

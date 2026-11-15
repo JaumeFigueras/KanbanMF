@@ -150,7 +150,8 @@ export default function CardItem({
               <>
                 <IconButton
                   size="small"
-                  aria-label={t('board.moveCard')}
+                  // Named after the card: every card has the same buttons.
+                  aria-label={t('board.moveCardNamed', { name: card.name })}
                   sx={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
                   onClick={(e) => e.stopPropagation()}
                   {...attributes}
@@ -161,7 +162,7 @@ export default function CardItem({
                 <IconButton
                   size="small"
                   onClick={(e) => { e.stopPropagation(); openMenu(e) }}
-                  aria-label={t('board.cardMenu')}
+                  aria-label={t('board.cardMenuNamed', { name: card.name })}
                 >
                   <HamburgerIcon sx={{ fontSize: 22 }} />
                 </IconButton>

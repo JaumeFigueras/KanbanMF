@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,12 +20,19 @@ interface Props {
   open: boolean
   onClose: () => void
   title: string
-  candidates: PersonSummary[]
+  // null until the board's people have loaded. Until then the dialog can't
+  // tell "nobody" from "not here yet", and saving would take everyone off
+  // the card, so Save waits.
+  candidates: PersonSummary[] | null
+  // Loading them failed: Save stays disabled for good.
+  loadFailed?: boolean
   selectedIds: string[]
   onSave: (people: PersonSummary[]) => void
 }
 
-export default function SelectUserDialog({ open, onClose, title, candidates, selectedIds, onSave }: Props) {
+export default function SelectUserDialog({
+  open, onClose, title, candidates, loadFailed = false, selectedIds, onSave,
+}: Props) {
   const { t } = useTranslation()
   const [checked, setChecked] = useState<Set<string>>(new Set())
 
@@ -44,8 +53,8 @@ export default function SelectUserDialog({ open, onClose, title, candidates, sel
     })
   }
 
-  function handleSave() {
-    onSave(candidates.filter((c) => checked.has(c.id)))
+  function handleSave(loaded: PersonSummary[]) {
+    onSave(loaded.filter((c) => checked.has(c.id)))
     onClose()
   }
 
@@ -53,13 +62,19 @@ export default function SelectUserDialog({ open, onClose, title, candidates, sel
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        {candidates.length === 0 && (
+        {loadFailed && <Alert severity="error">{t('board.peopleLoadError')}</Alert>}
+        {candidates === null && !loadFailed && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
+        {candidates?.length === 0 && (
           <Typography variant="body2" color="text.secondary">
             {t('board.noUsersAvailable')}
           </Typography>
         )}
         <Stack spacing={1} sx={{ mt: 1 }}>
-          {candidates.map((person) => (
+          {candidates?.map((person) => (
             <Box
               key={person.id}
               onClick={() => toggle(person.id)}
@@ -90,7 +105,12 @@ export default function SelectUserDialog({ open, onClose, title, candidates, sel
         <Button onClick={onClose} color="error">
           {t('common.cancel')}
         </Button>
-        <Button onClick={handleSave} color="success" variant="contained">
+        <Button
+          onClick={() => candidates && handleSave(candidates)}
+          color="success"
+          variant="contained"
+          disabled={candidates === null}
+        >
           {t('common.save')}
         </Button>
       </DialogActions>

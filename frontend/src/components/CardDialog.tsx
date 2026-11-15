@@ -39,7 +39,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { CardRead, ChecklistData, ChecklistItemData, LabelRead, PersonSummary } from '../types/board'
+import type { CardRead, ChecklistData, ChecklistItemData, ChecklistRead, LabelRead, PersonSummary } from '../types/board'
 import CardDateField from './CardDateField'
 import CardLabelPickerDialog from './CardLabelPickerDialog'
 import ChecklistDialog from './ChecklistDialog'
@@ -53,6 +53,34 @@ import { apiFetch } from '../api/client'
 
 function jsonInit(method: string, body: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+}
+
+// A checklist request, which fails loudly: syncChecklists stops at the first
+// change the server refuses instead of carrying on as if it had been saved.
+async function send(url: string, init?: RequestInit): Promise<Response> {
+  const r = await apiFetch(url, init)
+  if (!r.ok) throw new Error()
+  return r
+}
+
+// The card's checklists as the server has them, or null if they couldn't be
+// fetched.
+async function loadChecklists(checklistsUrl: string): Promise<ChecklistRead[] | null> {
+  try {
+    const r = await apiFetch(checklistsUrl)
+    return r.ok ? await r.json() as ChecklistRead[] : null
+  } catch {
+    return null
+  }
+}
+
+// What the dialog edits of each checklist.
+function checklistData(checklists: ChecklistRead[]): ChecklistData[] {
+  return checklists.map((cl) => ({
+    id: cl.id,
+    name: cl.name,
+    items: cl.items.map((i) => ({ id: i.id, text: i.text, is_done: i.is_done })),
+  }))
 }
 
 // A card's content as text, its keys in a fixed order, so two copies of it
@@ -72,12 +100,12 @@ function contentOf(card: CardRead | null | undefined): string {
 // are built from the real, post-create ids as each entry is processed, so
 // they always validate regardless of whether anything actually moved. Runs
 // as part of the Save action, since checklists have no draft/local-only
-// persistence of their own.
+// persistence of their own. It stops at the first request that fails.
 async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next: ChecklistData[]) {
   const nextIds = new Set(next.map((c) => c.id))
   for (const checklist of prev) {
     if (!nextIds.has(checklist.id)) {
-      await apiFetch(`${checklistsUrl}/${checklist.id}`, { method: 'DELETE' })
+      await send(`${checklistsUrl}/${checklist.id}`, { method: 'DELETE' })
     }
   }
 
@@ -86,25 +114,25 @@ async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next
     const before = prev.find((c) => c.id === checklist.id)
 
     if (!before) {
-      const r = await apiFetch(checklistsUrl, jsonInit('POST', { name: checklist.name }))
+      const r = await send(checklistsUrl, jsonInit('POST', { name: checklist.name }))
       const created = await r.json()
       const itemsUrl = `${checklistsUrl}/${created.id}/items`
       for (const item of checklist.items) {
-        await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+        await send(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
       }
       orderedChecklistIds.push(created.id)
       continue
     }
 
     if (before.name !== checklist.name) {
-      await apiFetch(`${checklistsUrl}/${checklist.id}`, jsonInit('PATCH', { name: checklist.name }))
+      await send(`${checklistsUrl}/${checklist.id}`, jsonInit('PATCH', { name: checklist.name }))
     }
 
     const itemsUrl = `${checklistsUrl}/${checklist.id}/items`
     const nextItemIds = new Set(checklist.items.map((i) => i.id))
     for (const item of before.items) {
       if (!nextItemIds.has(item.id)) {
-        await apiFetch(`${itemsUrl}/${item.id}`, { method: 'DELETE' })
+        await send(`${itemsUrl}/${item.id}`, { method: 'DELETE' })
       }
     }
 
@@ -112,25 +140,25 @@ async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next
     for (const item of checklist.items) {
       const beforeItem = before.items.find((i) => i.id === item.id)
       if (!beforeItem) {
-        const r = await apiFetch(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+        const r = await send(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
         const created = await r.json()
         orderedItemIds.push(created.id)
       } else {
         if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
-          await apiFetch(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
+          await send(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
         }
         orderedItemIds.push(item.id)
       }
     }
     if (orderedItemIds.length > 0) {
-      await apiFetch(`${itemsUrl}/order`, jsonInit('PUT', { item_ids: orderedItemIds }))
+      await send(`${itemsUrl}/order`, jsonInit('PUT', { item_ids: orderedItemIds }))
     }
 
     orderedChecklistIds.push(checklist.id)
   }
 
   if (orderedChecklistIds.length > 0) {
-    await apiFetch(`${checklistsUrl}/order`, jsonInit('PUT', { checklist_ids: orderedChecklistIds }))
+    await send(`${checklistsUrl}/order`, jsonInit('PUT', { checklist_ids: orderedChecklistIds }))
   }
 }
 
@@ -147,6 +175,7 @@ function SortableChecklistRow({
   removeLabel,
   dragLabel,
   extractLabel,
+  extractItemLabel,
 }: {
   checklist: ChecklistData
   onEdit: () => void
@@ -162,7 +191,9 @@ function SortableChecklistRow({
   copyLabel: string
   removeLabel: string
   dragLabel: string
+  // The extract button's tooltip, and its name for one item.
   extractLabel: string
+  extractItemLabel: (item: ChecklistItemData) => string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id })
   const doneCount = checklist.items.filter((i) => i.is_done).length
@@ -259,7 +290,7 @@ function SortableChecklistRow({
                 <IconButton
                   size="small"
                   onClick={() => onExtractItem(item)}
-                  aria-label={extractLabel}
+                  aria-label={extractItemLabel(item)}
                   title={extractLabel}
                   sx={{ flexShrink: 0 }}
                 >
@@ -312,19 +343,33 @@ export default function CardDialog({
   onChecklistCopied,
 }: Props) {
   const { t } = useTranslation()
-  const isEdit = Boolean(card)
+  // The card this opening created, when saving it went only partly well: a
+  // second Save edits it rather than creating another.
+  const [createdCard, setCreatedCard] = useState<CardRead | null>(null)
+  // Set when a save stopped partway through the checklists: what the server
+  // has is no longer what the dialog compares against, so the next Save asks
+  // for it first.
+  const [baselineStale, setBaselineStale] = useState(false)
+  const editing = card ?? createdCard
+  const isEdit = Boolean(editing)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [startAt, setStartAt] = useState<Dayjs | null>(null)
   const [dueAt, setDueAt] = useState<Dayjs | null>(null)
   const [endAt, setEndAt] = useState<Dayjs | null>(null)
+  // Which date fields hold a date that can't be saved (typed only in part,
+  // or impossible), as each field reports it.
+  const [incompleteDates, setIncompleteDates] = useState({ start: false, due: false, end: false })
   const [selectedLabels, setSelectedLabels] = useState<LabelRead[]>([])
   const [labelPickerOpen, setLabelPickerOpen] = useState(false)
   const [members, setMembers] = useState<PersonSummary[]>([])
   const [memberPickerOpen, setMemberPickerOpen] = useState(false)
   const [assignees, setAssignees] = useState<PersonSummary[]>([])
   const [assigneePickerOpen, setAssigneePickerOpen] = useState(false)
-  const [candidates, setCandidates] = useState<PersonSummary[]>([])
+  // The board's people, to choose members and assignees from: null until
+  // this opening's answer arrives (the pickers wait for it).
+  const [candidates, setCandidates] = useState<PersonSummary[] | null>(null)
+  const [candidatesFailed, setCandidatesFailed] = useState(false)
   const [checklists, setChecklists] = useState<ChecklistData[]>([])
   const [initialChecklists, setInitialChecklists] = useState<ChecklistData[]>([])
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false)
@@ -365,6 +410,10 @@ export default function CardDialog({
     } else if (open) {
       setOpenedWith(card)
       setChangedElsewhere(false)
+      setCreatedCard(null)
+      setBaselineStale(false)
+      setCandidates(null)
+      setCandidatesFailed(false)
       setName(card?.name ?? '')
       setDescription(card?.description ?? '')
       setStartAt(card?.start_at ? dayjs(card.start_at) : null)
@@ -373,11 +422,7 @@ export default function CardDialog({
       setSelectedLabels(card?.labels ?? [])
       setMembers(card?.members ?? [])
       setAssignees(card?.assignees ?? [])
-      const loadedChecklists: ChecklistData[] = (card?.checklists ?? []).map((cl) => ({
-        id: cl.id,
-        name: cl.name,
-        items: cl.items.map((i) => ({ id: i.id, text: i.text, is_done: i.is_done })),
-      }))
+      const loadedChecklists = checklistData(card?.checklists ?? [])
       setChecklists(loadedChecklists)
       setInitialChecklists(loadedChecklists)
       setError(null)
@@ -426,16 +471,33 @@ export default function CardDialog({
 
   useEffect(() => {
     if (!open) return
+    // An answer for an earlier opening is dropped.
+    let cancelled = false
     apiFetch(`/api/v1/boards/${boardId}/members`)
-      .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
-      .then(setCandidates)
-      .catch(() => {})
+      .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : Promise.reject(new Error()))
+      .then((people) => { if (!cancelled) setCandidates(people) })
+      .catch(() => { if (!cancelled) setCandidatesFailed(true) })
+    return () => { cancelled = true }
   }, [open, boardId])
 
   async function handleSave() {
     const trimmedName = name.trim()
     if (!trimmedName) {
       setError(t('board.cardNameRequired'))
+      return
+    }
+    // Saving would drop such a date without a word: the field never hands
+    // it over.
+    if (incompleteDates.start) {
+      setError(t('board.startDateIncomplete'))
+      return
+    }
+    if (incompleteDates.due) {
+      setError(t('board.dueDateIncomplete'))
+      return
+    }
+    if (incompleteDates.end) {
+      setError(t('board.endDateIncomplete'))
       return
     }
     if (startAt && endAt && startAt.isAfter(endAt)) {
@@ -446,11 +508,30 @@ export default function CardDialog({
     setSaving(true)
     setError(null)
     try {
-      const url = isEdit
-        ? `/api/v1/boards/${boardId}/lists/${listId}/cards/${card!.id}`
-        : `/api/v1/boards/${boardId}/lists/${listId}/cards`
-      const r = await apiFetch(url, {
-        method: isEdit ? 'PATCH' : 'POST',
+      await saveCard(trimmedName)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveCard(trimmedName: string) {
+    const cardsUrl = `/api/v1/boards/${boardId}/lists/${listId}/cards`
+    // After a save that stopped partway, compare against what the server
+    // has now, or a second Save would make some checklists twice.
+    let baseline = initialChecklists
+    if (baselineStale && editing) {
+      const current = await loadChecklists(`${cardsUrl}/${editing.id}/checklists`)
+      if (!current) {
+        setError(t('common.saveError'))
+        return
+      }
+      baseline = checklistData(current)
+    }
+
+    let result: CardRead
+    try {
+      const r = await apiFetch(editing ? `${cardsUrl}/${editing.id}` : cardsUrl, {
+        method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: trimmedName,
@@ -464,27 +545,46 @@ export default function CardDialog({
         }),
       })
       if (!r.ok) throw new Error()
-      const result: CardRead = await r.json()
-
-      const checklistsUrl = `/api/v1/boards/${boardId}/lists/${listId}/cards/${result.id}/checklists`
-      await syncChecklists(checklistsUrl, initialChecklists, checklists)
-      const checklistsRes = await apiFetch(checklistsUrl)
-      result.checklists = checklistsRes.ok ? await checklistsRes.json() : result.checklists
-
-      // A new card inherits its list's own color (the viewer's per-user
-      // choice) so it doesn't stick out — the backend's create_card stores
-      // it, so cards made elsewhere (the MCP server) get it too; this is only
-      // the color to show it with right away.
-      const appliedColor = !isEdit && listColor ? listColor : null
-
-      if (isEdit) onUpdated?.(result)
-      else onCreated?.(result, appliedColor)
-      onClose()
+      result = await r.json()
     } catch {
       setError(t('common.saveError'))
-    } finally {
-      setSaving(false)
+      return
     }
+
+    // A new card inherits its list's own color (the viewer's per-user
+    // choice) so it doesn't stick out — the backend's create_card stores
+    // it, so cards made elsewhere (the MCP server) get it too; this is only
+    // the color to show it with right away.
+    const appliedColor = !editing && listColor ? listColor : null
+    // The caller hears about the card as soon as it exists, saved in full or
+    // not: a new card shows up on the board, an edited one shows its saved
+    // fields.
+    const report = (saved: CardRead) => {
+      if (editing) onUpdated?.(saved)
+      else onCreated?.(saved, appliedColor)
+    }
+
+    const checklistsUrl = `${cardsUrl}/${result.id}/checklists`
+    let synced = true
+    try {
+      await syncChecklists(checklistsUrl, baseline, checklists)
+    } catch {
+      synced = false
+    }
+    // The checklists as the server has them now, whatever was saved.
+    result.checklists = (await loadChecklists(checklistsUrl)) ?? result.checklists
+    report(result)
+    if (synced) {
+      onClose()
+      return
+    }
+    // The card is saved, some of its checklist changes aren't. The dialog
+    // stays open on that card, so a second Save edits it, and the copy of it
+    // the board was just handed isn't taken for a change made elsewhere.
+    setCreatedCard(card ? null : result)
+    setOpenedWith(card ? result : undefined)
+    setBaselineStale(true)
+    setError(t('board.checklistsNotSaved'))
   }
 
   const dayjsLocale = dayjsLocaleFor(numberLocale)
@@ -567,18 +667,24 @@ export default function CardDialog({
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
             <CardDateField
               label={t('board.startDate')}
+              removeLabel={t('board.removeStartDate')}
               value={startAt}
               onChange={setStartAt}
+              onIncompleteChange={(start) => setIncompleteDates((prev) => ({ ...prev, start }))}
             />
             <CardDateField
               label={t('board.dueDate')}
+              removeLabel={t('board.removeDueDate')}
               value={dueAt}
               onChange={setDueAt}
+              onIncompleteChange={(due) => setIncompleteDates((prev) => ({ ...prev, due }))}
             />
             <CardDateField
               label={t('board.endDate')}
+              removeLabel={t('board.removeEndDate')}
               value={endAt}
               onChange={setEndAt}
+              onIncompleteChange={(end) => setIncompleteDates((prev) => ({ ...prev, end }))}
             />
           </Box>
         </LocalizationProvider>
@@ -618,7 +724,12 @@ export default function CardDialog({
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
               {members.map((person) => (
-                <PersonAvatar key={person.id} person={person} onClick={() => setMemberPickerOpen(true)} />
+                <PersonAvatar
+                  key={person.id}
+                  person={person}
+                  onClick={() => setMemberPickerOpen(true)}
+                  actionLabel={t('board.changeMembersOf', { name: person.display_name })}
+                />
               ))}
               <IconButton
                 size="small"
@@ -636,7 +747,12 @@ export default function CardDialog({
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
               {assignees.map((person) => (
-                <PersonAvatar key={person.id} person={person} onClick={() => setAssigneePickerOpen(true)} />
+                <PersonAvatar
+                  key={person.id}
+                  person={person}
+                  onClick={() => setAssigneePickerOpen(true)}
+                  actionLabel={t('board.changeAssigneesOf', { name: person.display_name })}
+                />
               ))}
               <IconButton
                 size="small"
@@ -681,12 +797,15 @@ export default function CardDialog({
                   onCopy={() => setCopyingChecklist(checklist)}
                   onToggleItem={(itemId) => handleToggleChecklistItem(checklist.id, itemId)}
                   onExtractItem={card && onCopied ? setExtractingItem : undefined}
-                  editLabel={t('board.editChecklist')}
-                  menuLabel={t('board.checklistMenu')}
+                  // Named after the checklist (or item), as every checklist
+                  // has the same buttons.
+                  editLabel={t('board.editChecklistNamed', { name: checklist.name })}
+                  menuLabel={t('board.checklistMenuNamed', { name: checklist.name })}
                   copyLabel={t('board.copyChecklist')}
                   removeLabel={t('board.deleteChecklist')}
-                  dragLabel={t('board.moveChecklist')}
+                  dragLabel={t('board.moveChecklistNamed', { name: checklist.name })}
                   extractLabel={t('board.extractToCard')}
+                  extractItemLabel={(item) => t('board.extractItemNamed', { text: item.text })}
                 />
               ))}
             </Stack>
@@ -715,6 +834,7 @@ export default function CardDialog({
         onClose={() => setMemberPickerOpen(false)}
         title={t('board.selectMembers')}
         candidates={candidates}
+        loadFailed={candidatesFailed}
         selectedIds={members.map((p) => p.id)}
         onSave={setMembers}
       />
@@ -724,6 +844,7 @@ export default function CardDialog({
         onClose={() => setAssigneePickerOpen(false)}
         title={t('board.selectAssignees')}
         candidates={candidates}
+        loadFailed={candidatesFailed}
         selectedIds={assignees.map((p) => p.id)}
         onSave={setAssignees}
       />
@@ -740,7 +861,7 @@ export default function CardDialog({
         onClose={() => setCopyingChecklist(null)}
         boardId={boardId}
         listId={listId}
-        cardId={card?.id}
+        cardId={editing?.id}
         checklist={copyingChecklist}
         onCopied={onChecklistCopied}
       />

@@ -323,6 +323,9 @@ export default function BoardListColumn({
         numberLocale={numberLocale}
         listColor={listColor}
         onCreated={handleCardCreated}
+        // A new card saved only in part stays open for a second Save, which
+        // updates the card it already added.
+        onUpdated={handleCardUpdated}
         onChecklistCopied={onChecklistCopied}
       />
     </>
