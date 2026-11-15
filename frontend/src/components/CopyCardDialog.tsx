@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Alert,
   Button,
@@ -56,6 +56,9 @@ export default function CopyCardDialog({
   includeChecklists = true,
 }: Props) {
   const { t } = useTranslation()
+  // Each select is named by its label only when the two are linked by id.
+  const boardLabelId = useId()
+  const listLabelId = useId()
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
   const [boards, setBoards] = useState<BoardRead[]>([])
@@ -81,15 +84,15 @@ export default function CopyCardDialog({
   useEffect(() => {
     if (!open) return
     apiFetch('/api/v1/boards')
-      .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject())
       .then(data => setBoards([...data.owned, ...data.shared]))
-      .catch(err => setError(String(err)))
-  }, [open])
+      .catch(() => setError(t('board.copyCardLoadError')))
+  }, [open, t])
 
   useEffect(() => {
     if (!open || !targetBoardId) return
     apiFetch(`/api/v1/boards/${targetBoardId}/lists`)
-      .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject())
       .then(data => {
         setLists(data)
         // Keep the current list selected when it's still on this board (the
@@ -98,8 +101,8 @@ export default function CopyCardDialog({
         setTargetListId(prev =>
           data.some(l => l.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(err => setError(String(err)))
-  }, [open, targetBoardId])
+      .catch(() => setError(t('board.copyCardLoadError')))
+  }, [open, targetBoardId, t])
 
   function handleBoardChange(nextBoardId: string) {
     setTargetBoardId(nextBoardId)
@@ -180,8 +183,9 @@ export default function CopyCardDialog({
         />
 
         <FormControl fullWidth size="small" sx={{ mt: 2 }}>
-          <InputLabel>{t('board.targetBoard')}</InputLabel>
+          <InputLabel id={boardLabelId}>{t('board.targetBoard')}</InputLabel>
           <Select
+            labelId={boardLabelId}
             label={t('board.targetBoard')}
             value={targetBoardId}
             onChange={(e) => handleBoardChange(e.target.value)}
@@ -194,8 +198,9 @@ export default function CopyCardDialog({
         </FormControl>
 
         <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={saving || lists.length === 0}>
-          <InputLabel>{t('board.targetList')}</InputLabel>
+          <InputLabel id={listLabelId}>{t('board.targetList')}</InputLabel>
           <Select
+            labelId={listLabelId}
             label={t('board.targetList')}
             value={targetListId}
             onChange={(e) => setTargetListId(e.target.value)}

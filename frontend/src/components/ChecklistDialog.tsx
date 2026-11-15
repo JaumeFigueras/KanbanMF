@@ -30,12 +30,14 @@ function SortableItemRow({
   item,
   onEditText,
   onRemove,
+  fieldLabel,
   removeLabel,
   dragLabel,
 }: {
   item: ChecklistItemData
   onEditText: (text: string) => void
   onRemove: () => void
+  fieldLabel: string
   removeLabel: string
   dragLabel: string
 }) {
@@ -57,7 +59,7 @@ function SortableItemRow({
         <DragIndicator fontSize="small" />
       </IconButton>
       <TextField
-        slotProps={{ htmlInput: { maxLength: 500 } }}
+        slotProps={{ htmlInput: { maxLength: 500, 'aria-label': fieldLabel } }}
         size="small"
         value={item.text}
         onChange={(e) => onEditText(e.target.value)}
@@ -123,7 +125,13 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
       setError(t('board.checklistNameRequired'))
       return
     }
-    const trimmedItems = items
+    // An item still typed in the add field counts as added: Save would
+    // otherwise drop it without a word.
+    const pending = newItemText.trim()
+    const allItems = pending
+      ? [...items, { id: crypto.randomUUID(), text: pending, is_done: false }]
+      : items
+    const trimmedItems = allItems
       .map((i) => ({ ...i, text: i.text.trim() }))
       .filter((i) => i.text)
     onSave({ id: checklist?.id ?? crypto.randomUUID(), name: trimmedName, items: trimmedItems })
@@ -163,12 +171,13 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
         <DndContext sensors={itemSensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
             <Stack spacing={1}>
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <SortableItemRow
                   key={item.id}
                   item={item}
                   onEditText={(text) => handleEditItem(item.id, text)}
                   onRemove={() => handleRemoveItem(item.id)}
+                  fieldLabel={t('board.checklistItemField', { number: index + 1 })}
                   removeLabel={t('board.removeChecklistItem')}
                   dragLabel={t('board.moveChecklistItem')}
                 />
@@ -179,7 +188,7 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
 
         <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
           <TextField
-            slotProps={{ htmlInput: { maxLength: 500 } }}
+            slotProps={{ htmlInput: { maxLength: 500, 'aria-label': t('board.addChecklistItem') } }}
             size="small"
             placeholder={t('board.addChecklistItem')}
             value={newItemText}

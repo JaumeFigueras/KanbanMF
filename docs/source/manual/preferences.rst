@@ -26,9 +26,11 @@ Open the user menu (your name in the top bar) and choose
    card faces.
 
 :guilabel:`Timezone`
-   Your time zone. Dates and times are shown in it, and it decides when your
-   e-mail reminders go out (see :doc:`notifications`). Type to search the
-   list. When you have never chosen one, your browser's time zone is used.
+   Your time zone. It decides when your e-mail reminders go out (see
+   :doc:`notifications`), and how the dates you give Claude are read (see
+   :doc:`claude`). The app itself shows dates in your device's time zone,
+   which is normally the same one. Type to search the list. When you have
+   never chosen one, your browser's time zone is used.
 
 The box at the bottom shows today's date in the chosen format, so you can see
 the effect before you click **Save**. These preferences belong to your

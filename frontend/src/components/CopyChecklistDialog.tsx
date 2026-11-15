@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Alert,
   Button,
@@ -51,6 +51,10 @@ export default function CopyChecklistDialog({
   onCopied,
 }: Props) {
   const { t } = useTranslation()
+  // Each select is named by its label only when the two are linked by id.
+  const boardLabelId = useId()
+  const listLabelId = useId()
+  const cardLabelId = useId()
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
   const [boards, setBoards] = useState<BoardRead[]>([])
@@ -78,15 +82,15 @@ export default function CopyChecklistDialog({
   useEffect(() => {
     if (!open) return
     apiFetch('/api/v1/boards')
-      .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() as Promise<BoardsResponse> : Promise.reject())
       .then(data => setBoards([...data.owned, ...data.shared]))
-      .catch(err => setError(String(err)))
-  }, [open])
+      .catch(() => setError(t('board.copyChecklistLoadError')))
+  }, [open, t])
 
   useEffect(() => {
     if (!open || !targetBoardId) return
     apiFetch(`/api/v1/boards/${targetBoardId}/lists`)
-      .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : Promise.reject())
       .then(data => {
         setLists(data)
         // Keep the current list selected when it's still on this board (the
@@ -95,8 +99,8 @@ export default function CopyChecklistDialog({
         setTargetListId(prev =>
           data.some(l => l.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(err => setError(String(err)))
-  }, [open, targetBoardId])
+      .catch(() => setError(t('board.copyChecklistLoadError')))
+  }, [open, targetBoardId, t])
 
   // Without a target list there's nothing to choose from, whatever was
   // fetched for the previous one.
@@ -105,7 +109,7 @@ export default function CopyChecklistDialog({
   useEffect(() => {
     if (!open || !targetBoardId || !targetListId) return
     apiFetch(`/api/v1/boards/${targetBoardId}/lists/${targetListId}/cards`)
-      .then(r => r.ok ? r.json() as Promise<CardRead[]> : Promise.reject(`HTTP ${r.status}`))
+      .then(r => r.ok ? r.json() as Promise<CardRead[]> : Promise.reject())
       .then(data => {
         setCards(data)
         // Same idea as the list effect: the source card stays selected while
@@ -114,8 +118,8 @@ export default function CopyChecklistDialog({
         setTargetCardId(prev =>
           data.some(c => c.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(err => setError(String(err)))
-  }, [open, targetBoardId, targetListId])
+      .catch(() => setError(t('board.copyChecklistLoadError')))
+  }, [open, targetBoardId, targetListId, t])
 
   function handleBoardChange(nextBoardId: string) {
     setTargetBoardId(nextBoardId)
@@ -196,8 +200,9 @@ export default function CopyChecklistDialog({
         />
 
         <FormControl fullWidth size="small" sx={{ mt: 2 }}>
-          <InputLabel>{t('board.targetBoard')}</InputLabel>
+          <InputLabel id={boardLabelId}>{t('board.targetBoard')}</InputLabel>
           <Select
+            labelId={boardLabelId}
             label={t('board.targetBoard')}
             value={targetBoardId}
             onChange={(e) => handleBoardChange(e.target.value)}
@@ -210,8 +215,9 @@ export default function CopyChecklistDialog({
         </FormControl>
 
         <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={saving || lists.length === 0}>
-          <InputLabel>{t('board.targetList')}</InputLabel>
+          <InputLabel id={listLabelId}>{t('board.targetList')}</InputLabel>
           <Select
+            labelId={listLabelId}
             label={t('board.targetList')}
             value={targetListId}
             onChange={(e) => handleListChange(e.target.value)}
@@ -228,8 +234,9 @@ export default function CopyChecklistDialog({
         )}
 
         <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={saving || cards.length === 0}>
-          <InputLabel>{t('board.targetCard')}</InputLabel>
+          <InputLabel id={cardLabelId}>{t('board.targetCard')}</InputLabel>
           <Select
+            labelId={cardLabelId}
             label={t('board.targetCard')}
             value={targetCardId}
             onChange={(e) => setTargetCardId(e.target.value)}
