@@ -250,6 +250,30 @@ describe('CopyChecklistDialog', () => {
     await shows('Card', 'Footer')
   })
 
+  it("picks the list's first card again on going back to its board, for a card not yet created", async () => {
+    boardsListsAndCards()
+    const { user } = renderDialog({ cardId: undefined })
+    await shows('Card', 'Footer')
+    await choose(user, 'Board', 'Marketing')
+    await shows('List', 'Ideas')
+
+    await choose(user, 'Board', 'Website redesign')
+
+    await shows('Card', 'Footer')
+  })
+
+  it("picks the list's first card again on going back to its list, for a card not yet created", async () => {
+    boardsListsAndCards()
+    const { user } = renderDialog({ cardId: undefined })
+    await shows('Card', 'Footer')
+    await choose(user, 'List', 'To do')
+    await shows('Card', 'Contact form')
+
+    await choose(user, 'List', 'Doing')
+
+    await shows('Card', 'Footer')
+  })
+
   it("says a list without cards can't take the copy", async () => {
     boardsListsAndCards()
     const { created } = copies()

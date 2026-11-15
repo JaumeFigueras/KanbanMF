@@ -115,7 +115,10 @@ describe('TimeEntryDialog, adding an entry', () => {
 
     await choose(user, 'List', 'To do')
     await waitFor(() => expect(select('Card')).toHaveTextContent('Contact form'))
-    await user.type(textbox('Comment'), 'Client call')
+    // Pasted, not typed: typing is slow with the date fields on screen, and
+    // this test is about what is recorded.
+    await user.click(textbox('Comment'))
+    await user.paste('Client call')
     await user.click(button('Save'))
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
@@ -188,6 +191,29 @@ describe('TimeEntryDialog, adding an entry', () => {
     expect(shownTime('Start')).toBe('05/03/2026 13:30')
   })
 
+  it('keeps the default hour when the last end loses its connection', async () => {
+    fakeCardChoices()
+    const asked = fakeEndpoint('get', LAST_END, () => HttpResponse.error())
+    renderDialog(null)
+    await waitFor(() => expect(asked.requests).toHaveLength(1))
+    await pickerLoaded()
+    expect(shownTime('Start')).toBe('05/03/2026 13:30')
+  })
+
+  it('keeps an end already changed when a last end of this very minute arrives', async () => {
+    fakeCardChoices()
+    const held = heldAnswer(() => HttpResponse.json('2026-03-05T13:30:05Z'))
+    const asked = fakeEndpoint('get', LAST_END, held.answer)
+    const { user } = renderDialog(null)
+    await waitFor(() => expect(asked.requests).toHaveLength(1))
+
+    await typeTime(user, 'End', 'Hours', '16')
+    held.release()
+
+    await waitFor(() => expect(shownTime('Start')).toBe('05/03/2026 14:30'))
+    expect(shownTime('End')).toBe('05/03/2026 16:30')
+  })
+
   it('asks for a card first when the list has none, sending nothing', async () => {
     fakeCardChoices()
     lastEnd()
@@ -232,9 +258,14 @@ describe('TimeEntryDialog, editing an entry', () => {
     const { user, onSaved, onClose } = renderDialog(LOGGED)
 
     await typeTime(user, 'End', 'Hours', '12')
-    await user.type(textbox('Board'), ' 2')
-    await user.type(textbox('Card'), ' v2')
-    await user.type(textbox('Comment'), ' and notes')
+    // Pasted, not typed: typing is slow with the date fields on screen, and
+    // this test is about what is saved.
+    await user.click(textbox('Board'))
+    await user.paste(' 2')
+    await user.click(textbox('Card'))
+    await user.paste(' v2')
+    await user.click(textbox('Comment'))
+    await user.paste(' and notes')
     await user.click(button('Save'))
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))

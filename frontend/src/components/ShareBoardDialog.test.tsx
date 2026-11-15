@@ -578,6 +578,28 @@ describe('ShareBoardDialog', () => {
       expect(await screen.findByText(/^No one found\. Names match only people you already share a board with/)).toBeInTheDocument()
     })
 
+    it('says no one was found when the search loses its connection', async () => {
+      fakeShares()
+      fakeEndpoint('get', SEARCH, () => HttpResponse.error())
+      const { user } = renderDialog()
+      await loaded()
+      await user.type(searchField(), 'oli')
+      expect(await screen.findByText(/^No one found\./)).toBeInTheDocument()
+    })
+
+    it("shows the person shared with even when the people couldn't be loaded", async () => {
+      fakeShares({ members: failure() })
+      fakeEndpoint('get', SEARCH, () => HttpResponse.json([OLIVIA]))
+      fakeEndpoint('post', SHARES, () => HttpResponse.json(OLIVIA, { status: 201 }))
+      const { user } = renderDialog()
+      await within(shareDialog()).findByRole('alert')
+      await user.type(searchField(), 'oli')
+
+      await user.click(await screen.findByRole('option', { name: /Olivia Martin/ }))
+
+      expect(await screen.findByRole('button', { name: 'Remove Olivia Martin from this board' })).toBeInTheDocument()
+    })
+
     it('says when too many whole addresses were looked up', async () => {
       fakeShares()
       fakeEndpoint('get', SEARCH, failure(429))
@@ -828,6 +850,28 @@ describe('ShareBoardDialog', () => {
       await invite(user)
       expect(await within(shareDialog()).findByRole('alert')).toHaveTextContent(message)
       expect(emailField()).toHaveValue('zoe@example.com')
+    })
+
+    it('says so when the invitation loses its connection', async () => {
+      fakeShares()
+      fakeEndpoint('post', INVITATIONS, () => HttpResponse.error())
+      const { user } = renderDialog()
+      await invite(user)
+      expect(await within(shareDialog()).findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.')
+      expect(emailField()).toHaveValue('zoe@example.com')
+    })
+
+    it("lists the invitation sent even when the invitations couldn't be loaded", async () => {
+      fakeShares({ invitations: failure() })
+      fakeEndpoint('post', INVITATIONS, () => HttpResponse.json({ ...SOFIA, id: 'invitation-2', email: 'zoe@example.com' }, { status: 201 }))
+      const { user } = renderDialog()
+      await within(shareDialog()).findByRole('alert')
+      await user.type(emailField(), 'zoe@example.com')
+
+      await user.click(sendButton())
+
+      await screen.findByText('Invitation sent to zoe@example.com.')
+      expect(screen.getByText('zoe@example.com')).toBeInTheDocument()
     })
 
     it('stops offering to send once the server says e-mail is off', async () => {

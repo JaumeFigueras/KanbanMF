@@ -231,6 +231,24 @@ describe('CreateBoardDialog', () => {
     expect(preview()).toHaveTextContent('Lists to be createdIdeas')
   })
 
+  it("keeps the last template's preview when an earlier one fails late", async () => {
+    templatesHave()
+    const held = heldAnswer(() => new HttpResponse(null, { status: 500 }))
+    fakeEndpoint('get', LISTS, (request) =>
+      request.url.includes('board-11') ? held.answer(request) : HttpResponse.json(KANBAN_LISTS))
+    const { user } = renderDialog()
+
+    await chooseTemplate(user, 'Sprint')
+    await chooseTemplate(user, /^Kanban/)
+    await waitFor(() => expect(preview()).toHaveTextContent('Ideas'))
+    held.release()
+    // Gives Sprint's late failure time to land, if it would.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(screen.queryByText("The lists couldn't be loaded.")).not.toBeInTheDocument()
+    expect(preview()).toHaveTextContent('Lists to be createdIdeas')
+  })
+
   it('drops the preview on going back to no template', async () => {
     templatesHave()
     const { user } = renderDialog()

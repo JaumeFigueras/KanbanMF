@@ -17,6 +17,11 @@ export default defineConfig({
     env: { TZ: 'Europe/Madrid' },
     setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Vitest's default of 5 s is tight for the heaviest dialog tests (the time
+    // entry's date fields, menus) once every file runs in parallel, and more
+    // so with coverage: 2-5 s on a development machine. A test that hangs
+    // still fails, just later.
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],

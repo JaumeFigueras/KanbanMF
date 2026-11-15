@@ -432,6 +432,21 @@ describe('ConnectedAppsDialog', () => {
       expect(screen.queryByText('Claude', { selector: 'p' })).not.toBeInTheDocument()
     })
 
+    it('drops a late failure for the last opening', async () => {
+      const held = heldAnswer(notFound)
+      const loads = fakeApps({ grants: held.answer })
+      const { reopen } = renderDialog()
+      await waitFor(() => expect(loads.grants.requests).toHaveLength(1))
+      fakeApps()
+      reopen()
+      await loaded()
+
+      held.release()
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('starts with no editor, question or error open', async () => {
       fakeApps()
       fakeEndpoint('delete', GRANT, () => HttpResponse.json({ detail: 'Server error' }, { status: 500 }))
