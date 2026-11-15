@@ -206,6 +206,7 @@ const en = {
     changeCardColor: 'Change Color',
     cardName: 'Card name',
     cardNameRequired: 'Card name is required.',
+    cardChangedElsewhere: 'This card was changed elsewhere while you were editing it. Saving replaces those changes; Cancel to see them.',
     cardDescription: 'Description',
     moveCard: 'Move card',
     cardMenu: 'Card menu',

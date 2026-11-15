@@ -55,6 +55,15 @@ function jsonInit(method: string, body: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
 }
 
+// A card's content as text, its keys in a fixed order, so two copies of it
+// compare equal: the board hands over a new copy each time it reloads a list.
+function contentOf(card: CardRead | null | undefined): string {
+  return JSON.stringify(card ?? null, (_, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value)
+}
+
 // Reconciles the checklists edited locally in the dialog against what was
 // loaded from the server, issuing the create/update/delete calls needed to
 // bring the card's checklists in line, then the order calls needed to match
@@ -334,14 +343,28 @@ export default function CardDialog({
 
   const creator = card?.creator ?? null
 
-  // Reset the form each time the dialog opens, and whenever the card it
-  // shows is replaced while open (e.g. refetched after a change in another
-  // tab), so initialChecklists always matches what the server has. Done while
-  // rendering rather than in an effect, so no frame shows stale values.
+  // Set when the card was changed elsewhere while the dialog was open: the
+  // form keeps what the user typed, and says so.
+  const [changedElsewhere, setChangedElsewhere] = useState(false)
+  // The card as it was when the dialog opened.
+  const [openedWith, setOpenedWith] = useState<CardRead | null | undefined>(card)
+
+  // Reset the form each time the dialog opens, and only then. The board
+  // reloads a whole list (handing every card in it a new copy) whenever
+  // anything in it changes elsewhere, and resetting then would throw away
+  // what the user typed. Saving compares the checklists against those the
+  // dialog opened with, so a checklist added elsewhere meanwhile isn't
+  // deleted. Done while rendering rather than in an effect, so no frame shows
+  // stale values.
   const [shown, setShown] = useState({ open: false, card })
   if (open !== shown.open || card !== shown.card) {
     setShown({ open, card })
-    if (open) {
+    if (open && shown.open) {
+      // A new copy while open: only worth a word if its content changed.
+      setChangedElsewhere(contentOf(card) !== contentOf(openedWith))
+    } else if (open) {
+      setOpenedWith(card)
+      setChangedElsewhere(false)
       setName(card?.name ?? '')
       setDescription(card?.description ?? '')
       setStartAt(card?.start_at ? dayjs(card.start_at) : null)
@@ -476,6 +499,7 @@ export default function CardDialog({
         {isEdit ? t('board.editCard') : t('board.createCard')}
       </DialogTitle>
       <DialogContent>
+        {changedElsewhere && <Alert severity="warning" sx={{ mb: 2 }}>{t('board.cardChangedElsewhere')}</Alert>}
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <TextField

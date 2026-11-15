@@ -71,8 +71,10 @@ run and fix each phase before the next.
   in the share dialog a slow earlier search can overwrite a newer one, and in the card picker two board changes
   within one round trip can let the older answer win; the e-mail notification dialog sends overlapping saves on
   quick clicks (a late one could win), and a failed save leaves the unsaved choice on screen; in the connected apps
-  dialog, the other apps' buttons stay usable while one saves
-- 5. Card pieces (`CardFace`, `CardItem`, `CardDialog`, and `CardDateField`, moved from phase 4); found in phase 4:
+  dialog, the other apps' buttons stay usable while one saves; for slower machines, each test now gets 15 s
+  (`testTimeout`) and each `waitFor`/`findBy…` 10 s (`asyncUtilTimeout` in `src/test/setup.ts`)
+- 5. Card pieces (`CardFace`, `CardItem`, `CardDialog`, and `CardDateField`, moved from phase 4); plan of 2026-11-15
+  in PROMPTS.md; found in phase 4:
   `CardDialog` has the H problem — if loading the board's people fails or is slow, the members and assignees pickers
   say "No users available yet." and Save takes everyone off the card; fix it the same way; its avatars, now buttons,
   are named by the person, not by what a click does (`PersonAvatar`'s `actionLabel`)

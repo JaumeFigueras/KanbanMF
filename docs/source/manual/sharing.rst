@@ -123,6 +123,7 @@ card being added, moved, edited or archived shows up without reloading the
 page.
 
 When two people change the same card at almost the same moment, the last
-change saved wins. If you keep a card's dialog open while someone else edits
-that card, saving it can overwrite their changes, so close and reopen a card
-that someone else may be working on.
+change saved wins. If someone else changes a card while you have its dialog
+open, the dialog keeps what you have typed and tells you: saving then replaces
+their changes, and :guilabel:`Cancel` lets you see them first. Changes to the
+other cards on the board never touch the dialog.

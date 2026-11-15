@@ -206,6 +206,7 @@ const ca = {
     changeCardColor: 'Canvia el color',
     cardName: 'Nom de la tarja',
     cardNameRequired: 'El nom de la tarja és obligatori.',
+    cardChangedElsewhere: 'Aquesta targeta s\'ha canviat en un altre lloc mentre l\'editaves. Si la desas, substituiràs aquests canvis; cancel·la per veure\'ls.',
     cardDescription: 'Descripció',
     moveCard: 'Mou la tarja',
     cardMenu: 'Menú de la tarja',
