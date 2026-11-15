@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -46,6 +47,7 @@ interface Props {
 
 export default function EmailNotificationDialog({ open, onClose, board }: Props) {
   const { t } = useTranslation()
+  const hourLabelId = useId()
   const [isEnabled, setIsEnabled] = useState(false)
   const [notifyHour, setNotifyHour] = useState(9)
   const [notifyWeekdays, setNotifyWeekdays] = useState<number[]>(WORKDAYS)
@@ -54,32 +56,45 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   const [overdueRepeatEnabled, setOverdueRepeatEnabled] = useState(false)
   const [overdueRepeat, setOverdueRepeat] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // Every change saves the whole set, so nothing can be changed until this
+  // opening's settings have loaded: a click on the defaults shown meanwhile
+  // (or after a failed load) would save them over the real ones.
+  const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
 
-  // Reset to the board's current settings each time it's opened. A leftover
-  // save error is cleared on close (handleClose) rather than here, so the
-  // effect only sets state from the fetch's callbacks.
+  // Each opening waits for the board's current settings. Done while
+  // rendering rather than in an effect, so the first frame already does. A
+  // leftover save error is cleared on close (handleClose).
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setLoaded(false)
+      setLoadFailed(false)
+      setNewOffset('')
+    }
+  }
+
   useEffect(() => {
     if (!open || !board) return
+    // An answer for an earlier opening, perhaps of another board, is dropped.
+    let cancelled = false
     apiFetch(`/api/v1/boards/${board.id}/notifications`)
-      .then((r) => r.ok ? r.json() as Promise<BoardNotificationSettingsRead> : null)
+      .then((r) => r.ok ? r.json() as Promise<BoardNotificationSettingsRead> : Promise.reject(new Error()))
       .then((settings) => {
-        setIsEnabled(settings?.is_enabled ?? false)
-        setNotifyHour(settings?.notify_hour ?? 9)
-        setNotifyWeekdays(settings?.notify_weekdays ?? WORKDAYS)
-        setOffsetDays(settings?.offset_days ?? [])
-        setOverdueRepeatEnabled(settings?.overdue_repeat_after_days != null)
+        if (cancelled) return
+        setIsEnabled(settings.is_enabled)
+        setNotifyHour(settings.notify_hour)
+        setNotifyWeekdays(settings.notify_weekdays)
+        setOffsetDays(settings.offset_days)
+        setOverdueRepeatEnabled(settings.overdue_repeat_after_days != null)
         setOverdueRepeat(
-          settings?.overdue_repeat_after_days != null ? String(settings.overdue_repeat_after_days) : '',
+          settings.overdue_repeat_after_days != null ? String(settings.overdue_repeat_after_days) : '',
         )
+        setLoaded(true)
       })
-      .catch(() => {
-        setIsEnabled(false)
-        setNotifyHour(9)
-        setNotifyWeekdays(WORKDAYS)
-        setOffsetDays([])
-        setOverdueRepeatEnabled(false)
-        setOverdueRepeat('')
-      })
+      .catch(() => { if (!cancelled) setLoadFailed(true) })
+    return () => { cancelled = true }
   }, [open, board])
 
   function handleClose() {
@@ -169,21 +184,31 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
           {t('boards.emailNotificationHint')}
         </Typography>
 
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={isEnabled}
-              onChange={(e) => handleToggleEnabled(e.target.checked)}
-            />
-          }
-          label={t('boards.enableEmailNotifications')}
-        />
+        {loadFailed && <Alert severity="error">{t('boards.notificationsLoadError')}</Alert>}
+        {!loaded && !loadFailed && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
 
-        {isEnabled && (
+        {loaded && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isEnabled}
+                onChange={(e) => handleToggleEnabled(e.target.checked)}
+              />
+            }
+            label={t('boards.enableEmailNotifications')}
+          />
+        )}
+
+        {loaded && isEnabled && (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>{t('boards.notifyHour')}</InputLabel>
+              <InputLabel id={hourLabelId}>{t('boards.notifyHour')}</InputLabel>
               <Select
+                labelId={hourLabelId}
                 label={t('boards.notifyHour')}
                 value={notifyHour}
                 onChange={(e) => handleHourChange(Number(e.target.value))}
@@ -247,6 +272,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
                   value={newOffset}
                   onChange={(e) => setNewOffset(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddOffset() } }}
+                  slotProps={{ htmlInput: { 'aria-label': t('boards.notifyOffsetDays') } }}
                   fullWidth
                 />
                 <IconButton onClick={handleAddOffset} color="primary" aria-label={t('common.add')}>
@@ -259,6 +285,9 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
               <Checkbox
                 checked={overdueRepeatEnabled}
                 onChange={(e) => handleToggleOverdueRepeat(e.target.checked)}
+                slotProps={{
+                  input: { 'aria-label': `${t('boards.overdueRepeatPrefix')} … ${t('boards.overdueRepeatSuffix')}` },
+                }}
                 sx={{ p: 0 }}
               />
               <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
@@ -271,7 +300,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
                 onChange={(e) => setOverdueRepeat(e.target.value)}
                 onBlur={handleOverdueBlur}
                 disabled={!overdueRepeatEnabled}
-                slotProps={{ htmlInput: { min: 1 } }}
+                slotProps={{ htmlInput: { min: 1, 'aria-label': t('boards.overdueRepeatDays') } }}
                 sx={{ width: 90 }}
               />
               <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>

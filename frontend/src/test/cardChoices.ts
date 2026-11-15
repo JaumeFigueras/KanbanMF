@@ -41,14 +41,25 @@ export const CHOICE_CARDS: Record<string, CardRead[]> = {
 
 const segment = (request: Request, index: number) => new URL(request.url).pathname.split('/')[index]
 
+// A board's lists.
+export const answerLists: Answer = (request) => HttpResponse.json(CHOICE_LISTS[segment(request, 5)])
+
+// A list's cards, refused like the backend does when the list isn't on the
+// board asked about.
+export const answerCards: Answer = (request) => {
+  const [boardId, listId] = [segment(request, 4), segment(request, 6)]
+  return CHOICE_LISTS[boardId]?.some((l) => l.id === listId)
+    ? HttpResponse.json(CHOICE_CARDS[listId])
+    : HttpResponse.json({ detail: 'List not found' }, { status: 404 })
+}
+
 // Makes the fake backend answer the picker's three loads with the data above;
 // any of them can be swapped for another answer (a failure, a held one).
 export function fakeCardChoices(answers: { boards?: Answer; lists?: Answer; cards?: Answer } = {}) {
   return {
     boards: fakeEndpoint('get', '/api/v1/time-entries/boards', answers.boards ?? (() => HttpResponse.json(CHOICE_BOARDS))),
     lists: fakeEndpoint('get', '/api/v1/time-entries/boards/:boardId/lists',
-      answers.lists ?? ((request) => HttpResponse.json(CHOICE_LISTS[segment(request, 5)]))),
-    cards: fakeEndpoint('get', '/api/v1/boards/:boardId/lists/:listId/cards',
-      answers.cards ?? ((request) => HttpResponse.json(CHOICE_CARDS[segment(request, 6)]))),
+      answers.lists ?? answerLists),
+    cards: fakeEndpoint('get', '/api/v1/boards/:boardId/lists/:listId/cards', answers.cards ?? answerCards),
   }
 }

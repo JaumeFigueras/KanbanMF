@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
+import { Alert, Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
 import type { TimeTrackerOption } from '../types/timeTracker'
@@ -47,6 +47,12 @@ export default function CardPicker({
   const [boardId, setBoardId] = useState(initialBoardId)
   const [listId, setListId] = useState(initialListId)
   const [cardId, setCardId] = useState('')
+  // A load that failed, so its dropdown isn't taken for an empty one: the
+  // boards, or one board's lists, or one list's cards. Tied to the board or
+  // list asked about, so choosing another one clears it.
+  const [boardsFailed, setBoardsFailed] = useState(false)
+  const [listsFailedFor, setListsFailedFor] = useState<string | null>(null)
+  const [cardsFailedFor, setCardsFailedFor] = useState<string | null>(null)
   // The card menu is kept as wide as its field (measured when it opens), so
   // long names and label rows wrap instead of stretching it across the page.
   const cardFieldRef = useRef<HTMLDivElement>(null)
@@ -58,24 +64,34 @@ export default function CardPicker({
   useLayoutEffect(() => { onChangeRef.current = onChange })
 
   useEffect(() => {
-    onChangeRef.current({ boardId, listId, cardId })
-  }, [boardId, listId, cardId])
-
-  useEffect(() => {
     if (!active) return
     apiFetch('/api/v1/time-entries/boards')
       .then(r => r.ok ? r.json() as Promise<TimeTrackerOption[]> : Promise.reject(new Error()))
       .then(data => {
         setBoards(data)
+        setBoardsFailed(false)
         setBoardId(prev => data.some(b => b.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(() => setBoards([]))
+      .catch(() => {
+        setBoards([])
+        setBoardsFailed(true)
+      })
   }, [active])
 
   // Without a board (or list) there's nothing to choose from, whatever was
   // fetched for the previous one.
   const lists = active && boardId ? fetchedLists : []
   const cards = active && boardId && listId ? fetchedCards : []
+  const listsFailed = listsFailedFor === boardId
+  const cardsFailed = cardsFailedFor === listId
+  const loadFailed = boardsFailed || listsFailed || cardsFailed
+
+  // Only a card on screen is reported: one kept from before, while its
+  // list's cards couldn't be loaded, mustn't be the one saved.
+  const shownCardId = cards.some(c => c.id === cardId) ? cardId : ''
+  useEffect(() => {
+    onChangeRef.current({ boardId, listId, cardId: shownCardId })
+  }, [boardId, listId, shownCardId])
 
   useEffect(() => {
     if (!active || !boardId) return
@@ -83,9 +99,13 @@ export default function CardPicker({
       .then(r => r.ok ? r.json() as Promise<TimeTrackerOption[]> : Promise.reject(new Error()))
       .then(data => {
         setLists(data)
+        setListsFailedFor(null)
         setListId(prev => data.some(l => l.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(() => setLists([]))
+      .catch(() => {
+        setLists([])
+        setListsFailedFor(boardId)
+      })
   }, [active, boardId])
 
   useEffect(() => {
@@ -94,20 +114,32 @@ export default function CardPicker({
       .then(r => r.ok ? r.json() as Promise<CardRead[]> : Promise.reject(new Error()))
       .then(data => {
         setCards(data)
+        setCardsFailedFor(null)
         setCardId(prev => data.some(c => c.id === prev) ? prev : (data[0]?.id ?? ''))
       })
-      .catch(() => setCards([]))
+      .catch(() => {
+        setCards([])
+        setCardsFailedFor(listId)
+      })
   }, [active, boardId, listId])
 
   return (
     <>
+      {loadFailed && <Alert severity="error" sx={{ mt: 2 }}>{t('timeTracker.cardChoicesLoadError')}</Alert>}
+
       <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={disabled || boards.length === 0}>
         <InputLabel id={boardLabelId}>{t('board.targetBoard')}</InputLabel>
         <Select
           labelId={boardLabelId}
           label={t('board.targetBoard')}
           value={boardId}
-          onChange={(e) => setBoardId(e.target.value)}
+          onChange={(e) => {
+            // The list and card go with the board: kept, the old list would be
+            // asked for on the new board until its lists arrive.
+            setBoardId(e.target.value)
+            setListId('')
+            setCardId('')
+          }}
         >
           {boards.map(b => (
             <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
@@ -121,14 +153,17 @@ export default function CardPicker({
           labelId={listLabelId}
           label={t('board.targetList')}
           value={listId}
-          onChange={(e) => setListId(e.target.value)}
+          onChange={(e) => {
+            setListId(e.target.value)
+            setCardId('')
+          }}
         >
           {lists.map(l => (
             <MenuItem key={l.id} value={l.id}>{l.name}</MenuItem>
           ))}
         </Select>
       </FormControl>
-      {boardId !== '' && lists.length === 0 && (
+      {boardId !== '' && lists.length === 0 && !listsFailed && (
         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
           {t('board.noListsOnBoard')}
         </Typography>
@@ -169,7 +204,7 @@ export default function CardPicker({
           ))}
         </Select>
       </FormControl>
-      {listId !== '' && cards.length === 0 && (
+      {listId !== '' && cards.length === 0 && !cardsFailed && (
         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
           {t('board.noCardsInList')}
         </Typography>

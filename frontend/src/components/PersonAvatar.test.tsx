@@ -26,10 +26,45 @@ describe('PersonAvatar', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Emma Wilson')
   })
 
-  it('calls onClick when clicked', async () => {
+  it('is no button when nothing happens on a click', () => {
+    renderWithProviders(<PersonAvatar person={makePerson({ display_name: 'Emma Wilson' })} />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('is a button, named by what a click does, when it does something', async () => {
     const onClick = vi.fn()
-    const { user } = renderWithProviders(<PersonAvatar person={makePerson({ display_name: 'Emma Wilson' })} onClick={onClick} />)
-    await user.click(screen.getByLabelText('Emma Wilson'))
+    const { user } = renderWithProviders(
+      <PersonAvatar person={makePerson({ display_name: 'Emma Wilson' })} onClick={onClick} actionLabel="Remove Emma Wilson" />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Remove Emma Wilson' }))
     expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('is named by the person when what a click does is not given', () => {
+    renderWithProviders(<PersonAvatar person={makePerson({ display_name: 'Emma Wilson' })} onClick={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Emma Wilson' })).toBeInTheDocument()
+  })
+
+  it('can be reached and pressed from the keyboard', async () => {
+    const onClick = vi.fn()
+    const { user } = renderWithProviders(<PersonAvatar person={makePerson()} onClick={onClick} />)
+    await user.tab()
+    expect(screen.getByRole('button')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+    expect(onClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('still shows the name on hover when it is a button', async () => {
+    const { user } = renderWithProviders(
+      <PersonAvatar person={makePerson({ display_name: 'Emma Wilson' })} onClick={vi.fn()} actionLabel="Remove Emma Wilson" />,
+    )
+    await user.hover(screen.getByRole('button'))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Emma Wilson')
+  })
+
+  it('shows the initials inside the button too', () => {
+    renderWithProviders(<PersonAvatar person={makePerson({ initials: 'EMW' })} onClick={vi.fn()} />)
+    expect(screen.getByRole('button')).toHaveTextContent(/^EMW$/)
   })
 })

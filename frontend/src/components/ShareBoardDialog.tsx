@@ -326,7 +326,12 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
           ) : (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
               {sharedPeople.map((person) => (
-                <PersonAvatar key={person.id} person={person} onClick={() => setRemoveTarget(person)} />
+                <PersonAvatar
+                  key={person.id}
+                  person={person}
+                  onClick={() => setRemoveTarget(person)}
+                  actionLabel={t('boards.removeShareFor', { name: person.display_name })}
+                />
               ))}
             </Box>
           )}
@@ -399,7 +404,15 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
               </Box>
             )}
             renderInput={(params) => (
-              <TextField {...params} placeholder={t('boards.searchUserPlaceholder')} size="small" />
+              <TextField
+                {...params}
+                placeholder={t('boards.searchUserPlaceholder')}
+                size="small"
+                slotProps={{
+                  ...params.slotProps,
+                  htmlInput: { ...params.slotProps.htmlInput, 'aria-label': t('boards.addPeople') },
+                }}
+              />
             )}
           />
 
@@ -425,6 +438,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder={t('boards.inviteEmailPlaceholder')}
+                  slotProps={{ htmlInput: { 'aria-label': t('boards.inviteByEmail') } }}
                   disabled={!emailEnabled || inviting}
                   sx={{ flex: '1 1 200px' }}
                 />
