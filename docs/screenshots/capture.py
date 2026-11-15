@@ -263,7 +263,9 @@ def open_remove_confirm(s: Shooter) -> None:
     s.open_tile_menu(s.text["main"])
     s.menu_item("boards.shareBoard").click()
     s.settle()
-    s.dialog().locator(f'[aria-label="{USERS[s.lang][1][1]}"]').click()
+    # The avatar is a button named by what it does: "Remove <name> from this board".
+    remove = s.t("boards.removeShareFor").replace("{{name}}", USERS[s.lang][1][1])
+    s.dialog().get_by_role("button", name=remove, exact=True).click()
     s.settle()
 
 

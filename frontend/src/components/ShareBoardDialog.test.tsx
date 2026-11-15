@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import i18n from '../i18n'
@@ -91,6 +91,12 @@ async function loaded() {
   await screen.findByRole('button', { name: 'Remove Liam Chen from this board' })
 }
 
+// Asks to remove someone, and waits for the card count that Remove waits for.
+async function askToRemove(user: ReturnType<typeof renderDialog>['user'], name: string) {
+  await user.click(removeButton(name))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
+}
+
 describe('ShareBoardDialog', () => {
   describe('the people it is shared with', () => {
     it('shows them, not the owner, each a button to remove them', async () => {
@@ -123,20 +129,61 @@ describe('ShareBoardDialog', () => {
       expect(removed.requests).toEqual([])
     })
 
-    it.each([
-      ['they are on none', () => HttpResponse.json({ card_count: 0 })],
-      ["that can't be found out", failure(404)],
-    ])('says nothing of cards when %s', async (_, answer) => {
+    it('says nothing of cards when they are on none', async () => {
       fakeShares()
-      const impact = fakeEndpoint('get', IMPACT, answer)
+      fakeEndpoint('get', IMPACT, () => HttpResponse.json({ card_count: 0 }))
+      const { user } = renderDialog()
+      await loaded()
+      await askToRemove(user, 'Liam Chen')
+      expect(screen.queryByText(/^They are on/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/will be archived/)).not.toBeInTheDocument()
+    })
+
+    it("still warns that their cards will be archived when the count can't be found out", async () => {
+      fakeShares()
+      fakeEndpoint('get', IMPACT, failure(404))
+      const { user } = renderDialog()
+      await loaded()
+
+      await askToRemove(user, 'Liam Chen')
+
+      expect(screen.getByRole('dialog', { name: 'Remove from board?' })).toHaveTextContent(
+        'Any cards of this board they are on will be archived, to keep their history, and copies without them will take their place, with you instead of them.',
+      )
+    })
+
+    it('waits for the card count before Remove can be pressed', async () => {
+      fakeShares()
+      const held = heldAnswer(() => HttpResponse.json({ card_count: 2 }))
+      fakeEndpoint('get', IMPACT, held.answer)
       const { user } = renderDialog()
       await loaded()
       await user.click(removeButton('Liam Chen'))
-      await waitFor(() => expect(impact.requests).toHaveLength(1))
-      // Gives the answer time to be shown, if it would be.
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(screen.queryByText(/^They are on/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+
+      held.release()
+
+      await screen.findByText(/^They are on 2 cards/)
       expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled()
+    })
+
+    it('waits again for the next person asked about', async () => {
+      fakeShares()
+      const held = heldAnswer(() => HttpResponse.json({ card_count: 0 }))
+      const impact = fakeEndpoint('get', IMPACT, (request) => (request.url.includes('user-2') ? HttpResponse.json({ card_count: 0 }) : held.answer(request)))
+      const { user } = renderDialog()
+      await loaded()
+      await askToRemove(user, 'Liam Chen')
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Remove from board?' })).not.toBeInTheDocument())
+
+      await user.click(removeButton('Noah Garcia'))
+
+      expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
+      await waitFor(() => expect(impact.requests).toHaveLength(2))
+      held.release()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
     })
 
     it('removes them once confirmed', async () => {
@@ -145,7 +192,7 @@ describe('ShareBoardDialog', () => {
       const removed = fakeEndpoint('delete', SHARE)
       const { user } = renderDialog()
       await loaded()
-      await user.click(removeButton('Liam Chen'))
+      await askToRemove(user, 'Liam Chen')
 
       await user.click(screen.getByRole('button', { name: 'Remove' }))
 
@@ -161,7 +208,7 @@ describe('ShareBoardDialog', () => {
       fakeEndpoint('delete', SHARE, failure())
       const { user } = renderDialog()
       await loaded()
-      await user.click(removeButton('Liam Chen'))
+      await askToRemove(user, 'Liam Chen')
 
       await user.click(screen.getByRole('button', { name: 'Remove' }))
 
@@ -192,7 +239,7 @@ describe('ShareBoardDialog', () => {
       fakeEndpoint('delete', SHARE, held.answer)
       const { user } = renderDialog()
       await loaded()
-      await user.click(removeButton('Liam Chen'))
+      await askToRemove(user, 'Liam Chen')
 
       await user.click(screen.getByRole('button', { name: 'Remove' }))
 
@@ -205,7 +252,7 @@ describe('ShareBoardDialog', () => {
     it('asks afresh about the next person: no old error or card count', async () => {
       fakeShares()
       const held = heldAnswer(() => HttpResponse.json({ card_count: 0 }))
-      fakeEndpoint('get', IMPACT, ({ url }) => (url.includes('user-2') ? HttpResponse.json({ card_count: 3 }) : held.answer(new Request(url))))
+      fakeEndpoint('get', IMPACT, (request) => (request.url.includes('user-2') ? HttpResponse.json({ card_count: 3 }) : held.answer(request)))
       fakeEndpoint('delete', SHARE, failure())
       const { user } = renderDialog()
       await loaded()
@@ -223,6 +270,7 @@ describe('ShareBoardDialog', () => {
       expect(within(question).queryByRole('alert')).not.toBeInTheDocument()
       expect(within(question).queryByText(/^They are on/)).not.toBeInTheDocument()
       held.release()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
     })
 
     it("drops a late card count for the person asked about before", async () => {
@@ -245,6 +293,30 @@ describe('ShareBoardDialog', () => {
       expect(screen.queryByText(/^They are on/)).not.toBeInTheDocument()
     })
 
+    it("drops a late failure of the count for the person asked about before", async () => {
+      fakeShares()
+      const liam = heldAnswer(failure())
+      const noah = heldAnswer(() => HttpResponse.json({ card_count: 0 }))
+      const impact = fakeEndpoint('get', IMPACT, (request) => (request.url.includes('user-2') ? liam.answer(request) : noah.answer(request)))
+      const { user } = renderDialog()
+      await loaded()
+      await user.click(removeButton('Liam Chen'))
+      await waitFor(() => expect(impact.requests).toHaveLength(1))
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Remove from board?' })).not.toBeInTheDocument())
+      await user.click(removeButton('Noah Garcia'))
+      await waitFor(() => expect(impact.requests).toHaveLength(2))
+
+      liam.release()
+
+      // Gives the late answer time to land.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(screen.queryByText(/will be archived/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
+      noah.release()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled())
+    })
+
     it('can be reached and removed from the keyboard', async () => {
       fakeShares()
       fakeEndpoint('get', IMPACT, () => HttpResponse.json({ card_count: 0 }))
@@ -253,6 +325,141 @@ describe('ShareBoardDialog', () => {
       removeButton('Liam Chen').focus()
       await user.keyboard('{Enter}')
       expect(screen.getByRole('dialog', { name: 'Remove from board?' })).toHaveTextContent('Remove Liam Chen')
+    })
+  })
+
+  describe('loading the people and invitations', () => {
+    it('shows each list loading until it has arrived', async () => {
+      const members = heldAnswer(() => HttpResponse.json([EMMA, LIAM, NOAH]))
+      const invitations = heldAnswer(() => HttpResponse.json([SOFIA]))
+      fakeShares({ members: members.answer, invitations: invitations.answer })
+      renderDialog()
+      expect(screen.getAllByRole('progressbar')).toHaveLength(2)
+      expect(screen.queryByText('Not shared with anyone yet.')).not.toBeInTheDocument()
+      expect(screen.queryByText('No pending invitations.')).not.toBeInTheDocument()
+
+      members.release()
+      await loaded()
+      expect(screen.getAllByRole('progressbar')).toHaveLength(1)
+      invitations.release()
+
+      await screen.findByText('sofia@example.com')
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['people', { members: failure() }, 'Not shared with anyone yet.'],
+      ['invitations', { invitations: failure() }, 'No pending invitations.'],
+    ])("says the %s couldn't be loaded, rather than that there are none", async (_, answers, emptyText) => {
+      fakeShares(answers)
+      renderDialog()
+      expect(await within(shareDialog()).findByRole('alert')).toHaveTextContent(
+        "The people and invitations couldn't be loaded. Please close this and try again.",
+      )
+      expect(screen.queryByText(emptyText)).not.toBeInTheDocument()
+    })
+
+    it('stops showing a list loading once it has failed', async () => {
+      fakeShares({ members: failure(), invitations: failure() })
+      renderDialog()
+      await within(shareDialog()).findByRole('alert')
+      await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
+    })
+
+    it.each([
+      ['people', { members: failure() }],
+      ['invitations', { invitations: failure() }],
+    ])('stops saying the %s failed once a reload from elsewhere works', async (_, answers) => {
+      fakeShares(answers)
+      setWebSocketToken('socket-token')
+      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+      socket.open()
+      renderDialog()
+      await within(shareDialog()).findByRole('alert')
+      fakeShares()
+
+      socket.receive({ type: 'board_shared', board_id: 'board-1', origin_client_id: null })
+
+      await loaded()
+      await screen.findByText('sofia@example.com')
+      expect(within(shareDialog()).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it("doesn't show the last board's people and invitations while the next board's load", async () => {
+      fakeShares()
+      const { reopen } = renderDialog()
+      await loaded()
+      await screen.findByText('sofia@example.com')
+      const members = heldAnswer(() => HttpResponse.json([EMMA]))
+      const invitations = heldAnswer(() => HttpResponse.json([]))
+      fakeShares({ members: members.answer, invitations: invitations.answer })
+
+      reopen({ board: makeBoard({ id: 'board-2', owner_id: 'user-1' }) })
+
+      expect(screen.queryByRole('button', { name: 'Remove Liam Chen from this board' })).not.toBeInTheDocument()
+      expect(screen.queryByText('sofia@example.com')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('progressbar')).toHaveLength(2)
+      // Lets the loads finish here, not in the next test.
+      members.release()
+      invitations.release()
+      await screen.findByText('Not shared with anyone yet.')
+      await screen.findByText('No pending invitations.')
+    })
+
+    it('drops a late answer for the last board', async () => {
+      const members = heldAnswer(() => HttpResponse.json([EMMA, LIAM, NOAH]))
+      const invitations = heldAnswer(() => HttpResponse.json([SOFIA]))
+      const loads = fakeShares({ members: members.answer, invitations: invitations.answer })
+      const { reopen } = renderDialog()
+      await waitFor(() => expect([...loads.members.requests, ...loads.invitations.requests]).toHaveLength(2))
+      fakeShares({ members: [EMMA], invitations: [] })
+      reopen({ board: makeBoard({ id: 'board-2', owner_id: 'user-1' }) })
+      await screen.findByText('Not shared with anyone yet.')
+      await screen.findByText('No pending invitations.')
+
+      members.release()
+      invitations.release()
+
+      // Gives the late answers time to land.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(screen.queryByRole('button', { name: 'Remove Liam Chen from this board' })).not.toBeInTheDocument()
+      expect(screen.queryByText('sofia@example.com')).not.toBeInTheDocument()
+    })
+
+    it('drops a late failure for the last board too', async () => {
+      const held = heldAnswer(failure())
+      const loads = fakeShares({ members: held.answer, invitations: held.answer })
+      const { reopen } = renderDialog()
+      await waitFor(() => expect([...loads.members.requests, ...loads.invitations.requests]).toHaveLength(2))
+      fakeShares()
+      reopen({ board: makeBoard({ id: 'board-2', owner_id: 'user-1' }) })
+      await loaded()
+
+      held.release()
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(within(shareDialog()).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['people', { members: failure() }],
+      ['invitations', { invitations: failure() }],
+    ])('says nothing of the failed %s while a reopening loads them', async (_, answers) => {
+      fakeShares(answers)
+      const { reopen } = renderDialog()
+      await within(shareDialog()).findByRole('alert')
+      const members = heldAnswer(() => HttpResponse.json([EMMA, LIAM, NOAH]))
+      const invitations = heldAnswer(() => HttpResponse.json([SOFIA]))
+      fakeShares({ members: members.answer, invitations: invitations.answer })
+
+      reopen()
+
+      expect(within(shareDialog()).queryByRole('alert')).not.toBeInTheDocument()
+      members.release()
+      invitations.release()
+      await loaded()
+      await screen.findByText('sofia@example.com')
+      expect(within(shareDialog()).queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 
@@ -345,6 +552,7 @@ describe('ShareBoardDialog', () => {
       await user.click(await screen.findByRole('option', { name: /Olivia Martin/ }))
 
       expect(await screen.findByRole('button', { name: 'Remove Olivia Martin from this board' })).toBeInTheDocument()
+      expect(removeButton('Liam Chen')).toBeInTheDocument()
       expect(shared.requests.map((r) => [r.url.pathname, r.body])).toEqual([['/api/v1/boards/board-1/shares', { user_id: 'user-4' }]])
       expect(searchField()).toHaveValue('')
     })
@@ -506,6 +714,7 @@ describe('ShareBoardDialog', () => {
         ['/api/v1/boards/board-1/invitations', { email: 'zoe@example.com', language: 'ca' }],
       ])
       expect(screen.getByText('zoe@example.com')).toBeInTheDocument()
+      expect(screen.getByText('sofia@example.com')).toBeInTheDocument()
       expect(emailField()).toHaveValue('')
     })
 
@@ -514,6 +723,34 @@ describe('ShareBoardDialog', () => {
       fakeShares()
       renderDialog()
       expect(await screen.findByRole('combobox', { name: 'Idioma del correu' })).toHaveTextContent('Català')
+    })
+
+    it('sends with Enter too', async () => {
+      fakeShares()
+      const invited = fakeEndpoint('post', INVITATIONS, () => HttpResponse.json({ ...SOFIA, id: 'invitation-2', email: 'zoe@example.com' }, { status: 201 }))
+      const { user } = renderDialog()
+      await screen.findByText('sofia@example.com')
+      await user.type(emailField(), 'zoe@example.com{Enter}')
+      await screen.findByText('Invitation sent to zoe@example.com.')
+      expect(invited.requests.map((r) => r.body)).toEqual([{ email: 'zoe@example.com', language: 'en' }])
+    })
+
+    it("sends without leaving the page, as a browser would on a form's submit", async () => {
+      fakeShares()
+      fakeEndpoint('post', INVITATIONS, () => HttpResponse.json({ ...SOFIA, id: 'invitation-2', email: 'zoe@example.com' }, { status: 201 }))
+      const submits: boolean[] = []
+      // Runs after the dialog's own handler: was the page load stopped?
+      const seeSubmit = (event: Event) => submits.push(event.defaultPrevented)
+      window.addEventListener('submit', seeSubmit)
+      onTestFinished(() => window.removeEventListener('submit', seeSubmit))
+      const { user } = renderDialog()
+      await screen.findByText('sofia@example.com')
+
+      await user.type(emailField(), 'zoe@example.com')
+      await user.click(sendButton())
+
+      await screen.findByText('Invitation sent to zoe@example.com.')
+      expect(submits).toEqual([true])
     })
 
     it("can't send what isn't an e-mail address, not even with Enter", async () => {
@@ -655,6 +892,7 @@ describe('ShareBoardDialog', () => {
       expect(screen.queryByRole('textbox', { name: 'Invite by email' })).not.toBeInTheDocument()
       expect(loads.invitations.requests).toEqual([])
       expect(loads.members.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-9/members'])
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     })
   })
 

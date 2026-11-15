@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Alert,
   Autocomplete,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -51,17 +52,21 @@ type InviteFeedback =
 
 export default function ShareBoardDialog({ open, onClose, board, numberLocale, dateFormat }: Props) {
   const { t, i18n } = useTranslation()
-  const [sharedPeople, setSharedPeople] = useState<PersonSummary[]>([])
-  const [invitations, setInvitations] = useState<BoardInvitationRead[]>([])
+  // null until this opening's people (or invitations) have loaded, so a
+  // list still loading, or that failed to, isn't taken for an empty one.
+  const [sharedPeople, setSharedPeople] = useState<PersonSummary[] | null>(null)
+  const [invitations, setInvitations] = useState<BoardInvitationRead[] | null>(null)
+  const [peopleFailed, setPeopleFailed] = useState(false)
+  const [invitationsFailed, setInvitationsFailed] = useState(false)
   const [emailEnabled, setEmailEnabled] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<PersonSummary[]>([])
   const [searchLimited, setSearchLimited] = useState(false)
   const [searching, setSearching] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<PersonSummary | null>(null)
-  // How many cards removing removeTarget will archive and replace; null
-  // while it loads, or if it couldn't be fetched.
-  const [removeCardCount, setRemoveCardCount] = useState<number | null>(null)
+  // How many cards removing removeTarget will archive and replace: null
+  // while it loads, 'unknown' if it couldn't be fetched.
+  const [removeCardCount, setRemoveCardCount] = useState<number | 'unknown' | null>(null)
   const [cancelTarget, setCancelTarget] = useState<BoardInvitationRead | null>(null)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState(false)
@@ -77,18 +82,31 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   // Templates can't be shared by invitation, only with existing users.
   const canInvite = board !== null && !board.is_template
 
+  // Each load is numbered and only the latest one's answers are shown: a
+  // late answer for an earlier opening, perhaps of another board, is dropped.
+  const loadCount = useRef(0)
   const loadShares = useCallback(() => {
     if (!board) return
+    const load = ++loadCount.current
+    const latest = () => load === loadCount.current
     apiFetch(`/api/v1/boards/${board.id}/members`)
-      .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : [])
-      .then((members) => setSharedPeople(members.filter((m) => m.id !== board.owner_id)))
-      .catch(() => setSharedPeople([]))
+      .then((r) => r.ok ? r.json() as Promise<PersonSummary[]> : Promise.reject(new Error()))
+      .then((members) => {
+        if (!latest()) return
+        setSharedPeople(members.filter((m) => m.id !== board.owner_id))
+        setPeopleFailed(false)
+      })
+      .catch(() => { if (latest()) setPeopleFailed(true) })
     // Templates have no invitations, and the list isn't rendered for them.
     if (board.is_template) return
     apiFetch(`/api/v1/boards/${board.id}/invitations`)
-      .then((r) => r.ok ? r.json() as Promise<BoardInvitationRead[]> : [])
-      .then(setInvitations)
-      .catch(() => setInvitations([]))
+      .then((r) => r.ok ? r.json() as Promise<BoardInvitationRead[]> : Promise.reject(new Error()))
+      .then((loaded) => {
+        if (!latest()) return
+        setInvitations(loaded)
+        setInvitationsFailed(false)
+      })
+      .catch(() => { if (latest()) setInvitationsFailed(true) })
   }, [board])
 
   // Clears the search box, or starts a (debounced, see below) search for
@@ -105,6 +123,10 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
+      setSharedPeople(null)
+      setInvitations(null)
+      setPeopleFailed(false)
+      setInvitationsFailed(false)
       handleSearchTermChange('')
       setError(null)
       setInviteEmail('')
@@ -139,9 +161,9 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
     if (!removeTarget || !board) return
     let cancelled = false
     apiFetch(`/api/v1/boards/${board.id}/shares/${removeTarget.id}/impact`)
-      .then((r) => r.ok ? r.json() as Promise<{ card_count: number }> : null)
-      .then((impact) => { if (!cancelled) setRemoveCardCount(impact?.card_count ?? null) })
-      .catch(() => {})
+      .then((r) => r.ok ? r.json() as Promise<{ card_count: number }> : Promise.reject(new Error()))
+      .then((impact) => { if (!cancelled) setRemoveCardCount(impact.card_count) })
+      .catch(() => { if (!cancelled) setRemoveCardCount('unknown') })
     return () => { cancelled = true }
   }, [removeTarget, board])
 
@@ -163,7 +185,8 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
     return () => clearTimeout(handle)
   }, [searchTerm])
 
-  const sharedIds = new Set(sharedPeople.map((p) => p.id))
+  const sharedIds = new Set((sharedPeople ?? []).map((p) => p.id))
+  const loadFailed = peopleFailed || invitationsFailed
   const selectableResults = searchResults.filter(
     (p) => !sharedIds.has(p.id) && p.id !== board?.owner_id,
   )
@@ -182,7 +205,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       })
       if (!r.ok) throw new Error()
       const added: PersonSummary = await r.json()
-      setSharedPeople((prev) => (prev.some((p) => p.id === added.id) ? prev : [...prev, added]))
+      setSharedPeople((prev) => (prev?.some((p) => p.id === added.id) ? prev : [...(prev ?? []), added]))
       return true
     } catch {
       setError(t('common.saveError'))
@@ -212,7 +235,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       })
       if (r.status === 201) {
         const created: BoardInvitationRead = await r.json()
-        setInvitations((prev) => [...prev.filter((i) => i.id !== created.id), created])
+        setInvitations((prev) => [...(prev ?? []).filter((i) => i.id !== created.id), created])
         setInviteFeedback({ kind: 'sent', email: created.email })
         setInviteEmail('')
       } else if (r.status === 409) {
@@ -249,7 +272,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
         { method: 'DELETE' },
       )
       if (!r.ok) throw new Error()
-      setSharedPeople((prev) => prev.filter((p) => p.id !== removeTarget.id))
+      setSharedPeople((prev) => prev?.filter((p) => p.id !== removeTarget.id) ?? null)
       closeRemoveConfirm()
     } catch {
       setRemoveError(t('common.saveError'))
@@ -269,7 +292,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
       )
       // 404: already accepted, expired or cancelled elsewhere — gone either way.
       if (!r.ok && r.status !== 404) throw new Error()
-      setInvitations((prev) => prev.filter((i) => i.id !== cancelTarget.id))
+      setInvitations((prev) => prev?.filter((i) => i.id !== cancelTarget.id) ?? null)
       setCancelTarget(null)
     } catch {
       setCancelError(t('common.saveError'))
@@ -297,10 +320,13 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
   }
 
   const inviteEmailValid = EMAIL_PATTERN.test(inviteEmail.trim())
+  // The form's submit button, so Enter in the address sends too: without
+  // one, the language list's hidden input makes two fields, and browsers
+  // don't submit a form like that on Enter.
   const sendButton = (
     <Button
+      type="submit"
       variant="contained"
-      onClick={handleInvite}
       disabled={!emailEnabled || !inviteEmailValid || inviting}
       sx={{ whiteSpace: 'nowrap' }}
     >
@@ -314,12 +340,15 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
         <DialogTitle>{t('boards.shareBoardTitle')}</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {loadFailed && <Alert severity="error" sx={{ mb: 2 }}>{t('boards.sharesLoadError')}</Alert>}
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
             {t('boards.sharedWith')}
           </Typography>
 
-          {sharedPeople.length === 0 ? (
+          {sharedPeople === null ? (
+            !peopleFailed && <CircularProgress size={20} sx={{ display: 'block', mb: 2 }} />
+          ) : sharedPeople.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {t('boards.noSharedUsers')}
             </Typography>
@@ -341,7 +370,9 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                 {t('boards.pendingInvitations')}
               </Typography>
-              {invitations.length === 0 ? (
+              {invitations === null ? (
+                !invitationsFailed && <CircularProgress size={20} sx={{ display: 'block', mb: 2 }} />
+              ) : invitations.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   {t('boards.noPendingInvitations')}
                 </Typography>
@@ -521,9 +552,15 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
           <Typography variant="body2">
             {t('boards.removeShareConfirmMessage', { name: removeTarget?.display_name ?? '' })}
           </Typography>
-          {Boolean(removeCardCount) && (
+          {typeof removeCardCount === 'number' && removeCardCount > 0 && (
             <Typography variant="body2" sx={{ mt: 1.5 }}>
-              {t('boards.removeShareCards', { count: removeCardCount ?? 0 })}
+              {t('boards.removeShareCards', { count: removeCardCount })}
+            </Typography>
+          )}
+          {/* Not knowing how many, it still warns that there may be some. */}
+          {removeCardCount === 'unknown' && (
+            <Typography variant="body2" sx={{ mt: 1.5 }}>
+              {t('boards.removeShareCardsUnknown')}
             </Typography>
           )}
         </DialogContent>
@@ -531,7 +568,13 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
           <Button onClick={closeRemoveConfirm} color="inherit" disabled={removing}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleRemoveConfirmed} color="error" variant="contained" disabled={removing}>
+          {/* It waits for the card count, so it can't be pressed before the warning shows. */}
+          <Button
+            onClick={handleRemoveConfirmed}
+            color="error"
+            variant="contained"
+            disabled={removing || removeCardCount === null}
+          >
             {t('boards.remove')}
           </Button>
         </DialogActions>

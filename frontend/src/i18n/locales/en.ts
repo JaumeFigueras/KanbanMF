@@ -100,6 +100,8 @@ const en = {
     remove: 'Remove',
     removeShareCards_one: 'They are on 1 card of this board. It will be archived, to keep its history, and a copy without them will take its place, with you instead of them.',
     removeShareCards_other: 'They are on {{count}} cards of this board. Those cards will be archived, to keep their history, and copies without them will take their place, with you instead of them.',
+    removeShareCardsUnknown: 'Any cards of this board they are on will be archived, to keep their history, and copies without them will take their place, with you instead of them.',
+    sharesLoadError: "The people and invitations couldn't be loaded. Please close this and try again.",
     addPeople: 'Add people',
     pendingInvitations: 'Pending invitations',
     noPendingInvitations: 'No pending invitations.',

@@ -86,7 +86,9 @@ Removing someone
 ----------------
 
 In the share dialog, click the person's avatar under :guilabel:`Shared with`.
-The confirmation tells you how many of the board's cards they are on.
+The confirmation tells you how many of the board's cards they are on, and
+:guilabel:`Remove` waits until it knows. If the number can't be found out, it
+still warns you that any cards they are on will be replaced.
 
 .. figure:: img/share-remove.png
    :alt: The confirmation to remove someone from a board, saying how many

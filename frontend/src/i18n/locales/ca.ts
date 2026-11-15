@@ -100,6 +100,8 @@ const ca = {
     remove: 'Elimina',
     removeShareCards_one: 'Hi és en 1 targeta d\'aquest tauler. S\'arxivarà, per conservar-ne l\'historial, i una còpia sense aquesta persona n\'ocuparà el lloc, amb tu en lloc seu.',
     removeShareCards_other: 'Hi és en {{count}} targetes d\'aquest tauler. S\'arxivaran, per conservar-ne l\'historial, i unes còpies sense aquesta persona n\'ocuparan el lloc, amb tu en lloc seu.',
+    removeShareCardsUnknown: 'Les targetes d\'aquest tauler on hi sigui s\'arxivaran, per conservar-ne l\'historial, i unes còpies sense aquesta persona n\'ocuparan el lloc, amb tu en lloc seu.',
+    sharesLoadError: 'No s\'han pogut carregar les persones i les invitacions. Tanca aquesta finestra i torna-ho a provar.',
     addPeople: 'Afegeix persones',
     pendingInvitations: 'Invitacions pendents',
     noPendingInvitations: 'No hi ha invitacions pendents.',
