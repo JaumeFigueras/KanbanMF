@@ -383,6 +383,7 @@ const ca = {
     tooManyAttempts: 'Massa intents. Espera uns minuts i torna-ho a provar.',
     add: 'Afegeix',
     delete: 'Elimina',
+    hexColor: 'Codi hexadecimal del color',
   },
 } as const
 

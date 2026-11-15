@@ -383,6 +383,7 @@ const en = {
     tooManyAttempts: 'Too many attempts. Please wait a few minutes and try again.',
     add: 'Add',
     delete: 'Delete',
+    hexColor: 'Hex color code',
   },
 } as const
 

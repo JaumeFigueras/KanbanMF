@@ -37,6 +37,9 @@ export default function CreateListDialog({ open, onClose, boardId, onCreated }: 
   }
 
   async function handleSave() {
+    // Enter in the field still works while a save runs (only the buttons
+    // are disabled), and a second one would send the form again.
+    if (saving) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(t('board.listNameRequired'))

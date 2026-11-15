@@ -21,7 +21,10 @@ interface Props {
 }
 
 // Board names are capped at 255 characters server-side; "Copy of …" on a
-// name already near the cap would otherwise be rejected on save.
+// name already near the cap would otherwise be rejected on save. The
+// backend counts code points, so the name is cut by those: String.slice
+// counts UTF-16 units and could split an emoji in two, which the backend
+// can't store.
 const MAX_NAME_LENGTH = 255
 
 export default function DuplicateTemplateDialog({ open, onClose, template, onDuplicated }: Props) {
@@ -45,12 +48,17 @@ function DuplicateTemplateForm({
 }) {
   const { t } = useTranslation()
   const [name, setName] = useState(
-    () => t('boards.duplicateTemplateDefaultName', { name: template.name }).slice(0, MAX_NAME_LENGTH),
+    () => Array.from(t('boards.duplicateTemplateDefaultName', { name: template.name }))
+      .slice(0, MAX_NAME_LENGTH)
+      .join(''),
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function handleSave() {
+    // Enter in the field still works while a save runs (only the buttons
+    // are disabled), and a second one would send the form again.
+    if (saving) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(t('boards.templateNameRequired'))

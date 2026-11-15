@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Box, TextField } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { PALETTE_COLUMNS } from '../utils/colorPalette'
 
 const SHADE_COUNT = PALETTE_COLUMNS[0].shades.length
@@ -26,6 +27,7 @@ interface Props {
 // caused the picker to look inconsistent. The hex field next to the preview
 // lets a user type any color the table doesn't cover.
 export default function ColorPicker({ value, onChange }: Props) {
+  const { t } = useTranslation()
   const [hexInput, setHexInput] = useState(value)
 
   function handleHexChange(raw: string) {
@@ -58,7 +60,9 @@ export default function ColorPicker({ value, onChange }: Props) {
           value={hexInput}
           onChange={(e) => handleHexChange(e.target.value)}
           error={!HEX_RE.test(hexInput)}
-          slotProps={{ htmlInput: { maxLength: 7, style: { textTransform: 'uppercase' } } }}
+          slotProps={{
+            htmlInput: { maxLength: 7, style: { textTransform: 'uppercase' }, 'aria-label': t('common.hexColor') },
+          }}
           sx={{ width: 120 }}
         />
       </Box>
@@ -70,27 +74,31 @@ export default function ColorPicker({ value, onChange }: Props) {
           gap: 0.5,
         }}
       >
-        {GRID_SWATCHES.map(({ name, hex }, i) => (
-          <Box
-            key={`${name}-${i}`}
-            component="button"
-            type="button"
-            onClick={() => handleSwatchClick(hex)}
-            aria-label={hex}
-            title={`${name} ${hex}`}
-            sx={{
-              width: SWATCH_SIZE,
-              height: SWATCH_SIZE,
-              borderRadius: 0.5,
-              bgcolor: hex,
-              cursor: 'pointer',
-              p: 0,
-              border: '2px solid',
-              borderColor: value.toLowerCase() === hex.toLowerCase() ? 'text.primary' : 'divider',
-              boxShadow: value.toLowerCase() === hex.toLowerCase() ? 2 : 'none',
-            }}
-          />
-        ))}
+        {GRID_SWATCHES.map(({ name, hex }, i) => {
+          const selected = value.toLowerCase() === hex.toLowerCase()
+          return (
+            <Box
+              key={`${name}-${i}`}
+              component="button"
+              type="button"
+              onClick={() => handleSwatchClick(hex)}
+              aria-label={hex}
+              aria-pressed={selected}
+              title={`${name} ${hex}`}
+              sx={{
+                width: SWATCH_SIZE,
+                height: SWATCH_SIZE,
+                borderRadius: 0.5,
+                bgcolor: hex,
+                cursor: 'pointer',
+                p: 0,
+                border: '2px solid',
+                borderColor: selected ? 'text.primary' : 'divider',
+                boxShadow: selected ? 2 : 'none',
+              }}
+            />
+          )
+        })}
       </Box>
     </Box>
   )

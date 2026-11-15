@@ -37,6 +37,9 @@ export default function RenameListDialog({ open, onClose, list, onSaved }: Props
   }
 
   async function handleSave() {
+    // Enter in the field still works while a save runs (only the buttons
+    // are disabled), and a second one would send the form again.
+    if (saving) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(t('board.listNameRequired'))

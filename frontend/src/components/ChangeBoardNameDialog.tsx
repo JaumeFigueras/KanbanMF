@@ -37,6 +37,9 @@ export default function ChangeBoardNameDialog({ open, onClose, board, onSaved }:
   }
 
   async function handleSave() {
+    // Enter in the field still works while a save runs (only the buttons
+    // are disabled), and a second one would send the form again.
+    if (saving) return
     const trimmed = name.trim()
     if (!trimmed) {
       setError(t('boards.boardNameRequired'))
