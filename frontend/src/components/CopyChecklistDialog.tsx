@@ -127,6 +127,9 @@ export default function CopyChecklistDialog({
     // board; otherwise the list effect above picks a default once its
     // lists load.
     setTargetListId(nextBoardId === boardId ? listId : '')
+    // Likewise for the card: the old board's card mustn't stay chosen, or
+    // Save would send the copy to it on a board it isn't on.
+    setTargetCardId(nextBoardId === boardId ? (cardId ?? '') : '')
   }
 
   function handleListChange(nextListId: string) {
@@ -138,6 +141,10 @@ export default function CopyChecklistDialog({
     const trimmed = name.trim()
     if (!trimmed) {
       setNameError(true)
+      return
+    }
+    if (!targetListId) {
+      setError(t('board.noListsOnBoard'))
       return
     }
     if (!targetCardId) {

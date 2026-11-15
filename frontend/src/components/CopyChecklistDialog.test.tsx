@@ -205,16 +205,6 @@ describe('CopyChecklistDialog', () => {
     await shows('Card', 'Homepage layout')
   })
 
-  it("picks the checklist's own list again on going back to its board", async () => {
-    boardsListsAndCards()
-    const { user } = renderDialog()
-    await loaded()
-    await choose(user, 'Board', 'Marketing')
-    await shows('List', 'Ideas')
-    await choose(user, 'Board', 'Website redesign')
-    await shows('List', 'Doing')
-  })
-
   it('copies onto the card chosen', async () => {
     boardsListsAndCards()
     const { created } = copies()
@@ -226,15 +216,33 @@ describe('CopyChecklistDialog', () => {
     expect(created.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1/lists/list-2/cards/card-8/checklists'])
   })
 
-  it('offers no list or card on a board without lists', async () => {
+  it("offers no list or card on a board without lists, and says it can't take the copy", async () => {
     boardsListsAndCards()
+    const { created } = copies()
     const { user } = renderDialog()
     await loaded()
+
     await choose(user, 'Board', 'Empty board')
+
     expect(await screen.findByText('This board has no lists yet.')).toBeInTheDocument()
     expect(select('List')).toHaveAttribute('aria-disabled', 'true')
     expect(select('Card')).toHaveAttribute('aria-disabled', 'true')
+    await user.click(button('Save'))
+    expect(screen.getByRole('alert')).toHaveTextContent('This board has no lists yet.')
+    expect(created.requests).toEqual([])
   })
+
+  it("picks the checklist's own card again on going back to its board", async () => {
+    boardsListsAndCards()
+    const { user } = renderDialog()
+    await loaded()
+    await choose(user, 'Board', 'Marketing')
+    await shows('Card', 'Spring campaign')
+    await choose(user, 'Board', 'Website redesign')
+    await shows('List', 'Doing')
+    await shows('Card', 'Homepage layout')
+  })
+
 
   it("picks the list's first card for a card not yet created", async () => {
     boardsListsAndCards()

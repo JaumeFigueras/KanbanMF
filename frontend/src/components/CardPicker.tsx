@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import type { CardRead } from '../types/board'
@@ -37,6 +37,10 @@ export default function CardPicker({
   onChange,
 }: Props) {
   const { t } = useTranslation()
+  // Each select is named by its label only when the two are linked by id.
+  const boardLabelId = useId()
+  const listLabelId = useId()
+  const cardLabelId = useId()
   const [boards, setBoards] = useState<TimeTrackerOption[]>([])
   const [fetchedLists, setLists] = useState<TimeTrackerOption[]>([])
   const [fetchedCards, setCards] = useState<CardRead[]>([])
@@ -98,8 +102,9 @@ export default function CardPicker({
   return (
     <>
       <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={disabled || boards.length === 0}>
-        <InputLabel>{t('board.targetBoard')}</InputLabel>
+        <InputLabel id={boardLabelId}>{t('board.targetBoard')}</InputLabel>
         <Select
+          labelId={boardLabelId}
           label={t('board.targetBoard')}
           value={boardId}
           onChange={(e) => setBoardId(e.target.value)}
@@ -111,8 +116,9 @@ export default function CardPicker({
       </FormControl>
 
       <FormControl fullWidth size="small" sx={{ mt: 2 }} disabled={disabled || lists.length === 0}>
-        <InputLabel>{t('board.targetList')}</InputLabel>
+        <InputLabel id={listLabelId}>{t('board.targetList')}</InputLabel>
         <Select
+          labelId={listLabelId}
           label={t('board.targetList')}
           value={listId}
           onChange={(e) => setListId(e.target.value)}
@@ -138,8 +144,9 @@ export default function CardPicker({
         sx={{ mt: 2 }}
         disabled={disabled || cards.length === 0}
       >
-        <InputLabel>{t('board.targetCard')}</InputLabel>
+        <InputLabel id={cardLabelId}>{t('board.targetCard')}</InputLabel>
         <Select
+          labelId={cardLabelId}
           label={t('board.targetCard')}
           value={cardId}
           onChange={(e) => setCardId(e.target.value)}

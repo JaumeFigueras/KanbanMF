@@ -162,6 +162,7 @@ const en = {
     templateOwnedBy: '{{name}}\'s template',
     templatePreview: 'Lists to be created',
     templateHasNoLists: 'This template has no lists.',
+    templatePreviewError: "The lists couldn't be loaded.",
   },
   board: {
     addList: 'Add List',

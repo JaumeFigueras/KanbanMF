@@ -197,12 +197,14 @@ describe('CreateBoardDialog', () => {
     await waitFor(() => expect(preview()).toHaveTextContent('Ideas'))
   })
 
-  it("stops the spinner when the preview can't be loaded", async () => {
+  it("says the lists couldn't be loaded, rather than that there are none, when the preview fails", async () => {
     templatesHave()
     fakeEndpoint('get', LISTS, () => new HttpResponse(null, { status: 500 }))
     const { user } = renderDialog()
     await chooseTemplate(user, 'Sprint')
-    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
+    expect(await screen.findByText("The lists couldn't be loaded.")).toBeInTheDocument()
+    expect(screen.queryByText('This template has no lists.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
   it('says when a template has no lists', async () => {

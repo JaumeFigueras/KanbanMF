@@ -53,7 +53,9 @@ export default function CreateBoardDialog({
   const [name, setName] = useState('')
   const [starred, setStarred] = useState(false)
   const [templateId, setTemplateId] = useState('')
-  const [preview, setPreview] = useState<PreviewList[] | null>(null)
+  // null while loading; 'failed' when the lists couldn't be read, which
+  // mustn't look like a template without lists.
+  const [preview, setPreview] = useState<PreviewList[] | null | 'failed'>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Picking templates quickly fires overlapping preview loads; only the
@@ -100,7 +102,7 @@ export default function CreateBoardDialog({
       if (request !== previewRequestRef.current) return
       setPreview(sorted.map(l => ({ id: l.id, name: l.name, color: colors?.lists[l.id] ?? DEFAULT_COLOR })))
     } catch {
-      if (request === previewRequestRef.current) setPreview([])
+      if (request === previewRequestRef.current) setPreview('failed')
     }
   }
 
@@ -184,26 +186,28 @@ export default function CreateBoardDialog({
               </Typography>
               {preview === null
                 ? <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}><CircularProgress size={20} /></Box>
-                : preview.length === 0
-                  ? <Typography variant="body2" color="text.secondary">{t('boards.templateHasNoLists')}</Typography>
-                  : <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.5 }}>
-                      {preview.map(list => (
-                        <Box
-                          key={list.id}
-                          sx={{
-                            px: 1,
-                            py: 0.25,
-                            borderRadius: 1,
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            bgcolor: `${list.color}26`,
-                            border: `1px solid ${list.color}`,
-                          }}
-                        >
-                          {list.name}
-                        </Box>
-                      ))}
-                    </Box>}
+                : preview === 'failed'
+                  ? <Typography variant="body2" color="error">{t('boards.templatePreviewError')}</Typography>
+                  : preview.length === 0
+                    ? <Typography variant="body2" color="text.secondary">{t('boards.templateHasNoLists')}</Typography>
+                    : <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 0.5 }}>
+                        {preview.map(list => (
+                          <Box
+                            key={list.id}
+                            sx={{
+                              px: 1,
+                              py: 0.25,
+                              borderRadius: 1,
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              bgcolor: `${list.color}26`,
+                              border: `1px solid ${list.color}`,
+                            }}
+                          >
+                            {list.name}
+                          </Box>
+                        ))}
+                      </Box>}
             </Box>
           )}
           {!isTemplate && (

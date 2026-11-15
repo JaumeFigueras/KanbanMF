@@ -162,6 +162,7 @@ const ca = {
     templateOwnedBy: 'Plantilla de {{name}}',
     templatePreview: 'Llistes que es crearan',
     templateHasNoLists: 'Aquesta plantilla no té llistes.',
+    templatePreviewError: 'No s\'han pogut carregar les llistes.',
   },
   board: {
     addList: 'Afegeix una llista',
