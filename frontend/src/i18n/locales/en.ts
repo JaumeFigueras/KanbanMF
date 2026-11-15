@@ -142,6 +142,7 @@ const en = {
     notifyOffsetDays: 'Notify these days before/after the due date',
     noOffsetDays: 'No notification days configured yet.',
     offsetDaysPlaceholder: 'e.g. -3, -1, 0, 1',
+    offsetDaysWhole: 'Whole days only',
     overdueRepeatPrefix: 'Send e-mails daily past',
     overdueRepeatSuffix: 'days the due date',
     overdueRepeatDays: 'Days overdue',

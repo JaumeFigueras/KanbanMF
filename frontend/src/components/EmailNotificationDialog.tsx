@@ -53,8 +53,13 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
   const [notifyWeekdays, setNotifyWeekdays] = useState<number[]>(WORKDAYS)
   const [offsetDays, setOffsetDays] = useState<number[]>([])
   const [newOffset, setNewOffset] = useState('')
+  const [offsetError, setOffsetError] = useState<string | null>(null)
   const [overdueRepeatEnabled, setOverdueRepeatEnabled] = useState(false)
+  // The repeat field's text, and the number of days in effect: what was
+  // loaded or last saved, which the field goes back to when it's left with
+  // anything but a whole number of at least one.
   const [overdueRepeat, setOverdueRepeat] = useState('')
+  const [savedRepeat, setSavedRepeat] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Every change saves the whole set, so nothing can be changed until this
   // opening's settings have loaded: a click on the defaults shown meanwhile
@@ -72,6 +77,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
       setLoaded(false)
       setLoadFailed(false)
       setNewOffset('')
+      setOffsetError(null)
     }
   }
 
@@ -91,6 +97,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
         setOverdueRepeat(
           settings.overdue_repeat_after_days != null ? String(settings.overdue_repeat_after_days) : '',
         )
+        setSavedRepeat(settings.overdue_repeat_after_days)
         setLoaded(true)
       })
       .catch(() => { if (!cancelled) setLoadFailed(true) })
@@ -123,7 +130,7 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
       notify_hour: notifyHour,
       notify_weekdays: notifyWeekdays,
       offset_days: offsetDays,
-      overdue_repeat_after_days: overdueRepeatEnabled && overdueRepeat.trim() ? Number(overdueRepeat) : null,
+      overdue_repeat_after_days: overdueRepeatEnabled ? savedRepeat : null,
       ...overrides,
     }
   }
@@ -147,9 +154,16 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
     persist(currentSettings({ notify_weekdays: sorted }))
   }
 
+  // The number fields take whole days only: a number field can still hold
+  // 1.5, which the backend refuses.
   function handleAddOffset() {
+    if (!newOffset.trim()) return
     const value = Number(newOffset)
-    if (!newOffset.trim() || Number.isNaN(value) || offsetDays.includes(value)) return
+    if (!Number.isInteger(value)) {
+      setOffsetError(t('boards.offsetDaysWhole'))
+      return
+    }
+    if (offsetDays.includes(value)) return
     const next = [...offsetDays, value].sort((a, b) => a - b)
     setOffsetDays(next)
     setNewOffset('')
@@ -164,14 +178,25 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
 
   function handleToggleOverdueRepeat(checked: boolean) {
     setOverdueRepeatEnabled(checked)
-    const days = checked ? Number(overdueRepeat.trim() || '1') : null
-    if (checked && !overdueRepeat.trim()) setOverdueRepeat('1')
-    persist(currentSettings({ overdue_repeat_after_days: days }))
+    // Turned on for the first time, it starts at one day.
+    const days = savedRepeat ?? 1
+    if (checked && savedRepeat === null) {
+      setSavedRepeat(days)
+      setOverdueRepeat(String(days))
+    }
+    persist(currentSettings({ overdue_repeat_after_days: checked ? days : null }))
   }
 
   function handleOverdueBlur() {
     if (!overdueRepeatEnabled) return
-    persist(currentSettings())
+    // Left empty, it reads as 0.
+    const days = Number(overdueRepeat)
+    if (!Number.isInteger(days) || days < 1) {
+      setOverdueRepeat(String(savedRepeat))
+      return
+    }
+    setSavedRepeat(days)
+    persist(currentSettings({ overdue_repeat_after_days: days }))
   }
 
   return (
@@ -264,13 +289,18 @@ export default function EmailNotificationDialog({ open, onClose, board }: Props)
                 </Box>
               )}
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
                 <TextField
                   size="small"
                   type="number"
                   placeholder={t('boards.offsetDaysPlaceholder')}
                   value={newOffset}
-                  onChange={(e) => setNewOffset(e.target.value)}
+                  onChange={(e) => {
+                    setNewOffset(e.target.value)
+                    setOffsetError(null)
+                  }}
+                  error={offsetError !== null}
+                  helperText={offsetError}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddOffset() } }}
                   slotProps={{ htmlInput: { 'aria-label': t('boards.notifyOffsetDays') } }}
                   fullWidth

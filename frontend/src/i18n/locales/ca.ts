@@ -142,6 +142,7 @@ const ca = {
     notifyOffsetDays: 'Notifica aquests dies abans/després de la data de venciment',
     noOffsetDays: 'Encara no hi ha dies de notificació configurats.',
     offsetDaysPlaceholder: 'p.ex. -3, -1, 0, 1',
+    offsetDaysWhole: 'Només dies sencers',
     overdueRepeatPrefix: 'Envia correus diaris passada la',
     overdueRepeatSuffix: 'dies la data de venciment',
     overdueRepeatDays: 'Dies de retard',

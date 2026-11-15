@@ -32,15 +32,18 @@ closes it.
    A reminder that falls on any other day is skipped, not postponed.
 
 :guilabel:`Notify these days before/after the due date`
-   Type a number and click **+** to add it. Negative numbers are days
+   Type a whole number and click **+** to add it. Negative numbers are days
    *before* the due date, ``0`` is the day itself and positive numbers are
    days after it. For example ``-3``, ``-1`` and ``0`` remind you three days
    before, the day before, and on the day. Click the cross on a number to
-   remove it.
+   remove it. A number with decimals isn't added: the field says *Whole days
+   only*.
 
 :guilabel:`Send e-mails daily past … days the due date`
    Tick it and enter a number to keep getting a reminder every day once a
-   card is that many days overdue, until it is finished.
+   card is that many days overdue, until it is finished. The number is saved
+   when you leave the field. It must be a whole number, 1 or more; anything
+   else puts back the number you had.
 
 Which cards you are reminded about
 ----------------------------------

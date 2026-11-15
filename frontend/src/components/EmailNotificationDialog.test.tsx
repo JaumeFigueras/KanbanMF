@@ -364,6 +364,41 @@ describe('EmailNotificationDialog', () => {
       expect(screen.queryByRole('button', { name: '0' })).not.toBeInTheDocument()
     })
 
+    it.each(['1.5', '-0.5'])('refuses %s: whole days only, saying so under the field', async (typed) => {
+      const { saves } = fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+
+      await user.type(offsetField(), `${typed}{Enter}`)
+
+      expect(offsetField()).toHaveAccessibleDescription('Whole days only')
+      expect(offsetField()).toHaveAttribute('aria-invalid', 'true')
+      expect(saves.requests).toEqual([])
+      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(expect.not.arrayContaining(['+1.5', '-0.5']))
+    })
+
+    it('refuses them with the add button too', async () => {
+      const { saves } = fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+      await user.type(offsetField(), '2.5')
+      await user.click(screen.getByRole('button', { name: 'Add' }))
+      expect(offsetField()).toHaveAccessibleDescription('Whole days only')
+      expect(saves.requests).toEqual([])
+    })
+
+    it('stops saying so once the field is changed', async () => {
+      fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+      await user.type(offsetField(), '1.5{Enter}')
+
+      await user.type(offsetField(), '{Backspace}')
+
+      expect(offsetField()).not.toHaveAccessibleDescription()
+      expect(offsetField()).toHaveAttribute('aria-invalid', 'false')
+    })
+
     it('removing a day saves the rest', async () => {
       const { saves } = fakeSettings()
       const { user } = renderDialog()
@@ -396,6 +431,19 @@ describe('EmailNotificationDialog', () => {
       await waitFor(() => expect(sent(saves)).toEqual([{ ...SAVED_BODY, overdue_repeat_after_days: 1 }]))
       expect(repeatField()).toHaveValue(1)
       expect(repeatField()).toBeEnabled()
+    })
+
+    it('keeps that one day in the next changes', async () => {
+      const { saves } = fakeSettings({ ...SAVED, overdue_repeat_after_days: null })
+      const { user } = renderDialog()
+      await loaded()
+      await user.click(repeatBox())
+      await waitFor(() => expect(saves.requests).toHaveLength(1))
+
+      await user.click(weekday('Tuesday'))
+
+      await waitFor(() => expect(saves.requests).toHaveLength(2))
+      expect(saves.requests[1].body).toEqual({ ...SAVED_BODY, notify_weekdays: [1, 2, 3, 5], overdue_repeat_after_days: 1 })
     })
 
     it('turning it off saves no repeat, and on again the number kept', async () => {
@@ -441,6 +489,62 @@ describe('EmailNotificationDialog', () => {
       await user.tab()
 
       await waitFor(() => expect(sent(saves)).toEqual([{ ...SAVED_BODY, overdue_repeat_after_days: 5 }]))
+    })
+
+    it.each([['empty', ''], ['0', '0'], ['negative', '-2'], ['not whole', '1.5']])(
+      'puts the number in effect back, saving nothing, when the field is left %s',
+      async (_, typed) => {
+        const { saves } = fakeSettings()
+        const { user } = renderDialog()
+        await loaded()
+
+        await user.clear(repeatField())
+        if (typed) await user.type(repeatField(), typed)
+        await user.tab()
+
+        expect(repeatField()).toHaveValue(2)
+        expect(repeatBox()).toBeChecked()
+        expect(saves.requests).toEqual([])
+      },
+    )
+
+    it('puts back the number last saved, not the one loaded', async () => {
+      const { saves } = fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+      await user.clear(repeatField())
+      await user.type(repeatField(), '5')
+      await user.tab()
+      await waitFor(() => expect(saves.requests).toHaveLength(1))
+
+      await user.clear(repeatField())
+      await user.tab()
+
+      expect(repeatField()).toHaveValue(5)
+      expect(saves.requests).toHaveLength(1)
+    })
+
+    it('saves the number in effect with other changes, not a refused one', async () => {
+      const { saves } = fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+      await user.clear(repeatField())
+      await user.type(repeatField(), '0')
+
+      // Leaving the field for the day button refuses the 0 first.
+      await user.click(weekday('Tuesday'))
+
+      await waitFor(() => expect(sent(saves)).toEqual([{ ...SAVED_BODY, notify_weekdays: [1, 2, 3, 5] }]))
+    })
+
+    it('takes a number with leading zeros', async () => {
+      const { saves } = fakeSettings()
+      const { user } = renderDialog()
+      await loaded()
+      await user.clear(repeatField())
+      await user.type(repeatField(), '07')
+      await user.tab()
+      await waitFor(() => expect(sent(saves)).toEqual([{ ...SAVED_BODY, overdue_repeat_after_days: 7 }]))
     })
 
     it("says so, and stays open, when a change can't be saved", async () => {
@@ -511,6 +615,19 @@ describe('EmailNotificationDialog', () => {
 
       await loaded()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('forgets the whole-days message', async () => {
+      fakeSettings()
+      const { user, reopen } = renderDialog()
+      await loaded()
+      await user.type(offsetField(), '1.5{Enter}')
+      expect(offsetField()).toHaveAccessibleDescription('Whole days only')
+
+      reopen()
+
+      await loaded()
+      expect(offsetField()).not.toHaveAccessibleDescription()
     })
 
     it('forgets a day typed but not added', async () => {
