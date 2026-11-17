@@ -152,3 +152,6 @@ From the review of 2026-10-25 (details in PROMPTS.md), most severe first.
 - Copy a checklist in one request: `CopyChecklistDialog` creates the checklist, then each item, so when one item
   fails the target card keeps a partial copy, and a retry makes a second one (found in phase 4 of the frontend
   tests)
+- Say a due date has passed in words or with an icon, not only in colour: on a card face (`CardFace`) the urgency
+  is the chip's colour alone, so someone who can't tell dark red from green can't tell an overdue card from one
+  with weeks to go (found in phase 5 of the frontend tests)

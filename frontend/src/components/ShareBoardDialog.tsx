@@ -430,7 +430,7 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
             }
             renderOption={(props, option) => (
               <Box component="li" {...props} key={option.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <PersonAvatar person={option} size={28} />
+                <PersonAvatar person={option} size={28} decorative />
                 <Typography variant="body2">{option.display_name}</Typography>
               </Box>
             )}

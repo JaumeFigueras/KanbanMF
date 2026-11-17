@@ -60,6 +60,12 @@ describe('SelectUserDialog', () => {
     expect(box('Noah Garcia')).not.toBeChecked()
   })
 
+  it("reads each person's name once: their avatar, beside it, is hidden from screen readers", () => {
+    renderDialog({ candidates: [LIAM, { ...EMMA, has_avatar: true }] })
+    expect(screen.getByText('LC')).toBeVisible()
+    expect(screen.queryAllByRole('img')).toEqual([])
+  })
+
   it('ticks a person with a click on their name, and unticks them with another', async () => {
     const { user } = renderDialog()
     await user.click(screen.getByText('Liam Chen'))

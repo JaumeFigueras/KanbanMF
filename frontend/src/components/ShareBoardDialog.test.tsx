@@ -472,7 +472,8 @@ describe('ShareBoardDialog', () => {
 
       await user.type(searchField(), 'oli')
 
-      expect(await screen.findByRole('option', { name: /Olivia Martin/ })).toBeInTheDocument()
+      // Named once: the avatar beside the name is hidden from screen readers.
+      expect(await screen.findByRole('option', { name: 'Olivia Martin' })).toBeInTheDocument()
       expect(search.requests.map((r) => r.url.searchParams.get('q'))).toEqual(['oli'])
     })
 

@@ -649,6 +649,12 @@ describe('CardDialog', () => {
       expect(screen.getByRole('button', { name: 'Extract "Book the room" to a new card' })).toBeInTheDocument()
     })
 
+    it('names the creator, whose avatar is the only sign of them', () => {
+      fakeBackend()
+      renderDialog({ ...CARD, creator: NOAH })
+      expect(screen.getByRole('img', { name: 'Noah Garcia' })).toBeInTheDocument()
+    })
+
     it('names the member and assignee avatars by what a click on them changes', async () => {
       fakeBackend()
       const { user } = renderDialog(WITH_PEOPLE)

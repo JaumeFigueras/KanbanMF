@@ -95,7 +95,7 @@ export default function SelectUserDialog({
                 sx={{ p: 0 }}
                 slotProps={{ input: { 'aria-label': person.display_name } }}
               />
-              <PersonAvatar person={person} />
+              <PersonAvatar person={person} decorative />
               <Typography variant="body2">{person.display_name}</Typography>
             </Box>
           ))}

@@ -1,15 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
-import { screen, within } from '@testing-library/react'
+import { screen, waitForElementToBeRemoved, within } from '@testing-library/react'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/en-gb'
+import 'dayjs/locale/ca'
 import { renderWithProviders } from '../test/render'
 import CardDateField from './CardDateField'
 
-// The field as the card dialog holds it: the value lives in its parent.
-function renderField(initial: Dayjs | null = null) {
+// The field as the card dialog holds it: the value lives in its parent, and
+// the dialog's LocalizationProvider sets the date format from the user's
+// number locale (en-gb unless a test says otherwise).
+function renderField(initial: Dayjs | null = null, locale = 'en-gb') {
   const onChange = vi.fn()
   const onIncompleteChange = vi.fn()
   function Parent() {
@@ -28,13 +31,15 @@ function renderField(initial: Dayjs | null = null) {
     )
   }
   const result = renderWithProviders(
-    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={locale}>
       <Parent />
     </LocalizationProvider>,
   )
   // What the field last said about being incomplete.
   const incomplete = () => onIncompleteChange.mock.calls[onIncompleteChange.mock.calls.length - 1][0]
-  return { ...result, onChange, incomplete }
+  // The last date it handed over, as text.
+  const lastDate = () => (onChange.mock.lastCall?.[0] as Dayjs | null)?.format('YYYY-MM-DD HH:mm')
+  return { ...result, onChange, incomplete, lastDate }
 }
 
 const sections = () => within(screen.getByRole('group', { name: 'Start Date' })).getAllByRole('spinbutton')
@@ -43,12 +48,52 @@ const removeButton = () => screen.getByRole('button', { name: 'Remove the start 
 // Hidden, it isn't offered to anyone, screen readers included.
 const noRemoveButton = () => expect(screen.queryByRole('button', { name: 'Remove the start date' })).not.toBeInTheDocument()
 
-async function typeDate(user: ReturnType<typeof renderField>['user'], digits: string) {
-  await user.click(sections()[0])
+async function typeDate(user: ReturnType<typeof renderField>['user'], digits: string, section = 0) {
+  await user.click(sections()[section])
   await user.keyboard(digits)
 }
 
+// Opens the picker (its calendar, in a dialog of its own) and picks a day of
+// the month it shows.
+async function pickDay(user: ReturnType<typeof renderField>['user'], day: string) {
+  await user.click(screen.getByRole('button', { name: 'Choose date' }))
+  const picker = await screen.findByRole('dialog')
+  await user.click(within(picker).getByRole('gridcell', { name: day }))
+  return picker
+}
+
+// Leaves the picker with one of its buttons. Until it has gone, the page
+// behind it is hidden from screen readers, the field included.
+async function leavePicker(user: ReturnType<typeof renderField>['user'], picker: HTMLElement, button: 'OK' | 'Cancel') {
+  await user.click(within(picker).getByRole('button', { name: button }))
+  await waitForElementToBeRemoved(picker)
+}
+
 describe('CardDateField', () => {
+  describe('the date shown', () => {
+    it.each([
+      ['en-gb', '05|03|2026|10|30'],
+      ['ca', '05|03|2026|10|30'],
+      ['en', '03|05|2026|10|30|AM'],
+    ])('follows the format of the locale it is given (%s)', (locale, expected) => {
+      renderField(dayjs('2026-03-05T10:30:00'), locale)
+      expect(shown()).toBe(expected)
+    })
+
+    it('can be changed by typing over a part of it', async () => {
+      const { user, lastDate, incomplete } = renderField(dayjs('2026-03-05T10:30:00'))
+      expect(incomplete()).toBe(false)
+
+      // The day, then the hour.
+      await typeDate(user, '07')
+      await typeDate(user, '16', 3)
+
+      expect(shown()).toBe('07|03|2026|16|30')
+      expect(lastDate()).toBe('2026-03-07 16:30')
+      expect(incomplete()).toBe(false)
+    })
+  })
+
   describe('a date typed only in part', () => {
     it("is reported as incomplete, as the field hands over no date", async () => {
       const { user, onChange, incomplete } = renderField()
@@ -70,10 +115,10 @@ describe('CardDateField', () => {
     })
 
     it('is reported complete once its time is typed too', async () => {
-      const { user, onChange, incomplete } = renderField()
+      const { user, lastDate, incomplete } = renderField()
       await typeDate(user, '050320261030')
       // Each minute digit is a date of its own: 10:03, then 10:30.
-      expect(onChange.mock.lastCall?.[0].format('YYYY-MM-DD HH:mm')).toBe('2026-03-05 10:30')
+      expect(lastDate()).toBe('2026-03-05 10:30')
       expect(incomplete()).toBe(false)
     })
 
@@ -90,11 +135,25 @@ describe('CardDateField', () => {
     })
   })
 
-  it('reports an impossible date as incomplete too, and says it is invalid', async () => {
-    const { user, incomplete } = renderField()
-    await typeDate(user, '310220261000')
-    expect(incomplete()).toBe(true)
-    expect(screen.getByText('Invalid date or time.')).toBeInTheDocument()
+  describe('an impossible date', () => {
+    it('is reported as incomplete too, and said to be invalid', async () => {
+      const { user, incomplete } = renderField()
+      await typeDate(user, '310220261000')
+      expect(incomplete()).toBe(true)
+      expect(screen.getByText('Invalid date or time.')).toBeInTheDocument()
+    })
+
+    it('is complete, with no message, once corrected', async () => {
+      const { user, lastDate, incomplete } = renderField()
+      await typeDate(user, '310220261000')
+      expect(screen.getByText('Invalid date or time.')).toBeInTheDocument()
+
+      await typeDate(user, '28')
+
+      expect(lastDate()).toBe('2026-02-28 10:00')
+      expect(incomplete()).toBe(false)
+      expect(screen.queryByText('Invalid date or time.')).not.toBeInTheDocument()
+    })
   })
 
   it('is named by its label, and its remove button by the date it removes', () => {
@@ -103,9 +162,11 @@ describe('CardDateField', () => {
     expect(screen.getByRole('button', { name: 'Remove the start date' })).toBeInTheDocument()
   })
 
-  it('offers no remove button while empty', () => {
+  it('offers no remove button while empty, and the hidden one is disabled', () => {
     const { incomplete } = renderField()
     noRemoveButton()
+    // A hidden element has no accessible name, so it's found by its label.
+    expect(screen.getByLabelText('Remove the start date')).toBeDisabled()
     expect(incomplete()).toBe(false)
   })
 
@@ -117,5 +178,45 @@ describe('CardDateField', () => {
 
     expect(onChange).toHaveBeenCalledWith(null)
     expect(shown()).toBe('DD|MM|YYYY|hh|mm')
+  })
+
+  describe('the picker, on an empty field', () => {
+    // Only Date is faked: the picker's own timers keep running.
+    const at = (instant: string) => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(instant))
+    }
+
+    it('gives a picked day the time of now, to the nearest 5 minutes', async () => {
+      // 14:33:40 in Madrid, the tests' time zone: nearer 14:35 than 14:30,
+      // and MUI on its own would give midnight.
+      at('2026-03-05T13:33:40Z')
+      const { user, lastDate } = renderField()
+
+      const picker = await pickDay(user, '10')
+      await user.click(within(picker).getByRole('button', { name: 'Next' }))
+      await leavePicker(user, picker, 'OK')
+
+      expect(lastDate()).toBe('2026-03-10 14:35')
+      expect(shown()).toBe('10|03|2026|14|35')
+      expect(removeButton()).toBeEnabled()
+    })
+
+    it('takes the time afresh each time it opens', async () => {
+      at('2026-03-05T13:33:40Z')
+      const { user, lastDate } = renderField()
+      let picker = await pickDay(user, '10')
+      await leavePicker(user, picker, 'Cancel')
+      expect(shown()).toBe('DD|MM|YYYY|hh|mm')
+
+      // 15:58 in Madrid: the nearest 5 minutes are in the next hour.
+      vi.setSystemTime(new Date('2026-03-05T14:58:00Z'))
+      picker = await pickDay(user, '10')
+      await user.click(within(picker).getByRole('button', { name: 'Next' }))
+      await leavePicker(user, picker, 'OK')
+
+      expect(lastDate()).toBe('2026-03-10 16:00')
+      expect(shown()).toBe('10|03|2026|16|00')
+    })
   })
 })
