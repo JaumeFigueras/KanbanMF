@@ -429,6 +429,63 @@ async def test_card_operations_07(
 
 
 @pytest.mark.asyncio
+async def test_card_operations_12(
+    client, db_session_async, test_user: User, board: Board, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify a checklist or item added after a deletion goes after the last one:
+    deleting doesn't renumber the rest, so "how many there are" would be a
+    position already in use.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session against the same test database.
+    test_user : User
+        The board's owner.
+    board : Board
+        The board holding the card.
+    auth_headers : dict[str, str]
+        Authorization header for test_user.
+
+    Raises
+    ------
+    AssertionError
+        If the new checklist or item shares a position with another, or
+        isn't listed last.
+    """
+    todo, _ = await _lists(db_session_async, board)
+    card = Card(list_id=todo.id, creator_id=test_user.id, name="Card")
+    db_session_async.add(card)
+    await db_session_async.commit()
+    url = f"/api/v1/boards/{board.id}/lists/{todo.id}/cards/{card.id}/checklists"
+
+    papers, errands, _ = [
+        (await client.post(url, headers=auth_headers, json={"name": name})).json()
+        for name in ("Papers", "Errands", "Shopping")
+    ]
+    assert (await client.delete(f"{url}/{papers['id']}", headers=auth_headers)).status_code == 204
+    trip = await client.post(url, headers=auth_headers, json={"name": "Trip"})
+    assert trip.status_code == 201
+    listed = (await client.get(url, headers=auth_headers)).json()
+    assert [(c["name"], c["position"]) for c in listed] == [("Errands", 1), ("Shopping", 2), ("Trip", 3)]
+
+    items_url = f"{url}/{errands['id']}/items"
+    photos, _, _ = [
+        (await client.post(items_url, headers=auth_headers, json={"text": text})).json()
+        for text in ("Photos", "Form", "Stamps")
+    ]
+    assert (await client.delete(f"{items_url}/{photos['id']}", headers=auth_headers)).status_code == 204
+    bank = await client.post(items_url, headers=auth_headers, json={"text": "Bank"})
+    assert bank.status_code == 201
+    listed = (await client.get(url, headers=auth_headers)).json()
+    errands_items = next(c for c in listed if c["name"] == "Errands")["items"]
+    assert [(i["text"], i["position"]) for i in errands_items] == [("Form", 1), ("Stamps", 2), ("Bank", 3)]
+
+
+@pytest.mark.asyncio
 async def test_card_operations_08(
     client, db_session_async, test_user: User, board: Board
 ) -> None:
@@ -560,3 +617,49 @@ async def test_card_operations_10(
 
     result = await db_session_async.execute(select(UIListColor.list_id, UIListColor.user_id, UIListColor.color))
     assert result.all() == [(uuid.UUID(colored.json()["id"]), test_user.id, "#1565c0")]
+
+
+@pytest.mark.asyncio
+async def test_card_operations_11(
+    client, db_session_async, test_user: User, board: Board, auth_headers: dict[str, str]
+) -> None:
+    """
+    Verify a description sent as null clears it, as the card dialog does when
+    it's emptied, and one left out of the request is kept.
+
+    Parameters
+    ----------
+    client : AsyncClient
+        HTTP client wired to the FastAPI app, using the test database.
+    db_session_async : AsyncSession
+        Session against the same test database.
+    test_user : User
+        The board's owner.
+    board : Board
+        The board holding the cards.
+    auth_headers : dict[str, str]
+        Authorization header for test_user.
+
+    Raises
+    ------
+    AssertionError
+        If the description sent as null is kept, or the one left out is
+        changed.
+    """
+    todo, _ = await _lists(db_session_async, board)
+    cleared = Card(list_id=todo.id, creator_id=test_user.id, name="Cleared", description="Old text")
+    kept = Card(list_id=todo.id, creator_id=test_user.id, name="Kept", description="Still here")
+    db_session_async.add_all([cleared, kept])
+    await db_session_async.commit()
+    url = f"/api/v1/boards/{board.id}/lists/{todo.id}/cards"
+
+    response = await client.patch(f"{url}/{cleared.id}", headers=auth_headers, json={"name": "Cleared", "description": None})
+    assert response.status_code == 200
+    assert response.json()["description"] is None
+
+    response = await client.patch(f"{url}/{kept.id}", headers=auth_headers, json={"name": "Kept again"})
+    assert response.status_code == 200
+    assert response.json()["description"] == "Still here"
+
+    result = await db_session_async.execute(select(Card.name, Card.description).order_by(Card.name))
+    assert result.all() == [("Cleared", None), ("Kept again", "Still here")]

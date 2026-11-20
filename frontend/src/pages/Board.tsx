@@ -343,6 +343,19 @@ export default function Board() {
     }
   }
 
+  // A card's color saved (or reset) from its menu. The map is what every
+  // drawing of the card reads — the card in its list, the floating copy
+  // while it's dragged, and the card drawn afresh in the list it's dropped
+  // in — so updating it here repaints all three.
+  function handleCardColorChanged(cardId: string, color: string | null) {
+    setColors(prev => {
+      const cards = { ...prev.cards }
+      if (color) cards[cardId] = color
+      else delete cards[cardId]
+      return { ...prev, cards }
+    })
+  }
+
   function handleCardArchived(listId: string, cardId: string) {
     setCardsByList(prev => ({
       ...prev,
@@ -885,6 +898,7 @@ export default function Board() {
                 onCardCreated={handleCardCreated}
                 onCardArchived={handleCardArchived}
                 onCardUpdated={handleCardUpdated}
+                onCardColorChanged={handleCardColorChanged}
                 onChecklistCopied={handleChecklistCopied}
                 isTemplate={isTemplate}
               />
@@ -900,7 +914,8 @@ export default function Board() {
               listId={activeCard.list_id}
               numberLocale={numberLocale}
               dateFormat={dateFormat}
-              initialColor={colors.cards[activeCard.id] ?? null}
+              color={colors.cards[activeCard.id] ?? null}
+              onColorChanged={() => {}}
               onArchived={() => {}}
               onUpdated={() => {}}
               onCopied={() => {}}
@@ -922,6 +937,7 @@ export default function Board() {
               onCardCreated={() => {}}
               onCardArchived={() => {}}
               onCardUpdated={() => {}}
+              onCardColorChanged={() => {}}
               onChecklistCopied={() => {}}
               isTemplate={isTemplate}
               dragOverlay

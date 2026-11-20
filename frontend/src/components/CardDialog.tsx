@@ -50,6 +50,7 @@ import SelectUserDialog from './SelectUserDialog'
 import { dayjsLocaleFor } from '../utils/locale'
 import { contrastColor } from '../utils/labelColor'
 import { apiFetch } from '../api/client'
+import { fullOrder, isServerOrder } from '../utils/checklistOrder'
 
 function jsonInit(method: string, body: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -92,35 +93,54 @@ function contentOf(card: CardRead | null | undefined): string {
       : value)
 }
 
-// Reconciles the checklists edited locally in the dialog against what was
-// loaded from the server, issuing the create/update/delete calls needed to
-// bring the card's checklists in line, then the order calls needed to match
-// the (possibly drag-reordered) local array — since the order endpoints
-// require the full current id set, `orderedChecklistIds`/`orderedItemIds`
-// are built from the real, post-create ids as each entry is processed, so
-// they always validate regardless of whether anything actually moved. Runs
-// as part of the Save action, since checklists have no draft/local-only
-// persistence of their own. It stops at the first request that fails.
-async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next: ChecklistData[]) {
-  const nextIds = new Set(next.map((c) => c.id))
-  for (const checklist of prev) {
-    if (!nextIds.has(checklist.id)) {
+// What saving the checklists keeps track of: the ids the dialog knows (the
+// checklists and items it opened with, and those it has made), and the id
+// the server gives each one it makes now, by the id the dialog gave it.
+interface ChecklistIds {
+  known: Set<string>
+  made: Map<string, string>
+}
+
+// The ids of a card's checklists and of their items.
+function idsIn(checklists: ChecklistData[]): string[] {
+  return checklists.flatMap((c) => [c.id, ...c.items.map((i) => i.id)])
+}
+
+// Brings the card's checklists in line with the dialog's: deletes what the
+// user removed, makes what they added, sends renames and changed items, then
+// the order of what they moved. `saved` is what the server has as far as the
+// dialog knows: what it opened with, or what the server had just before a
+// second try. Only what the dialog knows is deleted, so a checklist or item
+// it never showed (a copy made onto this card, one added elsewhere) is left
+// alone, and an order names it after the rest, as the server refuses one
+// that doesn't. An order is sent only when something moved: the server keeps
+// its own order and puts what's new after the last one. Runs as part of the
+// Save action, since checklists have no draft of their own on the server.
+// It stops at the first request that fails, `ids.made` holding by then what
+// was made.
+async function syncChecklists(checklistsUrl: string, saved: ChecklistData[], shown: ChecklistData[], ids: ChecklistIds) {
+  const shownIds = new Set(shown.map((c) => c.id))
+  for (const checklist of saved) {
+    if (ids.known.has(checklist.id) && !shownIds.has(checklist.id)) {
       await send(`${checklistsUrl}/${checklist.id}`, { method: 'DELETE' })
     }
   }
 
-  const orderedChecklistIds: string[] = []
-  for (const checklist of next) {
-    const before = prev.find((c) => c.id === checklist.id)
+  const checklistsMoved = !isServerOrder(saved.map((c) => c.id), shown.map((c) => c.id))
+  // The checklists whose items were moved.
+  const itemsMoved: ChecklistData[] = []
+  for (const checklist of shown) {
+    const before = saved.find((c) => c.id === checklist.id)
 
     if (!before) {
       const r = await send(checklistsUrl, jsonInit('POST', { name: checklist.name }))
-      const created = await r.json()
+      const created: { id: string } = await r.json()
+      ids.made.set(checklist.id, created.id)
       const itemsUrl = `${checklistsUrl}/${created.id}/items`
       for (const item of checklist.items) {
-        await send(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+        const itemRes = await send(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
+        ids.made.set(item.id, (await itemRes.json() as { id: string }).id)
       }
-      orderedChecklistIds.push(created.id)
       continue
     }
 
@@ -129,36 +149,40 @@ async function syncChecklists(checklistsUrl: string, prev: ChecklistData[], next
     }
 
     const itemsUrl = `${checklistsUrl}/${checklist.id}/items`
-    const nextItemIds = new Set(checklist.items.map((i) => i.id))
+    const shownItemIds = new Set(checklist.items.map((i) => i.id))
     for (const item of before.items) {
-      if (!nextItemIds.has(item.id)) {
+      if (ids.known.has(item.id) && !shownItemIds.has(item.id)) {
         await send(`${itemsUrl}/${item.id}`, { method: 'DELETE' })
       }
     }
-
-    const orderedItemIds: string[] = []
     for (const item of checklist.items) {
       const beforeItem = before.items.find((i) => i.id === item.id)
       if (!beforeItem) {
         const r = await send(itemsUrl, jsonInit('POST', { text: item.text, is_done: item.is_done }))
-        const created = await r.json()
-        orderedItemIds.push(created.id)
-      } else {
-        if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
-          await send(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
-        }
-        orderedItemIds.push(item.id)
+        ids.made.set(item.id, (await r.json() as { id: string }).id)
+      } else if (beforeItem.text !== item.text || beforeItem.is_done !== item.is_done) {
+        await send(`${itemsUrl}/${item.id}`, jsonInit('PATCH', { text: item.text, is_done: item.is_done }))
       }
     }
-    if (orderedItemIds.length > 0) {
-      await send(`${itemsUrl}/order`, jsonInit('PUT', { item_ids: orderedItemIds }))
+    if (!isServerOrder(before.items.map((i) => i.id), checklist.items.map((i) => i.id))) {
+      itemsMoved.push(checklist)
     }
-
-    orderedChecklistIds.push(checklist.id)
   }
 
-  if (orderedChecklistIds.length > 0) {
-    await send(`${checklistsUrl}/order`, jsonInit('PUT', { checklist_ids: orderedChecklistIds }))
+  if (!checklistsMoved && itemsMoved.length === 0) return
+  // What the server has now, so the orders name all of it.
+  const current: ChecklistRead[] = await (await send(checklistsUrl)).json()
+  const idOf = (id: string) => ids.made.get(id) ?? id
+  if (checklistsMoved) {
+    await send(`${checklistsUrl}/order`, jsonInit('PUT', {
+      checklist_ids: fullOrder(shown.map((c) => idOf(c.id)), current.map((c) => c.id)),
+    }))
+  }
+  for (const checklist of itemsMoved) {
+    const serverItems = current.find((c) => c.id === checklist.id)?.items ?? []
+    await send(`${checklistsUrl}/${checklist.id}/items/order`, jsonInit('PUT', {
+      item_ids: fullOrder(checklist.items.map((i) => idOf(i.id)), serverItems.map((i) => i.id)),
+    }))
   }
 }
 
@@ -350,6 +374,9 @@ export default function CardDialog({
   // has is no longer what the dialog compares against, so the next Save asks
   // for it first.
   const [baselineStale, setBaselineStale] = useState(false)
+  // The ids the server gave the checklists and items earlier tries at saving
+  // made: the dialog knows them, as it knows those it opened with.
+  const [madeIds, setMadeIds] = useState<string[]>([])
   const editing = card ?? createdCard
   const isEdit = Boolean(editing)
   const [name, setName] = useState('')
@@ -386,7 +413,8 @@ export default function CardDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const creator = card?.creator ?? null
+  // The card this opening created has one too, after a partial save.
+  const creator = editing?.creator ?? null
 
   // Set when the card was changed elsewhere while the dialog was open: the
   // form keeps what the user typed, and says so.
@@ -412,6 +440,7 @@ export default function CardDialog({
       setChangedElsewhere(false)
       setCreatedCard(null)
       setBaselineStale(false)
+      setMadeIds([])
       setCandidates(null)
       setCandidatesFailed(false)
       setName(card?.name ?? '')
@@ -565,9 +594,10 @@ export default function CardDialog({
     }
 
     const checklistsUrl = `${cardsUrl}/${result.id}/checklists`
+    const ids: ChecklistIds = { known: new Set([...idsIn(initialChecklists), ...madeIds]), made: new Map() }
     let synced = true
     try {
-      await syncChecklists(checklistsUrl, baseline, checklists)
+      await syncChecklists(checklistsUrl, baseline, checklists, ids)
     } catch {
       synced = false
     }
@@ -583,6 +613,15 @@ export default function CardDialog({
     // the board was just handed isn't taken for a change made elsewhere.
     setCreatedCard(card ? null : result)
     setOpenedWith(card ? result : undefined)
+    // The backend makes whoever creates a card one of its members, whatever
+    // was sent: shown here, the second Save keeps them, instead of sending
+    // the members without them and so taking them off.
+    if (!card) setMembers(result.members)
+    // What this try made goes by the server's id from now on, so a second
+    // Save finds it on the server instead of making it again.
+    const idOf = (id: string) => ids.made.get(id) ?? id
+    setChecklists((prev) => prev.map((c) => ({ ...c, id: idOf(c.id), items: c.items.map((i) => ({ ...i, id: idOf(i.id) })) })))
+    setMadeIds((prev) => [...prev, ...ids.made.values()])
     setBaselineStale(true)
     setError(t('board.checklistsNotSaved'))
   }

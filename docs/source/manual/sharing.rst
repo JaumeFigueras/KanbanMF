@@ -125,5 +125,6 @@ page.
 When two people change the same card at almost the same moment, the last
 change saved wins. If someone else changes a card while you have its dialog
 open, the dialog keeps what you have typed and tells you: saving then replaces
-their changes, and :guilabel:`Cancel` lets you see them first. Changes to the
-other cards on the board never touch the dialog.
+their changes, and :guilabel:`Cancel` lets you see them first. A checklist, or
+a checklist item, they added meanwhile is kept. Changes to the other cards on
+the board never touch the dialog.

@@ -10,6 +10,12 @@ Small pure helpers, with no React in them:
    The four sort modes, ``sortCards()``, and the rule that limits manual
    reordering under the due-date sort to undated cards.
 
+``checklistOrder.ts``
+   When the card dialog needs to send the order of a card's checklists, or
+   of a checklist's items (only when something was moved), and the order to
+   send: the dialog's, then whatever the server has that the dialog never
+   showed, as the server refuses an order that doesn't name everything.
+
 ``colorPalette.ts``
    The fixed palette every colour picker offers: ten hues, seven shades each.
 

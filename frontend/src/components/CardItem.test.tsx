@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext } from '@dnd-kit/sortable'
 import type { CardRead } from '../types/board'
@@ -23,33 +23,44 @@ function BoardDnd({ children }: { children: ReactNode }) {
 
 interface Options {
   card?: CardRead
-  initialColor?: string | null
+  color?: string | null
   dragOverlay?: boolean
 }
 
 // A card on its list, inside the drag-and-drop contexts the board provides.
-function renderCard({ card = CARD, initialColor = null, dragOverlay = false }: Options = {}) {
+// The board keeps the card's colour, as pages/Board.tsx does in its map: the
+// card is drawn in it, and a colour saved from the card's menu goes into it.
+function renderCard({ card = CARD, color = null, dragOverlay = false }: Options = {}) {
   const onArchived = vi.fn()
   const onUpdated = vi.fn()
   const onCopied = vi.fn()
-  const item = (color: string | null) => (
-    <BoardDnd>
-      <SortableContext items={[card.id]}>
-        <CardItem card={card} boardId="board-1" listId="list-2" numberLocale="en_GB" dateFormat="numeric"
-          initialColor={color} onArchived={onArchived} onUpdated={onUpdated} onCopied={onCopied}
-          onChecklistCopied={vi.fn()} dragOverlay={dragOverlay} />
-      </SortableContext>
-    </BoardDnd>
-  )
-  const result = renderWithProviders(item(initialColor))
+  const onColorChanged = vi.fn()
+  const board: { setColor: (color: string | null) => void } = { setColor: () => {} }
+  function Board() {
+    const [boardColor, setBoardColor] = useState(color)
+    useEffect(() => { board.setColor = setBoardColor }, [])
+    return (
+      <BoardDnd>
+        <SortableContext items={[card.id]}>
+          <CardItem card={card} boardId="board-1" listId="list-2" numberLocale="en_GB" dateFormat="numeric"
+            color={boardColor}
+            onColorChanged={(cardId, saved) => { onColorChanged(cardId, saved); setBoardColor(saved) }}
+            onArchived={onArchived} onUpdated={onUpdated} onCopied={onCopied}
+            onChecklistCopied={vi.fn()} dragOverlay={dragOverlay} />
+        </SortableContext>
+      </BoardDnd>
+    )
+  }
+  const result = renderWithProviders(<Board />)
   return {
     ...result,
     onArchived,
     onUpdated,
     onCopied,
+    onColorChanged,
     // The board handing the card a colour of its own, as when the colours it
     // fetched arrive.
-    boardColor: (color: string | null) => result.rerender(item(color)),
+    boardColor: (color: string | null) => act(() => board.setColor(color)),
   }
 }
 
@@ -198,7 +209,7 @@ describe('CardItem', () => {
     })
 
     it("is the board's colour for the card, also one that arrives later", () => {
-      const { boardColor } = renderCard({ initialColor: '#2196F3' })
+      const { boardColor } = renderCard({ color: '#2196F3' })
       expect(cardBox()).toHaveStyle({ borderColor: '#2196F3' })
 
       boardColor('#4CAF50')
@@ -206,9 +217,9 @@ describe('CardItem', () => {
       expect(cardBox()).toHaveStyle({ borderColor: '#4CAF50' })
     })
 
-    it("is the one chosen from the menu as soon as it's saved", async () => {
+    it("is the one chosen from the menu, handed to the board as soon as it's saved", async () => {
       const saved = fakeEndpoint('put', `${CARD_URL}/color`)
-      const { user } = renderCard({ initialColor: '#2196F3' })
+      const { user, onColorChanged } = renderCard({ color: '#2196F3' })
 
       await chooseFromMenu(user, 'Change Color')
       const dialog = screen.getByRole('dialog', { name: 'Change Color' })
@@ -219,19 +230,52 @@ describe('CardItem', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Save' }))
 
       await waitFor(() => expect(cardBox()).toHaveStyle({ borderColor: '#4CAF50' }))
+      // The board's colours are what the floating copy shown while dragging,
+      // and the card drawn again where it's dropped, are drawn from.
+      expect(onColorChanged.mock.calls).toEqual([['card-7', '#4CAF50']])
       expect(saved.requests.map((r) => [r.url.pathname, r.body])).toEqual([
         ['/api/v1/boards/board-1/lists/list-2/cards/card-7/color', { color: '#4CAF50' }],
       ])
     })
 
-    it('goes back to the default purple once reset from the menu', async () => {
-      fakeEndpoint('delete', `${CARD_URL}/color`)
-      const { user } = renderCard({ initialColor: '#2196F3' })
+    it('goes back to the default purple once reset from the menu, the board told', async () => {
+      const reset = fakeEndpoint('delete', `${CARD_URL}/color`)
+      const { user, onColorChanged } = renderCard({ color: '#2196F3' })
 
       await chooseFromMenu(user, 'Change Color')
       await user.click(screen.getByRole('button', { name: 'Reset to default' }))
 
       await waitFor(() => expect(cardBox()).toHaveStyle({ borderColor: DEFAULT_PURPLE }))
+      expect(onColorChanged.mock.calls).toEqual([['card-7', null]])
+      expect(reset.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1/lists/list-2/cards/card-7/color'])
+    })
+
+    it("keeps none of its own: after a save, a colour the board has later is the one drawn", async () => {
+      fakeEndpoint('put', `${CARD_URL}/color`)
+      const { user, boardColor } = renderCard({ color: '#2196F3' })
+      await chooseFromMenu(user, 'Change Color')
+      await user.click(screen.getByRole('button', { name: '#4CAF50' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(cardBox()).toHaveStyle({ borderColor: '#4CAF50' }))
+
+      // As when the board fetches its colours again, after another tab
+      // changed this one.
+      boardColor('#F44336')
+
+      expect(cardBox()).toHaveStyle({ borderColor: '#F44336' })
+    })
+
+    it('tells the board nothing when the save fails, and keeps its colour', async () => {
+      const saved = fakeEndpoint('put', `${CARD_URL}/color`, () => HttpResponse.json({ detail: 'Not allowed' }, { status: 403 }))
+      const { user, onColorChanged } = renderCard({ color: '#2196F3' })
+      await chooseFromMenu(user, 'Change Color')
+      await user.click(screen.getByRole('button', { name: '#4CAF50' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.')
+      expect(saved.requests).toHaveLength(1)
+      expect(onColorChanged).not.toHaveBeenCalled()
+      expect(cardBox()).toHaveStyle({ borderColor: '#2196F3' })
     })
   })
 
@@ -243,7 +287,7 @@ describe('CardItem', () => {
     })
 
     it("is drawn in the card's colour, like the card", () => {
-      renderCard({ dragOverlay: true, initialColor: '#2196F3' })
+      renderCard({ dragOverlay: true, color: '#2196F3' })
       expect(cardBox()).toHaveStyle({ borderColor: '#2196F3' })
     })
   })

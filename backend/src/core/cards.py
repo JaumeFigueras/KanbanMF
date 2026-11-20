@@ -285,7 +285,7 @@ async def update_card(
 
     if body.name is not None:
         card.name = body.name
-    if body.description is not None:
+    if "description" in fields_set:
         card.description = body.description
     if body.is_archived is not None:
         card.is_archived = body.is_archived

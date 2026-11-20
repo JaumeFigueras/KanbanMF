@@ -41,6 +41,8 @@ interface Props {
   onCardCreated: (listId: string, card: CardRead, color: string | null) => void
   onCardArchived: (listId: string, cardId: string) => void
   onCardUpdated: (listId: string, card: CardRead) => void
+  // A card's color saved from its menu, for the board's `colors` map.
+  onCardColorChanged: (cardId: string, color: string | null) => void
   // Reports where a checklist copy landed, so the board can refetch that
   // list's cards — see Board.tsx's handleChecklistCopied.
   onChecklistCopied: (targetBoardId: string, targetListId: string) => void
@@ -66,6 +68,7 @@ export default function BoardListColumn({
   onCardCreated,
   onCardArchived,
   onCardUpdated,
+  onCardColorChanged,
   onChecklistCopied,
   isTemplate = false,
   dragOverlay = false,
@@ -261,7 +264,8 @@ export default function BoardListColumn({
                   listId={list.id}
                   numberLocale={numberLocale}
                   dateFormat={dateFormat}
-                  initialColor={cardColors[card.id] ?? null}
+                  color={cardColors[card.id] ?? null}
+                  onColorChanged={onCardColorChanged}
                   onArchived={handleCardArchived}
                   onUpdated={handleCardUpdated}
                   onCopied={onCardCreated}

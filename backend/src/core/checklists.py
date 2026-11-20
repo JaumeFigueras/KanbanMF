@@ -92,12 +92,14 @@ async def create_checklist(
     db: AsyncSession,
     client_id: str | None,
 ) -> ChecklistRead:
-    """Add a checklist to a card, appended after any existing checklists."""
+    """Add a checklist to a card, after the last of its checklists.
+
+    After the last one, not at position "how many there are": deleting
+    doesn't renumber the rest, so that count can equal a position in use.
+    """
     await require_card(board_id, list_id, card_id, user, db)
-    count_result = await db.execute(
-        select(func.count()).select_from(Checklist).where(Checklist.card_id == card_id)
-    )
-    checklist = Checklist(card_id=card_id, name=body.name, position=count_result.scalar_one())
+    last = await db.scalar(select(func.max(Checklist.position)).where(Checklist.card_id == card_id))
+    checklist = Checklist(card_id=card_id, name=body.name, position=0 if last is None else last + 1)
     db.add(checklist)
     await db.commit()
     await notify_card_updated(board_id, list_id, db, client_id)
@@ -115,14 +117,14 @@ async def create_checklist_item(
     db: AsyncSession,
     client_id: str | None,
 ) -> ChecklistItemRead:
-    """Add an item to a checklist, appended after any existing items."""
+    """Add an item to a checklist, after its last item (see create_checklist)."""
     await require_card(board_id, list_id, card_id, user, db)
     checklist = await get_checklist(card_id, checklist_id, db)
     item = ChecklistItem(
         checklist_id=checklist_id,
         text=body.text,
         is_done=body.is_done,
-        position=len(checklist.items),
+        position=max((i.position for i in checklist.items), default=-1) + 1,
     )
     db.add(item)
     await db.commit()

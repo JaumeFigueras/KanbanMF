@@ -236,8 +236,7 @@ async def update_card(
         for key in clear:
             if key in fields:
                 raise ToolError(f"{key} is both set and cleared.")
-            # The web app clears a description by saving it empty.
-            fields[key] = "" if key == "description" else None
+            fields[key] = None
         if not fields:
             raise ToolError("Nothing to change: give at least one field.")
         await card_service.update_card(

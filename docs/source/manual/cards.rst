@@ -71,7 +71,8 @@ Card name and Description
    **Save** says which and saves nothing, until you complete it or remove it.
 
 :guilabel:`People`
-   The *creator* is whoever made the card. Add *members* — the people
+   The *creator* is whoever made the card, and is made one of its members
+   too (you can take them off afterwards). Add *members* — the people
    involved — and *assignees* — the people responsible for it — with the
    **+** buttons. You can choose among the board's owner and the people it is
    shared with. Assignees are shown on the card's face, and only assignees

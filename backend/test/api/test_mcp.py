@@ -595,7 +595,7 @@ async def test_mcp_12(mcp, db_session_async, world: dict) -> None:
                                  end_at="2026-10-20T10:00:00+00:00", clear=["due_at", "description"])
     assert not is_error
     assert card["name"] == "TBR: Renew both passports" and card["end_at"].startswith("2026-10-20T10:00")
-    assert card["due_at"] is None and not card["description"]
+    assert card["due_at"] is None and card["description"] is None
     assert card["labels"][0]["name"] == "Admin"
 
     # A name that already has the review prefix doesn't get a second one.
