@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, Link as RouterLink } from 'react-router-dom'
 import { Box, Card, CardContent, Typography, Alert, CircularProgress, Button } from '@mui/material'
 import { CheckCircleOutlined, ErrorOutlined } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import AuthControls from '../components/AuthControls'
 
-type State = 'pending' | 'success' | 'invalid' | 'expired' | 'error'
+// 'failed' is the server failing and 'unreachable' no answer at all: the
+// link may still be good, so neither says it isn't.
+type State = 'pending' | 'success' | 'invalid' | 'expired' | 'failed' | 'unreachable'
 
 export default function VerifyEmail() {
   const { t } = useTranslation()
@@ -14,9 +16,8 @@ export default function VerifyEmail() {
   // A link without a token is invalid from the start; no request to wait for.
   const [state, setState] = useState<State>(token ? 'pending' : 'invalid')
 
-  useEffect(() => {
+  const verify = useCallback(() => {
     if (!token) return
-
     fetch('/api/v1/auth/local/verify-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -25,17 +26,24 @@ export default function VerifyEmail() {
       .then(async (res) => {
         if (res.ok) {
           setState('success')
-        } else {
+        } else if (res.status === 400) {
           const body = await res.json().catch(() => ({}))
-          if (body.detail === 'Verification token has expired') {
-            setState('expired')
-          } else {
-            setState('invalid')
-          }
+          setState(body.detail === 'Verification token has expired' ? 'expired' : 'invalid')
+        } else {
+          setState('failed')
         }
       })
-      .catch(() => setState('error'))
+      .catch(() => setState('unreachable'))
   }, [token])
+
+  function retry() {
+    setState('pending')
+    verify()
+  }
+
+  useEffect(() => {
+    verify()
+  }, [verify])
 
   return (
     <Box
@@ -69,7 +77,20 @@ export default function VerifyEmail() {
             </>
           )}
 
-          {(state === 'invalid' || state === 'expired' || state === 'error') && (
+          {(state === 'failed' || state === 'unreachable') && (
+            <>
+              <ErrorOutlined sx={{ fontSize: 56, color: 'error.main' }} />
+              <Typography variant="h6">{t('verifyEmail.errorTitle')}</Typography>
+              <Alert severity="error" sx={{ width: '100%' }}>
+                {state === 'unreachable' ? t('common.unreachable') : t('common.saveError')}
+              </Alert>
+              <Button onClick={retry} variant="contained" fullWidth>
+                {t('common.tryAgain')}
+              </Button>
+            </>
+          )}
+
+          {(state === 'invalid' || state === 'expired') && (
             <>
               <ErrorOutlined sx={{ fontSize: 56, color: 'error.main' }} />
               <Typography variant="h6">{t('verifyEmail.errorTitle')}</Typography>

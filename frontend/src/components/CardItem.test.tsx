@@ -32,6 +32,7 @@ interface Options {
 // card is drawn in it, and a colour saved from the card's menu goes into it.
 function renderCard({ card = CARD, color = null, dragOverlay = false }: Options = {}) {
   const onArchived = vi.fn()
+  const onArchiveFailed = vi.fn()
   const onUpdated = vi.fn()
   const onCopied = vi.fn()
   const onColorChanged = vi.fn()
@@ -45,7 +46,7 @@ function renderCard({ card = CARD, color = null, dragOverlay = false }: Options 
           <CardItem card={card} boardId="board-1" listId="list-2" numberLocale="en_GB" dateFormat="numeric"
             color={boardColor}
             onColorChanged={(cardId, saved) => { onColorChanged(cardId, saved); setBoardColor(saved) }}
-            onArchived={onArchived} onUpdated={onUpdated} onCopied={onCopied}
+            onArchived={onArchived} onArchiveFailed={onArchiveFailed} onUpdated={onUpdated} onCopied={onCopied}
             onChecklistCopied={vi.fn()} dragOverlay={dragOverlay} />
         </SortableContext>
       </BoardDnd>
@@ -55,6 +56,7 @@ function renderCard({ card = CARD, color = null, dragOverlay = false }: Options 
   return {
     ...result,
     onArchived,
+    onArchiveFailed,
     onUpdated,
     onCopied,
     onColorChanged,
@@ -168,35 +170,36 @@ describe('CardItem', () => {
   describe('archiving', () => {
     it('archives the card, then tells the board', async () => {
       const archived = fakeEndpoint('patch', CARD_URL, () => HttpResponse.json({ ...CARD, is_archived: true }))
-      const { user, onArchived } = renderCard()
+      const { user, onArchived, onArchiveFailed } = renderCard()
 
       await chooseFromMenu(user, 'Archive card')
 
       await waitFor(() => expect(onArchived).toHaveBeenCalledWith('card-7'))
       await menuClosed()
+      expect(onArchiveFailed).not.toHaveBeenCalled()
       expect(archived.requests.map((r) => [r.url.pathname, r.body])).toEqual([
         ['/api/v1/boards/board-1/lists/list-2/cards/card-7', { is_archived: true }],
       ])
     })
 
-    it('tells the board nothing when the archive is refused, and the card stays', async () => {
-      const archived = fakeEndpoint('patch', CARD_URL, () => HttpResponse.json({ detail: 'Not allowed' }, { status: 403 }))
-      const { user, onArchived } = renderCard()
+    it('tells the board the archive failed when it is refused, and the card stays', async () => {
+      fakeEndpoint('patch', CARD_URL, () => HttpResponse.json({ detail: 'Not allowed' }, { status: 403 }))
+      const { user, onArchived, onArchiveFailed } = renderCard()
 
       await chooseFromMenu(user, 'Archive card')
 
-      await waitFor(() => expect(archived.requests).toHaveLength(1))
+      await waitFor(() => expect(onArchiveFailed).toHaveBeenCalledWith(CARD))
       expect(onArchived).not.toHaveBeenCalled()
       expect(cardBox()).toBeInTheDocument()
     })
 
-    it('tells the board nothing when the connection drops', async () => {
-      const archived = fakeEndpoint('patch', CARD_URL, () => HttpResponse.error())
-      const { user, onArchived } = renderCard()
+    it('tells the board the archive failed when the connection drops', async () => {
+      fakeEndpoint('patch', CARD_URL, () => HttpResponse.error())
+      const { user, onArchived, onArchiveFailed } = renderCard()
 
       await chooseFromMenu(user, 'Archive card')
 
-      await waitFor(() => expect(archived.requests).toHaveLength(1))
+      await waitFor(() => expect(onArchiveFailed).toHaveBeenCalledWith(CARD))
       expect(onArchived).not.toHaveBeenCalled()
       expect(cardBox()).toBeInTheDocument()
     })

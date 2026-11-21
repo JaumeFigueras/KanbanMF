@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 import i18n from '../i18n'
 import { setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
+import { restoreSiteData } from './blockSiteData'
 import { FakeWebSocket } from './fakeWebSocket'
 import { server } from './server'
 
@@ -49,6 +50,8 @@ afterEach(() => {
   setAccessToken(null)
   setWebSocketToken(null)
   FakeWebSocket.reset()
+  // A test that blocked the storage (blockSiteData) gets it back first.
+  restoreSiteData()
   localStorage.clear()
   sessionStorage.clear()
 })

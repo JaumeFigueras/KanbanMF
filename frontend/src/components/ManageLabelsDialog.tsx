@@ -34,6 +34,10 @@ interface Props {
   open: boolean
   onClose: () => void
   boardId: string
+  // A label was renamed, recoloured, reordered or deleted: the cards show
+  // their labels, in the labels' order, so the board fetches them again.
+  // Not called for a new label, which is on no card yet.
+  onChanged?: () => void
 }
 
 interface LabelForm {
@@ -110,7 +114,7 @@ function SortableLabelRow({
   )
 }
 
-export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
+export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }: Props) {
   const { t } = useTranslation()
   const [labels, setLabels] = useState<LabelRead[]>([])
   const [formOpen, setFormOpen] = useState(false)
@@ -191,6 +195,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
       const updated: LabelRead = await r.json()
       setLabels(prev => prev.map(l => l.id === updated.id ? updated : l))
       setFormOpen(false)
+      onChanged?.()
     } catch {
       setError(t('common.saveError'))
     } finally {
@@ -219,7 +224,10 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
       headers: jsonHeaders,
       body: JSON.stringify({ label_ids: reordered.map(l => l.id) }),
     })
-      .then(r => { if (!r.ok) throw new Error() })
+      .then(r => {
+        if (!r.ok) throw new Error()
+        onChanged?.()
+      })
       .catch(() => {
         // Rejected (e.g. stale state) — resync from the server.
         apiFetch(API)
@@ -300,7 +308,10 @@ export default function ManageLabelsDialog({ open, onClose, boardId }: Props) {
         onClose={() => setDeleteOpen(false)}
         boardId={boardId}
         label={labelToDelete}
-        onDeleted={id => setLabels(prev => prev.filter(l => l.id !== id))}
+        onDeleted={id => {
+          setLabels(prev => prev.filter(l => l.id !== id))
+          onChanged?.()
+        }}
       />
     </>
   )

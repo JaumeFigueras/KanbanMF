@@ -149,6 +149,9 @@ export default function BoardCard({
             <Tooltip title={t('boards.reorderHint')}>
               <IconButton
                 size="small"
+                // Named after the board (outranking the tooltip's name):
+                // every tile has the same three buttons.
+                aria-label={t('boards.moveBoardNamed', { name: board.name })}
                 sx={{ color: 'text.disabled', cursor: dragOverlay || isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
@@ -162,6 +165,7 @@ export default function BoardCard({
               <Tooltip title={board.is_starred ? t('boards.unstar') : t('boards.star')}>
                 <IconButton
                   size="small"
+                  aria-label={t(board.is_starred ? 'boards.unstarNamed' : 'boards.starNamed', { name: board.name })}
                   onClick={dragOverlay ? undefined : () => onStarToggle(board.id, !board.is_starred)}
                   sx={{ color: board.is_starred ? 'primary.main' : 'text.disabled' }}
                 >
@@ -174,6 +178,7 @@ export default function BoardCard({
 
             <IconButton
               size="small"
+              aria-label={t('boards.boardMenuNamed', { name: board.name })}
               onClick={dragOverlay ? undefined : (e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget) }}
             >
               <MenuIcon sx={{ fontSize: 18 }} />

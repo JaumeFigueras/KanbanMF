@@ -21,6 +21,8 @@ verification e-mail is written in it too. You can change it later in your
 After **Create account**, KanbanMF sends you an e-mail with a verification
 link. Click it to activate the account; until then you can't sign in. The
 link is valid for 24 hours — if it expires, sign up again to get a new one.
+If the page the link opens says KanbanMF couldn't be reached, check your
+connection and click **Try again**.
 
 If the address already has an account, the page says the same, "check your
 e-mail": the e-mail is what tells you that you already have an account, and
@@ -39,7 +41,9 @@ sent to**; as soon as you verify it, the board appears under
 
 An invitation is valid for 30 days. If the page says the link is no longer
 valid, the invitation has expired or was cancelled: you can still create an
-account, but ask the owner to share the board with you again.
+account, but ask the owner to share the board with you again. If it says the
+invitation couldn't be loaded, click **Try again**: **Create account** waits
+until the page knows whether the invitation still holds.
 
 Signing in
 ----------
@@ -115,3 +119,8 @@ for 30 days, you will have to sign in again there.
 **Sign out** — the last item of the user menu, or the icon at the right of
 the top bar — signs you out of the browser you are using. You stay signed in
 on your other devices.
+
+If KanbanMF can't be reached when you sign out, the page signs you out
+anyway, and the sign-in page warns you that this device may still be signed
+in: opening KanbanMF again on it would sign you back in. Check your
+connection, then reload the page and sign out again.

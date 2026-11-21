@@ -36,6 +36,12 @@ The box at the bottom shows today's date in the chosen format, so you can see
 the effect before you click **Save**. These preferences belong to your
 account, so they follow you to every device.
 
+If your profile couldn't be loaded, your name is missing from the top bar,
+and the user menu says so at the top: click that line to try again. Until
+your profile is in, :guilabel:`Language and Localization` and
+:guilabel:`Change display name and initials` can't be chosen, so that they
+never start from settings that aren't yours.
+
 Light and dark theme
 --------------------
 
@@ -50,6 +56,11 @@ same switch, as a moon or sun icon at the top right.
 
 The theme is remembered **per browser**, not per account: you can use the
 dark theme on one computer and the light one on another.
+
+If your browser blocks site data for KanbanMF, everything still works, but the
+browser can't remember the theme, the sort chosen for each board (see
+:ref:`manual-sorting`) or the folded sections of the boards page: after a
+reload they are back to their defaults.
 
 .. _manual-colours:
 

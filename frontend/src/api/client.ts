@@ -104,3 +104,13 @@ export async function apiFetch(url: string, init: RequestInit = {}): Promise<Res
   }
   return response
 }
+
+// For loading data: the answer's JSON, or a rejection for a refusal or a
+// server error just as for a dropped connection. A failed load then can't
+// be read as "nothing here" (an empty list, no boards), and the page can say
+// it couldn't load instead.
+export async function loadJson<T>(url: string): Promise<T> {
+  const response = await apiFetch(url)
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
+  return response.json() as Promise<T>
+}

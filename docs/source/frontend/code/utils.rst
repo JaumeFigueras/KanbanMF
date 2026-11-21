@@ -27,6 +27,13 @@ Small pure helpers, with no React in them:
    WCAG relative luminance, and whether dark or white text contrasts more
    with a colour: the one rule the due-date chips and the labels share.
 
+``csv.ts``
+   The time tracker's CSV file: every cell quoted, a cell that starts like a
+   formula (``=``, ``+``, ``-``, ``@``, a tab or a carriage return) kept as
+   text behind an apostrophe — card, board and label names come from shared
+   boards, and a spreadsheet would run them — and a byte-order mark first, or
+   Excel reads the file in the computer's legacy encoding and garbles accents.
+
 ``dueDateColor.ts``
    The due-date colour scale, green to dark red, with dark or white text on
    top, whichever contrasts more.
@@ -55,6 +62,11 @@ Small pure helpers, with no React in them:
    A search's scope (every board, one board, a board's archive, the archived
    boards), the ``/search`` address that carries it, the backend's query for
    it and the search box's placeholder.
+
+``storage.ts``
+   ``localStorage`` and ``sessionStorage`` as a browser that blocks site data
+   allows: each read, write or removal that throws acts as if nothing were
+   stored. The only way the app reaches either.
 
 ``src/theme/``
 --------------

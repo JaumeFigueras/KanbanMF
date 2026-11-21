@@ -119,8 +119,8 @@ Working at the same time
 ------------------------
 
 Everyone who has a board open sees the others' changes as they happen: a
-card being added, moved, edited or archived shows up without reloading the
-page.
+card being added, moved, edited or archived, or a label being renamed,
+recoloured, reordered or deleted, shows up without reloading the page.
 
 When two people change the same card at almost the same moment, the last
 change saved wins. If someone else changes a card while you have its dialog

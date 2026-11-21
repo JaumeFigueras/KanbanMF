@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Box,
   Card,
@@ -17,16 +17,32 @@ import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import GoogleButton from '../components/GoogleButton'
 import AuthControls from '../components/AuthControls'
+import LoadFailure, { type LoadState } from '../components/LoadFailure'
 import type { InvitationPreview } from '../types/invitation'
 import { passwordProblem } from '../utils/password'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
+// FastAPI's answer to a field it refuses is a list of problems, each saying
+// where it is: { loc: ['body', 'email'], msg: '…' }.
+function refusesEmail(body: { detail?: unknown }): boolean {
+  return Array.isArray(body.detail)
+    && body.detail.some((problem: { loc?: unknown[] }) => problem?.loc?.[1] === 'email')
+}
+
 export default function SignUp() {
   const { t, i18n } = useTranslation()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  // The fields are controlled, and the form has an ordinary submit handler,
+  // not a form action: React empties a form's fields when its action ends,
+  // so an error (a short password, too many tries) used to wipe all four.
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [apiError, setApiError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -36,33 +52,57 @@ export default function SignUp() {
   const inviteToken = searchParams.get('invite')
   const [invitation, setInvitation] = useState<InvitationPreview | null>(null)
   const [invitationInvalid, setInvitationInvalid] = useState(false)
-  const [invitationLoading, setInvitationLoading] = useState(Boolean(inviteToken))
+  // Create account waits for the invitation: until the page knows whether
+  // it's valid, it can't tell which address to lock.
+  const [invitationLoad, setInvitationLoad] = useState<LoadState>(inviteToken ? 'loading' : 'loaded')
 
-  useEffect(() => {
+  const fetchInvitation = useCallback(() => {
     if (!inviteToken) return
     fetch(`${API_BASE}/api/v1/invitations/${encodeURIComponent(inviteToken)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<InvitationPreview>) : Promise.reject()))
-      .then(setInvitation)
-      .catch(() => setInvitationInvalid(true))
-      .finally(() => setInvitationLoading(false))
+      .then(async (r) => {
+        if (r.ok) {
+          const preview = (await r.json()) as InvitationPreview
+          setInvitation(preview)
+          setEmail(preview.email)
+        } else if (r.status === 404) {
+          // The backend's answer for an invitation that expired, was
+          // cancelled or never existed.
+          setInvitationInvalid(true)
+        } else {
+          setInvitationLoad('failed')
+          return
+        }
+        setInvitationLoad('loaded')
+      })
+      // A dropped connection says so, rather than that the link expired.
+      .catch(() => setInvitationLoad('failed'))
   }, [inviteToken])
 
-  async function handleSubmit(data: FormData) {
-    const password = data.get('password') as string
-    const confirm = data.get('confirmPassword') as string
+  function retryInvitation() {
+    setInvitationLoad('loading')
+    fetchInvitation()
+  }
+
+  useEffect(() => {
+    fetchInvitation()
+  }, [fetchInvitation])
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setPasswordError('')
+    setEmailError('')
+    setApiError('')
 
     const problem = passwordProblem(password)
     if (problem) {
       setPasswordError(t(problem))
       return
     }
-    if (password !== confirm) {
+    if (password !== confirmPassword) {
       setPasswordError(t('signUp.passwordMismatch'))
       return
     }
 
-    setPasswordError('')
-    setApiError('')
     setLoading(true)
 
     try {
@@ -70,8 +110,8 @@ export default function SignUp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          display_name: data.get('displayName') as string,
-          email: data.get('email') as string,
+          display_name: displayName,
+          email,
           password,
           language: i18n.language,
           ...(invitation && inviteToken ? { invitation_token: inviteToken } : {}),
@@ -84,15 +124,24 @@ export default function SignUp() {
         setSuccess(true)
       } else if (res.status === 429) {
         setApiError(t('common.tooManyAttempts'))
-      } else if (invitation && (res.status === 400 || res.status === 422)) {
-        // The invitation expired or was cancelled while this page was open.
-        setInvitation(null)
-        setInvitationInvalid(true)
+      } else if (res.status === 400 || res.status === 422) {
+        const body = await res.json().catch(() => ({}))
+        if (body.detail === 'Invalid or expired invitation') {
+          // The invitation expired or was cancelled while this page was
+          // open. What was typed stays, and the address, still the invited
+          // one, can now be changed.
+          setInvitation(null)
+          setInvitationInvalid(true)
+        } else if (refusesEmail(body)) {
+          setEmailError(t('signUp.emailInvalid'))
+        } else {
+          setApiError(t('signUp.errorGeneric'))
+        }
       } else {
         setApiError(t('signUp.errorGeneric'))
       }
     } catch {
-      setApiError(t('signUp.errorGeneric'))
+      setApiError(t('common.unreachable'))
     } finally {
       setLoading(false)
     }
@@ -156,6 +205,9 @@ export default function SignUp() {
               {t('signUp.invitedBy', { inviter: invitation.inviter_name, board: invitation.board_name })}
             </Alert>
           )}
+          {invitationLoad === 'failed' && (
+            <LoadFailure message={t('signUp.invitationLoadFailed')} onRetry={retryInvitation} sx={{ mb: 2 }} />
+          )}
           {invitationInvalid && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               {t('signUp.invitationInvalid')}
@@ -168,13 +220,13 @@ export default function SignUp() {
             </Alert>
           )}
 
-          {/* Keyed on the invitation so the locked e-mail field remounts with
-              its defaultValue once the preview has loaded (or been dropped). */}
-          <Box component="form" action={handleSubmit} noValidate key={invitation?.email ?? 'no-invitation'}>
+          <Box component="form" onSubmit={handleSubmit} noValidate>
             <TextField
               slotProps={{ htmlInput: { maxLength: 100 } }}
               label={t('signUp.displayName')}
               name="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
               fullWidth
               required
               margin="normal"
@@ -188,13 +240,18 @@ export default function SignUp() {
               required
               margin="normal"
               autoComplete="email"
-              defaultValue={invitation?.email ?? ''}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              error={!!emailError}
+              helperText={emailError}
               slotProps={{ input: { readOnly: Boolean(invitation) } }}
             />
             <TextField
               label={t('signUp.password')}
               name="password"
               type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               fullWidth
               required
               margin="normal"
@@ -206,7 +263,7 @@ export default function SignUp() {
                       <IconButton
                         onClick={() => setShowPassword((v) => !v)}
                         edge="end"
-                        aria-label="toggle password visibility"
+                        aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
@@ -219,6 +276,8 @@ export default function SignUp() {
               label={t('signUp.confirmPassword')}
               name="confirmPassword"
               type={showConfirm ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               fullWidth
               required
               margin="normal"
@@ -232,7 +291,7 @@ export default function SignUp() {
                       <IconButton
                         onClick={() => setShowConfirm((v) => !v)}
                         edge="end"
-                        aria-label="toggle confirm password visibility"
+                        aria-label={showConfirm ? t('common.hideRepeatedPassword') : t('common.showRepeatedPassword')}
                       >
                         {showConfirm ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
@@ -246,7 +305,7 @@ export default function SignUp() {
               variant="contained"
               fullWidth
               size="large"
-              disabled={loading || invitationLoading}
+              disabled={loading || invitationLoad !== 'loaded'}
               sx={{ mt: 2 }}
             >
               {t('signUp.submit')}

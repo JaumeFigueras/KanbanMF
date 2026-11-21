@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AppBar,
   Alert,
@@ -22,11 +22,14 @@ import {
 } from '@mui/material'
 import { Archive, DeleteForever, Menu as HamburgerIcon, Undo, Unarchive } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '../api/client'
+import { apiFetch, loadJson } from '../api/client'
 import type { BoardListRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import CardFace from './CardFace'
 import CopyCardDialog from './CopyCardDialog'
+import FailureMessage from './FailureMessage'
+import LoadFailure from './LoadFailure'
+import type { LoadState } from './LoadFailure'
 
 interface Props {
   boardId: string
@@ -78,28 +81,39 @@ export default function ArchivedListsView({
   const { t } = useTranslation()
   const [archivedLists, setArchivedLists] = useState<BoardListRead[]>([])
   const [archivedCards, setArchivedCards] = useState<CardRead[]>([])
+  // "Nothing archived" only once the archive is in, never while it loads
+  // or when it couldn't be loaded.
+  const [load, setLoad] = useState<LoadState>('loading')
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [menuTarget, setMenuTarget] = useState<ItemTarget | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ItemTarget | null>(null)
   const [deleteError, setDeleteError] = useState(false)
   const [restoreBlock, setRestoreBlock] = useState<RestoreBlock | null>(null)
   const [copyTarget, setCopyTarget] = useState<ItemTarget | null>(null)
+  // A restore that couldn't be saved, said at the foot of the page.
+  const [failure, setFailure] = useState<string | null>(null)
   const [highlighted, setHighlighted] = useState(highlightCardId ?? null)
   const highlightRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
+  const fetchArchived = useCallback(() => {
     Promise.all([
-      apiFetch(`/api/v1/boards/${boardId}/lists/archived`)
-        .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
-      apiFetch(`/api/v1/boards/${boardId}/cards/archived`)
-        .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
+      loadJson<BoardListRead[]>(`/api/v1/boards/${boardId}/lists/archived`),
+      loadJson<CardRead[]>(`/api/v1/boards/${boardId}/cards/archived`),
     ])
       .then(([lists, cards]) => {
         setArchivedLists(lists)
         setArchivedCards(cards)
+        setLoad('loaded')
       })
-      .catch(() => {})
+      .catch(() => setLoad('failed'))
   }, [boardId])
+
+  useEffect(() => { fetchArchived() }, [fetchArchived])
+
+  function retryArchived() {
+    setLoad('loading')
+    fetchArchived()
+  }
 
   // Once the highlighted card is on screen, bring it into view, and let the
   // outline fade after a few seconds.
@@ -168,15 +182,21 @@ export default function ArchivedListsView({
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_archived: false }),
-    })
-    if (r.status === 409) {
+    }).catch(() => null)
+    if (r?.status === 409) {
       const detail = (await r.json()).detail
       setRestoreBlock(detail.code === 'card_replaced'
         ? { kind: 'replaced', replacedById: detail.replaced_by_id }
         : { kind: 'formerPeople', names: detail.names, card: target })
       return
     }
-    if (!r.ok) return
+    if (!r?.ok) {
+      // Refused otherwise, it may have been restored or deleted elsewhere
+      // meanwhile: the archive is fetched again.
+      setFailure(t(target.type === 'list' ? 'board.restoreListFailed' : 'board.restoreCardFailed', { name: target.name }))
+      fetchArchived()
+      return
+    }
 
     if (target.type === 'list') {
       // Restoring a list also restores its cards (backend cascade), so both
@@ -201,8 +221,8 @@ export default function ArchivedListsView({
     const url = target.type === 'list'
       ? `/api/v1/boards/${boardId}/lists/${target.id}`
       : `/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
-    const r = await apiFetch(url, { method: 'DELETE' })
-    if (!r.ok) {
+    const r = await apiFetch(url, { method: 'DELETE' }).catch(() => null)
+    if (!r?.ok) {
       setDeleteError(true)
       return
     }
@@ -323,7 +343,11 @@ export default function ArchivedListsView({
         />
       )}
 
-      {columns.length === 0 ? (
+      {load === 'failed' ? (
+        <Box sx={{ p: 3 }}>
+          <LoadFailure message={t('board.archiveLoadFailed')} onRetry={retryArchived} />
+        </Box>
+      ) : load === 'loading' ? null : columns.length === 0 ? (
         <Box sx={{ p: 3 }}>
           <Typography variant="body2" color="text.secondary">{t('board.noArchivedLists')}</Typography>
         </Box>
@@ -365,7 +389,7 @@ export default function ArchivedListsView({
                 {column.archived && (
                   <IconButton
                     size="small"
-                    aria-label={t('board.listMenu')}
+                    aria-label={t('board.listMenuNamed', { name: column.listName })}
                     sx={{ color: 'white' }}
                     onClick={(e) => openMenu(e, { type: 'list', id: column.listId, listId: column.listId, name: column.listName })}
                   >
@@ -405,7 +429,7 @@ export default function ArchivedListsView({
                             {!column.archived && (
                               <IconButton
                                 size="small"
-                                aria-label={t('board.cardMenu')}
+                                aria-label={t('board.cardMenuNamed', { name: card.name })}
                                 onClick={(e) => openMenu(e, { type: 'card', id: card.id, listId: column.listId, name: card.name })}
                               >
                                 <HamburgerIcon sx={{ fontSize: 22 }} />
@@ -422,6 +446,8 @@ export default function ArchivedListsView({
           ))}
         </Box>
       )}
+
+      <FailureMessage message={failure} onClose={() => setFailure(null)} />
     </>
   )
 }

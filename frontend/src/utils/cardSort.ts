@@ -9,6 +9,12 @@ export const SORT_OPTIONS: { value: SortMode; labelKey: string }[] = [
   { value: 'custom', labelKey: 'board.sortCustom' },
 ]
 
+// A stored sort mode is checked: anything else there (an older version's
+// mode, a value typed in by hand) is no mode at all.
+export function isSortMode(value: unknown): value is SortMode {
+  return SORT_OPTIONS.some((option) => option.value === value)
+}
+
 // Cards with a stored position (`customOrderIds`) are sorted by it; anything
 // not yet in that list — e.g. a card just created or just dropped in from
 // another list before its position was persisted — floats to the front.

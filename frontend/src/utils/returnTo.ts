@@ -4,6 +4,8 @@
 // in router state, because Google sign-in leaves the app and comes back to
 // "/" through the backend.
 
+import { readStored, removeStored, writeStored } from './storage'
+
 const KEY = 'kanbanmf.return_to'
 
 // Only paths of this app: "/x", never "//host" or a full URL, so a stored
@@ -13,15 +15,15 @@ function isLocalPath(path: string): boolean {
 }
 
 export function rememberReturnTo(path: string) {
-  if (isLocalPath(path) && path !== '/signin') sessionStorage.setItem(KEY, path)
+  if (isLocalPath(path) && path !== '/signin') writeStored('session', KEY, path)
 }
 
 export function peekReturnTo(): string | null {
-  const path = sessionStorage.getItem(KEY)
+  const path = readStored('session', KEY)
   return path && isLocalPath(path) ? path : null
 }
 
 // Called once a protected page is shown, so the next sign-in starts fresh.
 export function clearReturnTo() {
-  sessionStorage.removeItem(KEY)
+  removeStored('session', KEY)
 }

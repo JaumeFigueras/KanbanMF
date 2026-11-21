@@ -5,6 +5,7 @@ import type { CardRead } from '../types/board'
 import {
   applyUndatedOrder,
   clampDueDateDropIndex,
+  isSortMode,
   SORT_OPTIONS,
   sortCards,
   type SortMode,
@@ -138,6 +139,16 @@ describe('applyUndatedOrder', () => {
 
   it('leaves a slot out rather than writing an empty one when there are fewer ids than slots', () => {
     expect(applyUndatedOrder(['u1', 'd1', 'u2'], [u1, u2, d1], ['u2'])).toEqual(['u2', 'd1'])
+  })
+})
+
+describe('isSortMode', () => {
+  it('accepts the four modes', () => {
+    expect(['due_date', 'alpha_asc', 'alpha_desc', 'custom'].filter(isSortMode)).toHaveLength(4)
+  })
+
+  it('refuses anything else a stored value could be (6I)', () => {
+    expect([null, '', 'bogus', 'Custom', 'due-date', 'toString', undefined, 3].filter(isSortMode)).toEqual([])
   })
 })
 

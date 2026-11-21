@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import { ThemeToggleContext } from './useThemeToggle'
+import { readStored, writeStored } from '../utils/storage'
 
 export function ThemeToggleProvider({ children }: { children: ReactNode }) {
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [dark, setDark] = useState(() => readStored('local', 'theme') === 'dark')
 
   function toggleDark() {
     setDark((v) => {
-      localStorage.setItem('theme', v ? 'light' : 'dark')
+      writeStored('local', 'theme', v ? 'light' : 'dark')
       return !v
     })
   }

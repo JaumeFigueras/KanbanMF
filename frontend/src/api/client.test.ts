@@ -5,6 +5,7 @@ import {
   apiFetch,
   getAccessToken,
   getClientId,
+  loadJson,
   onAccessTokenChange,
   refreshAccessToken,
   setAccessToken,
@@ -276,5 +277,28 @@ describe('refreshAccessToken', () => {
     // The refresh request was sent from inside the lock, not before it.
     expect(refreshesBeforeLock).toEqual([0])
     expect(refresh.count).toBe(1)
+  })
+})
+
+describe('loadJson', () => {
+  it("gives the answer's JSON, sent with the token like any request", async () => {
+    setAccessToken('new')
+    const seen = protectedEndpoint('/api/v1/boards')
+    expect(await loadJson('/api/v1/boards')).toEqual({ ok: true })
+    expect(seen).toEqual(['Bearer new'])
+  })
+
+  it.each([
+    ['refusal', 403],
+    ['missing board', 404],
+    ['server error', 500],
+  ])('rejects a %s (%d), so it is never read as no data', async (_, status) => {
+    server.use(http.get('/api/v1/boards', () => HttpResponse.json({ detail: 'no' }, { status })))
+    await expect(loadJson('/api/v1/boards')).rejects.toThrow(`/api/v1/boards answered ${status}`)
+  })
+
+  it('rejects when the connection drops', async () => {
+    server.use(http.get('/api/v1/boards', () => HttpResponse.error()))
+    await expect(loadJson('/api/v1/boards')).rejects.toThrow()
   })
 })

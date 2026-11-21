@@ -63,3 +63,8 @@ export function heldAnswer(answer: Answer = NO_CONTENT) {
     release: () => release(),
   }
 }
+
+// The two ways a load fails: the server answers with an error, or the
+// connection drops before any answer.
+export const SERVER_ERROR: Answer = () => HttpResponse.json({ detail: 'Internal Server Error' }, { status: 500 })
+export const DROPPED: Answer = () => HttpResponse.error()

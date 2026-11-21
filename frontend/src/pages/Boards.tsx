@@ -23,7 +23,7 @@ import {
 } from '@mui/material'
 import { Add, ExpandMore, Search } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '../api/client'
+import { apiFetch, loadJson } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CreateBoardDialog from '../components/CreateBoardDialog'
@@ -35,8 +35,12 @@ import EmailNotificationDialog from '../components/EmailNotificationDialog'
 import DuplicateTemplateDialog from '../components/DuplicateTemplateDialog'
 import BoardCard from '../components/BoardCard'
 import ArchivedBoardCard from '../components/ArchivedBoardCard'
+import FailureMessage from '../components/FailureMessage'
+import LoadFailure from '../components/LoadFailure'
+import type { LoadState } from '../components/LoadFailure'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
 import { MIN_SEARCH_LENGTH, searchPlaceholderKey, searchUrl } from '../utils/search'
+import { readStored, writeStored } from '../utils/storage'
 
 const ACCORDION_KEY = 'kanbanmf.boards.accordions'
 
@@ -49,13 +53,24 @@ interface AccordionState {
 
 const DEFAULT_ACCORDION: AccordionState = { starred: true, myBoards: true, sharedWithMe: true, templates: true }
 
+// Only the sections' own true/false values are taken from what's stored:
+// anything else (an unknown key, a value that isn't true or false, text
+// that isn't JSON) leaves the default.
 function readAccordionState(): AccordionState {
+  let stored: unknown = null
   try {
-    const stored = localStorage.getItem(ACCORDION_KEY)
-    return stored ? { ...DEFAULT_ACCORDION, ...JSON.parse(stored) } : DEFAULT_ACCORDION
+    stored = JSON.parse(readStored('local', ACCORDION_KEY) ?? 'null')
   } catch {
-    return DEFAULT_ACCORDION
+    // Not JSON: nothing usable.
   }
+  const state = { ...DEFAULT_ACCORDION }
+  if (stored && typeof stored === 'object') {
+    for (const key of Object.keys(DEFAULT_ACCORDION) as (keyof AccordionState)[]) {
+      const value = (stored as Record<string, unknown>)[key]
+      if (typeof value === 'boolean') state[key] = value
+    }
+  }
+  return state
 }
 
 const BOARD_GRID_SX = {
@@ -82,6 +97,9 @@ export default function Boards() {
   // Boards
   const [boards, setBoards] = useState<BoardsResponse>({ owned: [], shared: [], templates: [] })
   const [order, setOrder] = useState<BoardOrderRead>(EMPTY_ORDER)
+  // The sections show once the boards are in, so neither a load under way
+  // nor a failed one reads as having no boards.
+  const [boardsLoad, setBoardsLoad] = useState<LoadState>('loading')
 
   // Owned and shared templates share one section, so which ones this user
   // owns (and may rename/share/archive) is decided by owner_id, not section.
@@ -114,14 +132,18 @@ export default function Boards() {
   const [showArchived, setShowArchived] = useState(() => searchParams.get('archived') === '1')
   const [archivedSearch, setArchivedSearch] = useState('')
   const [archivedBoards, setArchivedBoards] = useState<BoardRead[]>([])
+  const [archivedLoad, setArchivedLoad] = useState<LoadState>('loading')
   const [boardToDelete, setBoardToDelete] = useState<BoardRead | null>(null)
   const [deleteBoardOpen, setDeleteBoardOpen] = useState(false)
   const [accordion, setAccordion] = useState<AccordionState>(readAccordionState)
+  // A change made on the page itself (a star, a restore, a drag) that
+  // couldn't be saved, said at the foot of the page.
+  const [failure, setFailure] = useState<string | null>(null)
 
   function toggleAccordion(key: keyof AccordionState) {
     setAccordion(prev => {
       const next = { ...prev, [key]: !prev[key] }
-      localStorage.setItem(ACCORDION_KEY, JSON.stringify(next))
+      writeStored('local', ACCORDION_KEY, JSON.stringify(next))
       return next
     })
   }
@@ -135,27 +157,38 @@ export default function Boards() {
   // in a callback, which lets the lint rule against setting state directly
   // inside an effect see that the effect calling this doesn't.
   const fetchBoards = useCallback(() => {
-    Promise.all([apiFetch('/api/v1/boards'), apiFetch('/api/v1/boards/order')])
-      .then(async ([boardsRes, orderRes]) => {
-        if (boardsRes.ok) setBoards(await boardsRes.json())
-        if (orderRes.ok) setOrder(await orderRes.json())
+    Promise.all([
+      loadJson<BoardsResponse>('/api/v1/boards'),
+      loadJson<BoardOrderRead>('/api/v1/boards/order'),
+    ])
+      .then(([fetchedBoards, fetchedOrder]) => {
+        setBoards(fetchedBoards)
+        setOrder(fetchedOrder)
+        setBoardsLoad('loaded')
       })
-      .catch(() => {
-        // non-fatal
-      })
+      .catch(() => setBoardsLoad('failed'))
   }, [])
 
-  const fetchArchivedBoards = useCallback(async () => {
-    try {
-      const r = await apiFetch('/api/v1/boards/archived')
-      if (r.ok) {
-        const data: BoardRead[] = await r.json()
+  const fetchArchivedBoards = useCallback(() => {
+    loadJson<BoardRead[]>('/api/v1/boards/archived')
+      .then(data => {
         setArchivedBoards(data)
-      }
-    } catch {
-      // non-fatal
-    }
+        setArchivedLoad('loaded')
+      })
+      .catch(() => setArchivedLoad('failed'))
   }, [])
+
+  // Try again: what was there goes while it loads, so a second failure
+  // shows as a new answer rather than nothing happening.
+  function retryBoards() {
+    setBoardsLoad('loading')
+    fetchBoards()
+  }
+
+  function retryArchivedBoards() {
+    setArchivedLoad('loading')
+    fetchArchivedBoards()
+  }
 
   // Each board carries its owner's avatar state (owner_has_avatar) in the
   // payload it was fetched with, so changing your own avatar only shows up
@@ -172,12 +205,8 @@ export default function Boards() {
   // The section ?archived=1 unfolded needs its boards on the first load.
   const [archivedOnLoad] = useState(showArchived)
   useEffect(() => {
-    if (!archivedOnLoad) return
-    apiFetch('/api/v1/boards/archived')
-      .then(r => r.ok ? r.json() as Promise<BoardRead[]> : [])
-      .then(setArchivedBoards)
-      .catch(() => {})
-  }, [archivedOnLoad])
+    if (archivedOnLoad) fetchArchivedBoards()
+  }, [archivedOnLoad, fetchArchivedBoards])
 
   // Then drop the parameter, so a reload after folding the section doesn't
   // unfold it again.
@@ -232,8 +261,10 @@ export default function Boards() {
   // is already up to date.
   useEffect(() => {
     return subscribeToNotifications((notification) => {
-      // Invitations change only the share dialog, never the board list.
-      if (isOwnNotification(notification) || notification.type === 'board_invitations_changed') return
+      // Invitations change only the share dialog, and labels only the cards
+      // on a board, never the board list.
+      if (isOwnNotification(notification)) return
+      if (notification.type === 'board_invitations_changed' || notification.type === 'labels_changed') return
       fetchBoards()
       if (showArchived) fetchArchivedBoards()
     })
@@ -267,12 +298,15 @@ export default function Boards() {
         : prev.starred_ids.filter(id => id !== boardId),
     }))
 
-    const r = await apiFetch(`/api/v1/boards/${boardId}/star`, {
+    const saved = await apiFetch(`/api/v1/boards/${boardId}/star`, {
       method: starred ? 'POST' : 'DELETE',
-    })
+    }).then(r => r.ok, () => false)
 
-    if (!r.ok) {
-      // Revert on failure
+    if (!saved) {
+      // Refused, or the connection dropped: the star goes back, and the
+      // page says so.
+      const name = [...boards.owned, ...boards.shared].find(b => b.id === boardId)?.name ?? ''
+      setFailure(t(starred ? 'boards.starFailed' : 'boards.unstarFailed', { name }))
       setBoards(prev => ({ ...prev, owned: applyToggle(prev.owned, !starred), shared: applyToggle(prev.shared, !starred) }))
       setOrder(prev => ({
         ...prev,
@@ -330,17 +364,22 @@ export default function Boards() {
   }
 
   async function handleRestoreBoard(board: BoardRead) {
-    const r = await apiFetch(`/api/v1/boards/${board.id}`, {
+    const restored = await apiFetch(`/api/v1/boards/${board.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_archived: false }),
-    })
-    if (r.ok) {
-      setArchivedBoards(prev => prev.filter(b => b.id !== board.id))
-      const orderKey = board.is_template ? 'template_ids' : 'owned_ids'
-      setOrder(prev => ({ ...prev, [orderKey]: [...prev[orderKey], board.id] }))
-      fetchBoards()
+    }).then(r => r.ok, () => false)
+    if (!restored) {
+      // Refused, it may have been restored or deleted elsewhere meanwhile:
+      // the archived boards are fetched again.
+      setFailure(t('boards.restoreFailed', { name: board.name }))
+      fetchArchivedBoards()
+      return
     }
+    setArchivedBoards(prev => prev.filter(b => b.id !== board.id))
+    const orderKey = board.is_template ? 'template_ids' : 'owned_ids'
+    setOrder(prev => ({ ...prev, [orderKey]: [...prev[orderKey], board.id] }))
+    fetchBoards()
   }
 
   function handleDeleteBoard(board: BoardRead) {
@@ -432,13 +471,22 @@ export default function Boards() {
 
     const newIds = arrayMove(ids, oldIdx, newIdx)
     const newOrder = { ...order, [orderKey]: newIds }
+    const before = order[orderKey]
     setOrder(newOrder)
 
+    // Refused or not sent: the section goes back to its order before the
+    // drag, and the page says so.
     apiFetch('/api/v1/boards/order', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newOrder),
-    }).catch(() => {})
+    })
+      .then(r => r.ok, () => false)
+      .then(saved => {
+        if (saved) return
+        setOrder(prev => ({ ...prev, [orderKey]: before }))
+        setFailure(t('common.moveFailed'))
+      })
   }
 
   const sharedCardProps = {
@@ -532,198 +580,205 @@ export default function Boards() {
           </Button>
         </Box>
 
-        {/* Starred */}
-        <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
-          <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              {t('boards.starredBoards')} ({starredBoards.length})
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {starredBoards.length === 0
-              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleBoardDragStart}
-                  onDragEnd={e => handleSectionDragEnd(e, 'starred')}
-                >
-                  <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
-                    <Box sx={BOARD_GRID_SX}>
-                      {starredBoards.map(board => (
-                        <BoardCard
-                          key={board.id}
-                          id={board.id}
-                          board={board}
-                          isOwned={ownedBoardIds.has(board.id)}
-                          color={boardColors[board.id] ?? null}
-                          {...sharedCardProps}
-                        />
-                      ))}
-                    </Box>
-                  </SortableContext>
-                  <DragOverlay>
-                    {draggingBoard ? (
-                      <BoardCard
-                        id={draggingBoard.id}
-                        board={draggingBoard}
-                        isOwned={ownedBoardIds.has(draggingBoard.id)}
-                        color={boardColors[draggingBoard.id] ?? null}
-                        {...sharedCardProps}
-                        dragOverlay
-                      />
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
-            }
-          </AccordionDetails>
-        </Accordion>
+        {boardsLoad === 'failed' && (
+          <LoadFailure message={t('boards.loadFailed')} onRetry={retryBoards} />
+        )}
+        {boardsLoad === 'loaded' && (
+          <>
+            {/* Starred */}
+            <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {t('boards.starredBoards')} ({starredBoards.length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                {starredBoards.length === 0
+                  ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+                  : <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleBoardDragStart}
+                      onDragEnd={e => handleSectionDragEnd(e, 'starred')}
+                    >
+                      <SortableContext items={starredBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                        <Box sx={BOARD_GRID_SX}>
+                          {starredBoards.map(board => (
+                            <BoardCard
+                              key={board.id}
+                              id={board.id}
+                              board={board}
+                              isOwned={ownedBoardIds.has(board.id)}
+                              color={boardColors[board.id] ?? null}
+                              {...sharedCardProps}
+                            />
+                          ))}
+                        </Box>
+                      </SortableContext>
+                      <DragOverlay>
+                        {draggingBoard ? (
+                          <BoardCard
+                            id={draggingBoard.id}
+                            board={draggingBoard}
+                            isOwned={ownedBoardIds.has(draggingBoard.id)}
+                            color={boardColors[draggingBoard.id] ?? null}
+                            {...sharedCardProps}
+                            dragOverlay
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+                }
+              </AccordionDetails>
+            </Accordion>
 
-        {/* My Boards */}
-        <Accordion expanded={accordion.myBoards} onChange={() => toggleAccordion('myBoards')}>
-          <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              {t('boards.myBoards')} ({myBoards.length})
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {myBoards.length === 0
-              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleBoardDragStart}
-                  onDragEnd={e => handleSectionDragEnd(e, 'owned')}
-                >
-                  <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
-                    <Box sx={BOARD_GRID_SX}>
-                      {myBoards.map(board => (
-                        <BoardCard
-                          key={board.id}
-                          id={board.id}
-                          board={board}
-                          isOwned={ownedBoardIds.has(board.id)}
-                          color={boardColors[board.id] ?? null}
-                          {...sharedCardProps}
-                        />
-                      ))}
-                    </Box>
-                  </SortableContext>
-                  <DragOverlay>
-                    {draggingBoard ? (
-                      <BoardCard
-                        id={draggingBoard.id}
-                        board={draggingBoard}
-                        isOwned={ownedBoardIds.has(draggingBoard.id)}
-                        color={boardColors[draggingBoard.id] ?? null}
-                        {...sharedCardProps}
-                        dragOverlay
-                      />
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
-            }
-          </AccordionDetails>
-        </Accordion>
+            {/* My Boards */}
+            <Accordion expanded={accordion.myBoards} onChange={() => toggleAccordion('myBoards')}>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {t('boards.myBoards')} ({myBoards.length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                {myBoards.length === 0
+                  ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+                  : <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleBoardDragStart}
+                      onDragEnd={e => handleSectionDragEnd(e, 'owned')}
+                    >
+                      <SortableContext items={myBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                        <Box sx={BOARD_GRID_SX}>
+                          {myBoards.map(board => (
+                            <BoardCard
+                              key={board.id}
+                              id={board.id}
+                              board={board}
+                              isOwned={ownedBoardIds.has(board.id)}
+                              color={boardColors[board.id] ?? null}
+                              {...sharedCardProps}
+                            />
+                          ))}
+                        </Box>
+                      </SortableContext>
+                      <DragOverlay>
+                        {draggingBoard ? (
+                          <BoardCard
+                            id={draggingBoard.id}
+                            board={draggingBoard}
+                            isOwned={ownedBoardIds.has(draggingBoard.id)}
+                            color={boardColors[draggingBoard.id] ?? null}
+                            {...sharedCardProps}
+                            dragOverlay
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+                }
+              </AccordionDetails>
+            </Accordion>
 
-        {/* Shared with me */}
-        <Accordion expanded={accordion.sharedWithMe} onChange={() => toggleAccordion('sharedWithMe')}>
-          <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              {t('boards.sharedWithMe')} ({sharedBoards.length})
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {sharedBoards.length === 0
-              ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
-              : <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleBoardDragStart}
-                  onDragEnd={e => handleSectionDragEnd(e, 'shared')}
-                >
-                  <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
-                    <Box sx={BOARD_GRID_SX}>
-                      {sharedBoards.map(board => (
-                        <BoardCard
-                          key={board.id}
-                          id={board.id}
-                          board={board}
-                          isOwned={ownedBoardIds.has(board.id)}
-                          color={boardColors[board.id] ?? null}
-                          {...sharedCardProps}
-                        />
-                      ))}
-                    </Box>
-                  </SortableContext>
-                  <DragOverlay>
-                    {draggingBoard ? (
-                      <BoardCard
-                        id={draggingBoard.id}
-                        board={draggingBoard}
-                        isOwned={ownedBoardIds.has(draggingBoard.id)}
-                        color={boardColors[draggingBoard.id] ?? null}
-                        {...sharedCardProps}
-                        dragOverlay
-                      />
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
-            }
-          </AccordionDetails>
-        </Accordion>
+            {/* Shared with me */}
+            <Accordion expanded={accordion.sharedWithMe} onChange={() => toggleAccordion('sharedWithMe')}>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {t('boards.sharedWithMe')} ({sharedBoards.length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                {sharedBoards.length === 0
+                  ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
+                  : <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleBoardDragStart}
+                      onDragEnd={e => handleSectionDragEnd(e, 'shared')}
+                    >
+                      <SortableContext items={sharedBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                        <Box sx={BOARD_GRID_SX}>
+                          {sharedBoards.map(board => (
+                            <BoardCard
+                              key={board.id}
+                              id={board.id}
+                              board={board}
+                              isOwned={ownedBoardIds.has(board.id)}
+                              color={boardColors[board.id] ?? null}
+                              {...sharedCardProps}
+                            />
+                          ))}
+                        </Box>
+                      </SortableContext>
+                      <DragOverlay>
+                        {draggingBoard ? (
+                          <BoardCard
+                            id={draggingBoard.id}
+                            board={draggingBoard}
+                            isOwned={ownedBoardIds.has(draggingBoard.id)}
+                            color={boardColors[draggingBoard.id] ?? null}
+                            {...sharedCardProps}
+                            dragOverlay
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+                }
+              </AccordionDetails>
+            </Accordion>
 
-        {/* Templates — owned and shared together; never starred */}
-        <Accordion expanded={accordion.templates} onChange={() => toggleAccordion('templates')}>
-          <AccordionSummary expandIcon={<ExpandMore />}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              {t('boards.templates')} ({templateBoards.length})
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-              <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => setCreateTemplateOpen(true)}>
-                {t('boards.newTemplate')}
-              </Button>
-            </Box>
-            {templateBoards.length === 0
-              ? <Typography variant="body2" color="text.secondary">{t('boards.noTemplatesYet')}</Typography>
-              : <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragStart={handleBoardDragStart}
-                  onDragEnd={e => handleSectionDragEnd(e, 'templates')}
-                >
-                  <SortableContext items={templateBoards.map(b => b.id)} strategy={rectSortingStrategy}>
-                    <Box sx={BOARD_GRID_SX}>
-                      {templateBoards.map(board => (
-                        <BoardCard
-                          key={board.id}
-                          id={board.id}
-                          board={board}
-                          isOwned={ownedBoardIds.has(board.id)}
-                          color={boardColors[board.id] ?? null}
-                          {...sharedCardProps}
-                        />
-                      ))}
-                    </Box>
-                  </SortableContext>
-                  <DragOverlay>
-                    {draggingBoard ? (
-                      <BoardCard
-                        id={draggingBoard.id}
-                        board={draggingBoard}
-                        isOwned={ownedBoardIds.has(draggingBoard.id)}
-                        color={boardColors[draggingBoard.id] ?? null}
-                        {...sharedCardProps}
-                        dragOverlay
-                      />
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
-            }
-          </AccordionDetails>
-        </Accordion>
+            {/* Templates — owned and shared together; never starred */}
+            <Accordion expanded={accordion.templates} onChange={() => toggleAccordion('templates')}>
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {t('boards.templates')} ({templateBoards.length})
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                  <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => setCreateTemplateOpen(true)}>
+                    {t('boards.newTemplate')}
+                  </Button>
+                </Box>
+                {templateBoards.length === 0
+                  ? <Typography variant="body2" color="text.secondary">{t('boards.noTemplatesYet')}</Typography>
+                  : <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleBoardDragStart}
+                      onDragEnd={e => handleSectionDragEnd(e, 'templates')}
+                    >
+                      <SortableContext items={templateBoards.map(b => b.id)} strategy={rectSortingStrategy}>
+                        <Box sx={BOARD_GRID_SX}>
+                          {templateBoards.map(board => (
+                            <BoardCard
+                              key={board.id}
+                              id={board.id}
+                              board={board}
+                              isOwned={ownedBoardIds.has(board.id)}
+                              color={boardColors[board.id] ?? null}
+                              {...sharedCardProps}
+                            />
+                          ))}
+                        </Box>
+                      </SortableContext>
+                      <DragOverlay>
+                        {draggingBoard ? (
+                          <BoardCard
+                            id={draggingBoard.id}
+                            board={draggingBoard}
+                            isOwned={ownedBoardIds.has(draggingBoard.id)}
+                            color={boardColors[draggingBoard.id] ?? null}
+                            {...sharedCardProps}
+                            dragOverlay
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+                }
+              </AccordionDetails>
+            </Accordion>
+          </>
+        )}
 
         {/* Archived Boards — shown when showArchived; collapsing the chevron hides it and restores the button */}
         {showArchived && (
@@ -736,7 +791,7 @@ export default function Boards() {
               sx={{ bgcolor: 'error.main', color: 'white', borderRadius: 0 }}
             >
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                {t('boards.archivedBoards')} ({archivedBoards.length})
+                {t('boards.archivedBoards')}{archivedLoad === 'loaded' && ` (${archivedBoards.length})`}
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -769,7 +824,10 @@ export default function Boards() {
                   sx={{ maxWidth: 400 }}
                 />
               </Box>
-              {archivedBoards.length === 0
+              {archivedLoad === 'failed' && (
+                <LoadFailure message={t('boards.archivedLoadFailed')} onRetry={retryArchivedBoards} />
+              )}
+              {archivedLoad === 'loaded' && (archivedBoards.length === 0
                 ? <Typography variant="body2" color="text.secondary">{t('boards.noBoardsYet')}</Typography>
                 : <Box sx={BOARD_GRID_SX}>
                     {archivedBoards.map(board => (
@@ -783,7 +841,7 @@ export default function Boards() {
                       />
                     ))}
                   </Box>
-              }
+              )}
             </AccordionDetails>
           </Accordion>
         )}
@@ -801,6 +859,8 @@ export default function Boards() {
           </Button>
         </Box>
       </Box>
+
+      <FailureMessage message={failure} onClose={() => setFailure(null)} />
     </>
   )
 }

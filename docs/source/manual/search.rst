@@ -59,7 +59,9 @@ show. A search started on the overview also lists, under
 :guilabel:`Boards`, the boards whose name holds your words; click one to open
 it.
 
-Click a card to open it on its board, ready to edit. The search box at the
+While the search runs, the page says :guilabel:`Searching…`. Click a card to
+open it on its board, ready to edit; like a link, it can also be opened in a
+new tab, or reached with the :kbd:`Tab` key. The search box at the
 top of the page refines the search as you type, and the button at the top
 left takes you back to where you started. The page follows changes as they
 happen, so a card edited by someone else drops in or out of the results by

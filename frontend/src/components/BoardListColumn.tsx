@@ -19,6 +19,7 @@ import { sortCards } from '../utils/cardSort'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
+import LoadFailure from './LoadFailure'
 import RenameListDialog from './RenameListDialog'
 import ChangeListColorDialog from './ChangeListColorDialog'
 import { DEFAULT_COLOR } from './ChangeBoardColorDialog'
@@ -28,6 +29,10 @@ interface Props {
   list: BoardListRead
   cards: CardRead[]
   customOrderIds: string[]
+  // The list's cards couldn't be loaded: the column says so, with a button
+  // to try again, instead of looking empty.
+  cardsFailed: boolean
+  onRetryCards: () => void
   numberLocale: string
   dateFormat: DateFormat
   sortMode: SortMode
@@ -38,8 +43,14 @@ interface Props {
   cardColors: Record<string, string>
   onRenamed: (listId: string, newName: string) => void
   onArchived: (listId: string) => void
+  // The list's archive was refused, or the connection dropped.
+  onArchiveFailed: (list: BoardListRead) => void
   onCardCreated: (listId: string, card: CardRead, color: string | null) => void
   onCardArchived: (listId: string, cardId: string) => void
+  // A card's archive, from its menu, was refused or the connection dropped.
+  onCardArchiveFailed: (listId: string, card: CardRead) => void
+  // "Archive all cards" left this many cards unarchived.
+  onArchiveAllCardsFailed: (list: BoardListRead, count: number) => void
   onCardUpdated: (listId: string, card: CardRead) => void
   // A card's color saved from its menu, for the board's `colors` map.
   onCardColorChanged: (cardId: string, color: string | null) => void
@@ -58,6 +69,8 @@ export default function BoardListColumn({
   list,
   cards,
   customOrderIds,
+  cardsFailed,
+  onRetryCards,
   numberLocale,
   dateFormat,
   sortMode,
@@ -65,8 +78,11 @@ export default function BoardListColumn({
   cardColors,
   onRenamed,
   onArchived,
+  onArchiveFailed,
   onCardCreated,
   onCardArchived,
+  onCardArchiveFailed,
+  onArchiveAllCardsFailed,
   onCardUpdated,
   onCardColorChanged,
   onChecklistCopied,
@@ -123,26 +139,26 @@ export default function BoardListColumn({
   }
 
   // Archives every card currently in the list, one PATCH per card (there is no
-  // bulk endpoint); each success removes that card from the parent's state.
+  // bulk endpoint); each success removes that card from the parent's state,
+  // and the board is told how many couldn't be archived, if any.
   async function handleArchiveAllCards() {
     closeMenu()
-    await Promise.all(
+    const archived = await Promise.all(
       cards.map(async card => {
-        try {
-          const r = await apiFetch(
-            `/api/v1/boards/${list.board_id}/lists/${list.id}/cards/${card.id}`,
-            {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ is_archived: true }),
-            },
-          )
-          if (r.ok) onCardArchived(list.id, card.id)
-        } catch {
-          // silently ignore — parent still shows the card
-        }
+        const r = await apiFetch(
+          `/api/v1/boards/${list.board_id}/lists/${list.id}/cards/${card.id}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: true }),
+          },
+        ).catch(() => null)
+        if (r?.ok) onCardArchived(list.id, card.id)
+        return Boolean(r?.ok)
       }),
     )
+    const failed = archived.filter(ok => !ok).length
+    if (failed > 0) onArchiveAllCardsFailed(list, failed)
   }
 
   function handleRename() {
@@ -157,19 +173,16 @@ export default function BoardListColumn({
 
   async function handleArchive() {
     closeMenu()
-    try {
-      const r = await apiFetch(
-        `/api/v1/boards/${list.board_id}/lists/${list.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_archived: true }),
-        },
-      )
-      if (r.ok) onArchived(list.id)
-    } catch {
-      // silently ignore — parent still shows the list
-    }
+    const r = await apiFetch(
+      `/api/v1/boards/${list.board_id}/lists/${list.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_archived: true }),
+      },
+    ).catch(() => null)
+    if (r?.ok) onArchived(list.id)
+    else onArchiveFailed(list)
   }
 
   return (
@@ -221,7 +234,8 @@ export default function BoardListColumn({
 
             <IconButton
               size="small"
-              aria-label={t('board.moveList')}
+              // Named after the list: every list has the same three buttons.
+              aria-label={t('board.moveListNamed', { name: list.name })}
               sx={{ cursor: dragOverlay || isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
               {...attributes}
               {...listeners}
@@ -231,13 +245,13 @@ export default function BoardListColumn({
             {!isTemplate && (
               <IconButton
                 size="small"
-                aria-label={t('board.addCard')}
+                aria-label={t('board.addCardNamed', { name: list.name })}
                 onClick={dragOverlay ? undefined : () => setCardDialogOpen(true)}
               >
                 <Add sx={{ fontSize: 22 }} />
               </IconButton>
             )}
-            <IconButton size="small" onClick={dragOverlay ? undefined : openMenu} aria-label={t('board.listMenu')}>
+            <IconButton size="small" onClick={dragOverlay ? undefined : openMenu} aria-label={t('board.listMenuNamed', { name: list.name })}>
               <HamburgerIcon sx={{ fontSize: 22 }} />
             </IconButton>
           </Box>
@@ -255,6 +269,7 @@ export default function BoardListColumn({
               bgcolor: (theme) => tintColor(listColor ?? DEFAULT_COLOR, theme.palette.background.paper, STRONG_TINT_WEIGHT),
             }}
           >
+            {cardsFailed && <LoadFailure message={t('board.cardsLoadFailed')} onRetry={onRetryCards} />}
             <SortableContext items={sortedCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
               {sortedCards.map(card => (
                 <CardItem
@@ -267,6 +282,7 @@ export default function BoardListColumn({
                   color={cardColors[card.id] ?? null}
                   onColorChanged={onCardColorChanged}
                   onArchived={handleCardArchived}
+                  onArchiveFailed={(failed) => onCardArchiveFailed(list.id, failed)}
                   onUpdated={handleCardUpdated}
                   onCopied={onCardCreated}
                   onChecklistCopied={onChecklistCopied}

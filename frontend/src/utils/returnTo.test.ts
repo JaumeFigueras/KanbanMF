@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { blockSiteData } from '../test/blockSiteData'
 import { clearReturnTo, peekReturnTo, rememberReturnTo } from './returnTo'
 
 // setup.ts empties sessionStorage after each test.
@@ -43,5 +44,12 @@ describe('returnTo', () => {
     // Written straight into the browser's storage, past rememberReturnTo.
     sessionStorage.setItem('kanbanmf.return_to', '//evil.example')
     expect(peekReturnTo()).toBeNull()
+  })
+
+  it('remembers nothing, without failing, when the browser blocks site data (6I)', () => {
+    blockSiteData()
+    expect(() => rememberReturnTo('/boards/board-1')).not.toThrow()
+    expect(peekReturnTo()).toBeNull()
+    expect(() => clearReturnTo()).not.toThrow()
   })
 })

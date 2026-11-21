@@ -62,6 +62,16 @@ Click the star on a board's tile to star it, and again to unstar it. To
 change the order of the boards in a section, drag a tile by its four-arrow
 handle and drop it where you want it.
 
+If a star or a new order can't be saved, for instance because the connection
+dropped, a message at the bottom of the page says so, and the board goes back
+to how it was. Restoring an archived board (see below) works the same way.
+
+If your boards can't be loaded, the page says so where they would be, with a
+:guilabel:`Try again` button, rather than show empty sections. Every page
+does the same with what it shows: a board, a list's cards, the archive, the
+overdue tasks, a search and the time tracker each say when they couldn't be
+loaded.
+
 The board menu on the overview
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -142,6 +152,15 @@ The bar under the board's name holds:
 The menu (☰) at the right of the bar has your :guilabel:`E-Mail notification`
 settings for the board, and the box in the top bar searches the board (see
 :doc:`search`).
+
+What you do on the board itself — dragging a list or a card, archiving one
+from its menu, restoring one from the archive — is saved straight away. If it
+can't be saved, for instance because the connection dropped, a message at the
+bottom of the page says so, and the board shows things as they were: a list or
+card you dragged goes back to its place, and one you archived stays. Without a
+connection the board can't check what's saved, so it says instead that the
+cards of the lists involved couldn't be loaded (or, for a list you dragged,
+the board), until you click :guilabel:`Try again`.
 
 Lists
 ~~~~~

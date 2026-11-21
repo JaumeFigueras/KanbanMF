@@ -625,7 +625,9 @@ The pieces:
    ``card_moved`` or ``list_renamed``, the board, the list for card events
    (so a client refetches one list, not the whole board), and
    ``origin_client_id``. ``board_recipients()`` is the owner plus everyone
-   the board is shared with.
+   the board is shared with. A label renamed, recoloured, reordered or
+   deleted is ``labels_changed``, with no list: every card shows its labels,
+   so the client refetches every list's cards.
 
 The routes
    After committing a change, a route sends the notification to every

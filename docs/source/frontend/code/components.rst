@@ -5,9 +5,10 @@ Components
 appear:
 
 Application shell
-   ``MainAppBar`` (the top bar on signed-in pages: home link, the search box
-   when the page passes a ``search`` scope, time tracker, user menu and its
-   dialogs, sign out), ``AuthControls`` (the language and
+   ``MainAppBar`` (the top bar on signed-in pages: the KanbanMF link home,
+   the search box when the page passes a ``search`` scope, time tracker, the
+   profile button with the user menu and its dialogs, sign out; a profile that fails to load leaves the page where it
+   is, with :guilabel:`Try again` in the user menu), ``AuthControls`` (the language and
    theme controls on the sign-in pages), ``LanguageSelector``,
    ``GoogleButton``.
 
@@ -30,7 +31,8 @@ The board
    ``ChangeCardColorDialog``, ``CopyCardDialog`` (also used to extract a
    checklist item into a card), ``ArchivedListsView`` (the archive, which can
    outline one card: where a search of the archive leads), and
-   ``CardListColumn``, the read-only column of the overdue and search pages.
+   ``CardListColumn``, the read-only column of the overdue and search pages,
+   where each card is a link to wherever the page's ``cardLink`` says.
 
 Labels, checklists and people
    ``ManageLabelsDialog``, ``EditLabelDialog`` and ``DeleteLabelDialog``
@@ -57,4 +59,9 @@ Account
    it; also shows the ``/mcp`` address to give Claude).
 
 Shared pieces
-   ``ColorPicker`` (the fixed palette behind every colour dialog).
+   ``ColorPicker`` (the fixed palette behind every colour dialog),
+   ``FailureMessage`` (the message at the foot of the boards page, the board
+   and its archive when a change made on the page itself — a star, a menu
+   entry, a drag — can't be saved), ``LoadFailure`` (what a page, or a list
+   column, shows in place of data it couldn't load, with :guilabel:`Try
+   again`; also the ``LoadState`` type the pages keep their load in).

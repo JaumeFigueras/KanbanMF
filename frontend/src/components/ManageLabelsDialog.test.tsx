@@ -22,14 +22,17 @@ function boardHas(labels: LabelRead[] = [BUG, FEATURE]) {
 
 function renderDialog() {
   const onClose = vi.fn()
-  const dialog = (open: boolean) => <ManageLabelsDialog open={open} onClose={onClose} boardId="board-7" />
+  const onChanged = vi.fn()
+  const dialog = (open: boolean) => (
+    <ManageLabelsDialog open={open} onClose={onClose} boardId="board-7" onChanged={onChanged} />
+  )
   const result = renderWithProviders(dialog(true))
   // Closes the dialog and opens it again, as the board page does.
   function reopen() {
     result.rerender(dialog(false))
     result.rerender(dialog(true))
   }
-  return { ...result, onClose, reopen }
+  return { ...result, onClose, onChanged, reopen }
 }
 
 function labelsDialog() {
@@ -220,6 +223,66 @@ describe('ManageLabelsDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label?' })).not.toBeInTheDocument())
     expect(deleted.requests).toEqual([])
     expect(screen.getByText('Bug')).toBeInTheDocument()
+  })
+
+  describe('telling the board the cards need fetching again (they show their labels)', () => {
+    it('tells it once a label is renamed or recoloured', async () => {
+      boardHas()
+      fakeEndpoint('patch', ONE_LABEL, () => HttpResponse.json({ ...FEATURE, name: 'Feature request' }))
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Feature')
+
+      await user.click(rowButton('Edit label', 1))
+      await user.type(within(form('Edit label')).getByRole('textbox', { name: 'Label name' }), ' request{Enter}')
+
+      await formClosed('Edit label')
+      expect(onChanged).toHaveBeenCalledTimes(1)
+    })
+
+    it('tells it once a label is deleted', async () => {
+      boardHas()
+      fakeEndpoint('delete', ONE_LABEL)
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+
+      await user.click(rowButton('Delete label', 0))
+      await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
+    })
+
+    it('tells it nothing for a new label, which is on no card yet', async () => {
+      boardHas([BUG])
+      fakeEndpoint('post', BOARD_LABELS, () => HttpResponse.json({ ...FEATURE, id: 'label-9' }, { status: 201 }))
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+
+      await user.click(button('Create New Label'))
+      await user.type(within(form('Create New Label')).getByRole('textbox', { name: 'Label name' }), 'Urgent{Enter}')
+
+      await formClosed('Create New Label')
+      expect(onChanged).not.toHaveBeenCalled()
+    })
+
+    it('tells it nothing when a change is refused, or a deletion cancelled', async () => {
+      boardHas()
+      fakeEndpoint('patch', ONE_LABEL, REFUSED)
+      const deleted = fakeEndpoint('delete', ONE_LABEL)
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+      await user.click(rowButton('Edit label', 0))
+      await user.type(within(form('Edit label')).getByRole('textbox', { name: 'Label name' }), '{Enter}')
+      await within(form('Edit label')).findByRole('alert')
+      await user.click(within(form('Edit label')).getByRole('button', { name: 'Cancel' }))
+      await formClosed('Edit label')
+
+      await user.click(rowButton('Delete label', 0))
+      await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label?' })).not.toBeInTheDocument())
+      expect(deleted.requests).toEqual([])
+      expect(onChanged).not.toHaveBeenCalled()
+    })
   })
 
   it('loads the labels again when reopened, without the last error', async () => {

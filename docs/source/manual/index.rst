@@ -88,7 +88,8 @@ The bar at the top is the same on every screen. Click **KanbanMF** to go back
 to the boards overview, the timer icon to open the :doc:`time tracker
 <time_tracker>`, your name to open the user menu (your profile, preferences
 and theme — see :doc:`accounts` and :doc:`preferences`), and the last icon to
-sign out.
+sign out. Each of them can also be reached with the keyboard: :kbd:`Tab`
+moves from one to the next, and :kbd:`Enter` opens it.
 
 Whatever you change appears straight away for anyone else who has the same
 board open, and their changes appear for you — there is no need to reload the

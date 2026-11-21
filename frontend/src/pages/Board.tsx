@@ -38,13 +38,16 @@ import BoardListColumn from '../components/BoardListColumn'
 import CardItem from '../components/CardItem'
 import CardDialog from '../components/CardDialog'
 import ArchivedListsView from '../components/ArchivedListsView'
+import FailureMessage from '../components/FailureMessage'
+import LoadFailure from '../components/LoadFailure'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 import type { BoardColorsRead, BoardListRead, BoardListOrderRead, BoardRead, CardOrderRead, CardRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
-import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isUndated, sortCards } from '../utils/cardSort'
-import { apiFetch } from '../api/client'
+import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isSortMode, isUndated, sortCards } from '../utils/cardSort'
+import { readStored, writeStored } from '../utils/storage'
+import { apiFetch, loadJson } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
 const BOARD_ACCESS_EVENT_TYPES = new Set(['board_archived', 'board_unshared', 'board_deleted'])
@@ -79,6 +82,22 @@ const listAwareCollisionDetection: CollisionDetection = (args) => {
   return closestCenter({ ...args, droppableContainers: listContainers })
 }
 
+// A set without one id, or the same set when it hasn't got it (so nothing
+// renders again for nothing).
+function withoutId(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  if (!set.has(id)) return set
+  const next = new Set(set)
+  next.delete(id)
+  return next
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record
+  const next = { ...record }
+  delete next[key]
+  return next
+}
+
 export default function Board() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -100,6 +119,9 @@ export default function Board() {
   const [order, setOrder] = useState<string[]>([])
   const [createListOpen, setCreateListOpen] = useState(false)
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false)
+  // Whether a label was changed in the Labels dialog since it opened: the
+  // cards show their labels, so they're fetched again when it closes.
+  const labelsChangedRef = useRef(false)
   // ?archive=1 — where a search of the board's archive leads back to — opens
   // the archive view straight away; &highlight=<card id> marks the card the
   // search result was. Both are read once and dropped from the address (see
@@ -111,9 +133,10 @@ export default function Board() {
   const [sortMenuAnchor, setSortMenuAnchor] = useState<HTMLElement | null>(null)
   const [boardMenuAnchor, setBoardMenuAnchor] = useState<HTMLElement | null>(null)
   const [emailNotificationOpen, setEmailNotificationOpen] = useState(false)
-  const [sortMode, setSortMode] = useState<SortMode>(
-    () => (localStorage.getItem(`kanbanmf:sort:${boardId}`) as SortMode | null) ?? 'custom',
-  )
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const stored = readStored('local', `kanbanmf:sort:${boardId}`)
+    return isSortMode(stored) ? stored : 'custom'
+  })
   const [cardsByList, setCardsByList] = useState<Record<string, CardRead[]>>({})
   const [orderByList, setOrderByList] = useState<Record<string, string[]>>({})
   const [activeCard, setActiveCard] = useState<CardRead | null>(null)
@@ -122,14 +145,27 @@ export default function Board() {
   // the card is dragged over other lists (see handleDragOver), so by drop
   // time cardsByList alone can no longer tell us where it came from.
   const dragSourceListIdRef = useRef<string | null>(null)
+  // Every list's cards and their order as they were when that drag started,
+  // to put back if the move can't be saved.
+  const dragStartRef = useRef<{ cards: Record<string, CardRead[]>; order: Record<string, string[]> } | null>(null)
+  // A change made on the page itself (a menu entry, a drag) that couldn't
+  // be saved, said at the foot of the page.
+  const [failure, setFailure] = useState<string | null>(null)
   // 403 (not owner/shared) and 404 (doesn't exist) are shown identically —
   // this also avoids leaking whether a given board id exists at all.
   const [accessDenied, setAccessDenied] = useState(false)
+  // The board, or its lists, couldn't be loaded (a server error, a dropped
+  // connection): the page says so instead of showing an empty board.
+  const [boardFailed, setBoardFailed] = useState(false)
+  const [listsFailed, setListsFailed] = useState(false)
+  // The lists whose cards couldn't be loaded. Each says so in its column,
+  // rather than look empty, until it's tried again.
+  const [cardsFailed, setCardsFailed] = useState<ReadonlySet<string>>(() => new Set())
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!boardId) return
-    localStorage.setItem(`kanbanmf:sort:${boardId}`, sortMode)
+    writeStored('local', `kanbanmf:sort:${boardId}`, sortMode)
   }, [boardId, sortMode])
 
   useEffect(() => {
@@ -154,10 +190,15 @@ export default function Board() {
           setAccessDenied(true)
           return null
         }
-        return r.ok ? r.json() : null
+        if (!r.ok) throw new Error(`board answered ${r.status}`)
+        return r.json() as Promise<BoardRead>
       })
-      .then(data => { if (data) setBoard(data) })
-      .catch(() => {})
+      .then(data => {
+        if (!data) return
+        setBoard(data)
+        setBoardFailed(false)
+      })
+      .catch(() => setBoardFailed(true))
   }, [boardId])
 
   useEffect(() => { fetchBoard() }, [fetchBoard])
@@ -193,22 +234,20 @@ export default function Board() {
   const fetchLists = useCallback(() => {
     if (!boardId) return
     Promise.all([
-      apiFetch(`/api/v1/boards/${boardId}/lists`)
-        .then(r => r.ok ? r.json() as Promise<BoardListRead[]> : []),
-      apiFetch(`/api/v1/boards/${boardId}/lists/order`)
-        .then(r => r.ok ? r.json() as Promise<BoardListOrderRead> : { board_id: boardId, list_ids: [] }),
+      loadJson<BoardListRead[]>(`/api/v1/boards/${boardId}/lists`),
+      loadJson<BoardListOrderRead>(`/api/v1/boards/${boardId}/lists/order`),
       // Fetched alongside the lists themselves (not on-demand per list/card)
       // so every list/card column can render with its final color on first
       // paint — no default-color flash while N per-entity requests resolve.
-      apiFetch(`/api/v1/boards/${boardId}/colors`)
-        .then(r => r.ok ? r.json() as Promise<BoardColorsRead> : { board: null, lists: {}, cards: {} }),
+      loadJson<BoardColorsRead>(`/api/v1/boards/${boardId}/colors`),
     ])
       .then(([fetchedLists, fetchedOrder, fetchedColors]) => {
         setLists(fetchedLists)
         setOrder(fetchedOrder.list_ids)
         setColors(fetchedColors)
+        setListsFailed(false)
       })
-      .catch(() => {})
+      .catch(() => setListsFailed(true))
   }, [boardId])
 
   useEffect(() => {
@@ -231,16 +270,22 @@ export default function Board() {
   const fetchCardsForList = useCallback((listId: string) => {
     if (!boardId) return
     Promise.all([
-      apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards`)
-        .then(r => r.ok ? r.json() as Promise<CardRead[]> : []),
-      apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`)
-        .then(r => r.ok ? r.json() as Promise<CardOrderRead> : { list_id: listId, card_ids: [] }),
+      loadJson<CardRead[]>(`/api/v1/boards/${boardId}/lists/${listId}/cards`),
+      loadJson<CardOrderRead>(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`),
     ])
       .then(([cards, order]) => {
         setCardsByList(prev => ({ ...prev, [listId]: cards }))
         setOrderByList(prev => ({ ...prev, [listId]: order.card_ids }))
+        setCardsFailed(prev => withoutId(prev, listId))
       })
-      .catch(() => {})
+      .catch(() => {
+        // Whatever the list showed may be out of date now, so it goes: the
+        // column says its cards couldn't be loaded instead, and takes no
+        // dropped card, whose order would leave out the cards not shown.
+        setCardsByList(prev => omitKey(prev, listId))
+        setOrderByList(prev => omitKey(prev, listId))
+        setCardsFailed(prev => new Set(prev).add(listId))
+      })
   }, [boardId])
 
   // List changes made elsewhere (owner's other session, or a shared member)
@@ -259,11 +304,31 @@ export default function Board() {
     })
   }, [boardId, fetchLists, fetchCardsForList])
 
-  // Fetch only for lists we haven't loaded yet.
+  // Fetch only for lists we haven't loaded yet, leaving out those whose
+  // cards couldn't be loaded: they wait for Try again, which takes them off
+  // cardsFailed, and so brings them back here.
   useEffect(() => {
     if (!boardId) return
-    lists.filter(l => !(l.id in cardsByList)).forEach(l => fetchCardsForList(l.id))
-  }, [boardId, lists, cardsByList, fetchCardsForList])
+    lists.filter(l => !(l.id in cardsByList) && !cardsFailed.has(l.id)).forEach(l => fetchCardsForList(l.id))
+  }, [boardId, lists, cardsByList, cardsFailed, fetchCardsForList])
+
+  // Dropping the list's cards too (a card added meanwhile) makes the effect
+  // above load them.
+  function retryCards(listId: string) {
+    setCardsByList(prev => omitKey(prev, listId))
+    setOrderByList(prev => omitKey(prev, listId))
+    setCardsFailed(prev => withoutId(prev, listId))
+  }
+
+  // The whole board again, and every list's cards that couldn't be loaded:
+  // when the board failed, they most likely did too.
+  function retryLoad() {
+    setBoardFailed(false)
+    setListsFailed(false)
+    cardsFailed.forEach(retryCards)
+    fetchBoard()
+    fetchLists()
+  }
 
   // Card changes made elsewhere (owner's other session, or a shared member)
   // arrive as bare notifications naming which list's cards to refetch; a
@@ -280,6 +345,25 @@ export default function Board() {
       if (notification.type === 'card_created') fetchColors()
     })
   }, [boardId, fetchCardsForList, fetchColors])
+
+  // Every card shows its labels, so a label changed elsewhere (by the board's
+  // owner, in another tab or session) means fetching all the cards again.
+  useEffect(() => {
+    if (!boardId) return
+    return subscribeToNotifications((notification) => {
+      if (notification.board_id !== boardId || notification.type !== 'labels_changed') return
+      if (isOwnNotification(notification)) return
+      lists.forEach(l => fetchCardsForList(l.id))
+    })
+  }, [boardId, lists, fetchCardsForList])
+
+  function closeManageLabels() {
+    setManageLabelsOpen(false)
+    if (labelsChangedRef.current) {
+      labelsChangedRef.current = false
+      lists.forEach(l => fetchCardsForList(l.id))
+    }
+  }
 
   // Merge lists with the stored order: ordered first, then any unordered remainders
   const sortedLists = useMemo(() => {
@@ -363,6 +447,24 @@ export default function Board() {
     }))
   }
 
+  // An archive that was refused may mean the card or list was changed
+  // elsewhere meanwhile (moved, archived, deleted), so what it touched is
+  // fetched again: with the connection back, the board shows what's saved.
+  function handleCardArchiveFailed(listId: string, card: CardRead) {
+    setFailure(t('board.archiveCardFailed', { name: card.name }))
+    fetchCardsForList(listId)
+  }
+
+  function handleArchiveAllCardsFailed(list: BoardListRead, count: number) {
+    setFailure(t('board.archiveAllCardsFailed', { count, name: list.name }))
+    fetchCardsForList(list.id)
+  }
+
+  function handleListArchiveFailed(list: BoardListRead) {
+    setFailure(t('board.archiveListFailed', { name: list.name }))
+    fetchLists()
+  }
+
   // A checklist copied onto another card changes that card's face (it
   // lists its checklists), and checklist writes send no WebSocket
   // notification — so refetch the target list here when it's on this board.
@@ -397,23 +499,43 @@ export default function Board() {
     }, { replace: true })
   }
 
-  function persistCardOrder(listId: string, cardIds: string[]) {
-    apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`, {
+  // Both resolve to whether the change was saved: false when it was refused
+  // or the connection dropped.
+  function persistCardOrder(listId: string, cardIds: string[]): Promise<boolean> {
+    return apiFetch(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ card_ids: cardIds }),
-    }).catch(() => {})
+    }).then(r => r.ok, () => false)
   }
 
-  // Returns the in-flight request so callers can sequence a following order
-  // update after it — the backend rejects a list's card_ids PUT if it names
-  // a card that (as far as it's concerned) still belongs to another list.
-  function persistCardMove(sourceListId: string, cardId: string, destListId: string) {
+  // Callers sequence a following order update after it — the backend rejects
+  // a list's card_ids PUT if it names a card that (as far as it's concerned)
+  // still belongs to another list.
+  function persistCardMove(sourceListId: string, cardId: string, destListId: string): Promise<boolean> {
     return apiFetch(`/api/v1/boards/${boardId}/lists/${sourceListId}/cards/${cardId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_id: destListId }),
-    }).catch(() => {})
+    }).then(r => r.ok, () => false)
+  }
+
+  // Puts the given lists' cards and order back as they were when the drag
+  // started (a list that wasn't loaded then is dropped, so it's loaded
+  // afresh), and fetches them again: without a connection, the board shows
+  // what it showed before the drag, and with one, what's saved.
+  function undoCardDrag(before: NonNullable<typeof dragStartRef.current>, listIds: string[]) {
+    const restore = <T,>(prev: Record<string, T>, saved: Record<string, T>) => {
+      const next = { ...prev }
+      for (const id of listIds) {
+        if (id in saved) next[id] = saved[id]
+        else delete next[id]
+      }
+      return next
+    }
+    setCardsByList(prev => restore(prev, before.cards))
+    setOrderByList(prev => restore(prev, before.order))
+    listIds.forEach(id => fetchCardsForList(id))
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -421,6 +543,7 @@ export default function Board() {
     if (active.data.current?.type === 'card') {
       const sourceListId = active.data.current.listId as string
       dragSourceListIdRef.current = sourceListId
+      dragStartRef.current = { cards: cardsByList, order: orderByList }
       const card = (cardsByList[sourceListId] ?? []).find(c => c.id === active.id)
       if (card) setActiveCard(card)
       return
@@ -464,7 +587,7 @@ export default function Board() {
     if (!currentListId) return
 
     const destListId = resolveDestinationListId(over)
-    if (!destListId || destListId === currentListId) return
+    if (!destListId || destListId === currentListId || cardsFailed.has(destListId)) return
 
     setCardsByList(prev => {
       const sourceCards = prev[currentListId] ?? []
@@ -488,6 +611,7 @@ export default function Board() {
     active: DragEndEvent['active'],
     over: NonNullable<DragEndEvent['over']>,
     originalListId: string,
+    before: NonNullable<typeof dragStartRef.current>,
   ) {
     const cardId = active.id as string
 
@@ -523,7 +647,9 @@ export default function Board() {
     const movedAcrossLists = currentListId !== originalListId
     const moveDone = movedAcrossLists
       ? persistCardMove(originalListId, cardId, currentListId)
-      : Promise.resolve()
+      : Promise.resolve(true)
+    // The lists' orders to save once the move is, if any.
+    const orders: [string, string[]][] = []
 
     // Reordering is only persisted in the two modes that let the user do it:
     // custom, where the whole list is theirs to arrange, and due date, where
@@ -535,14 +661,8 @@ export default function Board() {
       if (sourceOrderIds) {
         setOrderByList(prev => ({ ...prev, [originalListId]: sourceOrderIds }))
       }
-
-      // The order PUT for the destination list names this card, which the
-      // backend rejects until the move PATCH above has actually committed
-      // — wait for it instead of firing both requests in parallel.
-      moveDone.then(() => {
-        persistCardOrder(currentListId, newOrderIds)
-        if (sourceOrderIds) persistCardOrder(originalListId, sourceOrderIds)
-      })
+      orders.push([currentListId, newOrderIds])
+      if (sourceOrderIds) orders.push([originalListId, sourceOrderIds])
     } else if (sortMode === 'due_date' && targetIndex !== null) {
       // The undated cards were rearranged, so their new sequence goes into
       // the same stored order custom mode uses — only the slots they already
@@ -566,12 +686,21 @@ export default function Board() {
       if (sourceOrderIds) {
         setOrderByList(prev => ({ ...prev, [originalListId]: sourceOrderIds }))
       }
-
-      moveDone.then(() => {
-        persistCardOrder(currentListId, newOrderIds)
-        if (sourceOrderIds) persistCardOrder(originalListId, sourceOrderIds)
-      })
+      orders.push([currentListId, newOrderIds])
+      if (sourceOrderIds) orders.push([originalListId, sourceOrderIds])
     }
+
+    // The order PUT for the destination list names this card, which the
+    // backend rejects until the move PATCH above has actually committed —
+    // so the orders wait for it instead of going in parallel. If any of it
+    // isn't saved, the drag is undone and the page says so.
+    moveDone.then(async moved => {
+      const saved = moved
+        && (await Promise.all(orders.map(([listId, ids]) => persistCardOrder(listId, ids)))).every(Boolean)
+      if (saved) return
+      undoCardDrag(before, movedAcrossLists ? [originalListId, currentListId] : [currentListId])
+      setFailure(t('common.moveFailed'))
+    })
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -583,17 +712,22 @@ export default function Board() {
     if (activeType === 'card') {
       const cardId = active.id as string
       const originalListId = dragSourceListIdRef.current
+      const before = dragStartRef.current
       dragSourceListIdRef.current = null
-      if (!originalListId) return
-      if (!over) {
-        // Dropped outside any droppable — undo whatever optimistic
-        // re-parenting handleDragOver did by resyncing from the server.
-        fetchCardsForList(originalListId)
+      dragStartRef.current = null
+      if (!originalListId || !before) return
+      const destListId = over ? resolveDestinationListId(over) : undefined
+      if (!over || (destListId && cardsFailed.has(destListId))) {
+        // Dropped outside any droppable, or on a list whose cards couldn't
+        // be loaded — undo whatever optimistic re-parenting handleDragOver
+        // did.
         const currentListId = findCardListId(cardId)
-        if (currentListId && currentListId !== originalListId) fetchCardsForList(currentListId)
+        undoCardDrag(before, currentListId && currentListId !== originalListId
+          ? [originalListId, currentListId]
+          : [originalListId])
         return
       }
-      handleCardDragEnd(active, over, originalListId)
+      handleCardDragEnd(active, over, originalListId, before)
       return
     }
 
@@ -603,17 +737,26 @@ export default function Board() {
     if (oldIndex === -1 || newIndex === -1) return
     const reordered = arrayMove(sortedLists, oldIndex, newIndex)
     const newOrder = reordered.map(l => l.id)
+    const before = { lists, order }
 
     setLists(reordered)
     setOrder(newOrder)
 
+    // Refused (a list added or archived meanwhile) or not sent: the lists go
+    // back to where they were, and are fetched again to show what's saved.
     apiFetch(`/api/v1/boards/${boardId}/lists/order`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ list_ids: newOrder }),
     })
-      .then(r => { if (!r.ok) fetchLists() }) // rejected (e.g. stale ownership) — resync from the server
-      .catch(() => fetchLists())
+      .then(r => r.ok, () => false)
+      .then(saved => {
+        if (saved) return
+        setLists(before.lists)
+        setOrder(before.order)
+        setFailure(t('common.moveFailed'))
+        fetchLists()
+      })
   }
 
   if (accessDenied) {
@@ -648,6 +791,23 @@ export default function Board() {
           <Button variant="contained" onClick={() => navigate('/boards')}>
             {t('board.backToBoards')}
           </Button>
+        </Box>
+      </>
+    )
+  }
+
+  if (boardFailed || listsFailed) {
+    return (
+      <>
+        <MainAppBar
+          onLocaleChanged={(num, fmt) => {
+            setNumberLocale(num)
+            setDateFormat(fmt)
+          }}
+        />
+        <Toolbar />
+        <Box sx={{ p: 3 }}>
+          <LoadFailure message={t('board.loadFailed')} onRetry={retryLoad} />
         </Box>
       </>
     )
@@ -699,6 +859,7 @@ export default function Board() {
     fetchLists()
     setCardsByList({})
     setOrderByList({})
+    setCardsFailed(new Set())
   }
 
   if (showArchive) {
@@ -888,6 +1049,8 @@ export default function Board() {
                 list={list}
                 cards={cardsByList[list.id] ?? []}
                 customOrderIds={orderByList[list.id] ?? []}
+                cardsFailed={cardsFailed.has(list.id)}
+                onRetryCards={() => retryCards(list.id)}
                 numberLocale={numberLocale}
                 dateFormat={dateFormat}
                 sortMode={sortMode}
@@ -895,8 +1058,11 @@ export default function Board() {
                 cardColors={colors.cards}
                 onRenamed={handleListRenamed}
                 onArchived={handleListArchived}
+                onArchiveFailed={handleListArchiveFailed}
                 onCardCreated={handleCardCreated}
                 onCardArchived={handleCardArchived}
+                onCardArchiveFailed={handleCardArchiveFailed}
+                onArchiveAllCardsFailed={handleArchiveAllCardsFailed}
                 onCardUpdated={handleCardUpdated}
                 onCardColorChanged={handleCardColorChanged}
                 onChecklistCopied={handleChecklistCopied}
@@ -917,6 +1083,7 @@ export default function Board() {
               color={colors.cards[activeCard.id] ?? null}
               onColorChanged={() => {}}
               onArchived={() => {}}
+              onArchiveFailed={() => {}}
               onUpdated={() => {}}
               onCopied={() => {}}
               onChecklistCopied={() => {}}
@@ -927,6 +1094,8 @@ export default function Board() {
               list={activeList}
               cards={cardsByList[activeList.id] ?? []}
               customOrderIds={orderByList[activeList.id] ?? []}
+              cardsFailed={cardsFailed.has(activeList.id)}
+              onRetryCards={() => {}}
               numberLocale={numberLocale}
               dateFormat={dateFormat}
               sortMode={sortMode}
@@ -934,8 +1103,11 @@ export default function Board() {
               cardColors={colors.cards}
               onRenamed={() => {}}
               onArchived={() => {}}
+              onArchiveFailed={() => {}}
               onCardCreated={() => {}}
               onCardArchived={() => {}}
+              onCardArchiveFailed={() => {}}
+              onArchiveAllCardsFailed={() => {}}
               onCardUpdated={() => {}}
               onCardColorChanged={() => {}}
               onChecklistCopied={() => {}}
@@ -955,8 +1127,9 @@ export default function Board() {
 
       <ManageLabelsDialog
         open={manageLabelsOpen}
-        onClose={() => setManageLabelsOpen(false)}
+        onClose={closeManageLabels}
         boardId={boardId ?? ''}
+        onChanged={() => { labelsChangedRef.current = true }}
       />
 
       {deepLinkedCard && (
@@ -972,6 +1145,8 @@ export default function Board() {
           onChecklistCopied={handleChecklistCopied}
         />
       )}
+
+      <FailureMessage message={failure} onClose={() => setFailure(null)} />
     </>
   )
 }

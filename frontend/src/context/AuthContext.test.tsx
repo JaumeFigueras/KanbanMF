@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import i18n from '../i18n'
 import { getAccessToken, refreshAccessToken } from '../api/client'
+import { blockSiteData } from '../test/blockSiteData'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeUser } from '../test/fixtures'
 import { server } from '../test/server'
@@ -16,16 +17,15 @@ const LOGOUT = '/api/v1/auth/local/logout'
 
 // Shows what useAuth() says ("loading, tok-1", "ready, no token", and
 // "ready, no token, logged out" after logout()), with a button for each of
-// its actions.
+// its actions. Whether the last sign-out went unconfirmed is shown apart.
 function AuthProbe() {
-  const { accessToken, loading, loggedOut, login, logout } = useAuth()
+  const { accessToken, loading, loggedOut, signOutUnconfirmed, login, logout } = useAuth()
   return (
     <>
       <output>{`${loading ? 'loading' : 'ready'}, ${accessToken ?? 'no token'}${loggedOut ? ', logged out' : ''}`}</output>
+      <p data-testid="unconfirmed">{signOutUnconfirmed ? 'sign-out unconfirmed' : ''}</p>
       <button onClick={() => login('tok-login')}>Sign in</button>
-      {/* logout() rejects when its request fails, which MainAppBar doesn't
-          handle; that's for phase 6. Here the rejection is ignored. */}
-      <button onClick={() => void logout().catch(() => {})}>Sign out</button>
+      <button onClick={() => void logout()}>Sign out</button>
     </>
   )
 }
@@ -163,6 +163,14 @@ describe('start-up, the legacy token', () => {
     await startUpEnds()
     expect(localStorage.getItem('access_token')).toBeNull()
   })
+
+  it('still signs in when the browser blocks site data', async () => {
+    blockSiteData()
+    fakeStartUp()
+    renderAuth()
+    await startUpEnds()
+    expect(status()).toHaveTextContent(/^ready, tok-session$/)
+  })
 })
 
 describe('login', () => {
@@ -199,11 +207,15 @@ describe('logout', () => {
     await waitFor(() => expect(status()).toHaveTextContent('ready, no token'))
     expect(sentWith).toEqual(['Bearer tok-session'])
     await waitFor(() => expect(socket.readyState).toBe(FakeWebSocket.CLOSED))
+    expect(screen.getByTestId('unconfirmed')).toBeEmptyDOMElement()
   })
 
-  it('still signs out on this page when the request fails', async () => {
+  it.each([
+    ['the connection drops', () => HttpResponse.error()],
+    ['the server fails', () => HttpResponse.json({ detail: 'Internal Server Error' }, { status: 500 })],
+  ])('still signs out on this page when %s, marking the sign-out unconfirmed until the next login (6H)', async (_case, answer) => {
     fakeStartUp()
-    server.use(http.post(LOGOUT, () => HttpResponse.error()))
+    server.use(http.post(LOGOUT, answer))
     const user = renderAuth()
     await startUpEnds()
     const socket = FakeWebSocket.instances[0]
@@ -211,8 +223,25 @@ describe('logout', () => {
 
     await click(user, 'Sign out')
 
-    await waitFor(() => expect(status()).toHaveTextContent('ready, no token'))
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready, no token, logged out$/))
+    expect(screen.getByTestId('unconfirmed')).toHaveTextContent('sign-out unconfirmed')
     await waitFor(() => expect(socket.readyState).toBe(FakeWebSocket.CLOSED))
+    await click(user, 'Sign in')
+    expect(screen.getByTestId('unconfirmed')).toBeEmptyDOMElement()
+  })
+
+  it('counts a session that was already gone as ended', async () => {
+    // The token is refused, and the refresh too: there's no session left.
+    fakeStartUp()
+    server.use(http.post(LOGOUT, NO_SESSION))
+    const user = renderAuth()
+    await startUpEnds()
+    server.use(http.post(REFRESH, NO_SESSION))
+
+    await click(user, 'Sign out')
+
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready, no token, logged out$/))
+    expect(screen.getByTestId('unconfirmed')).toBeEmptyDOMElement()
   })
 
   it('marks the sign-out as deliberate, until the next login', async () => {
@@ -264,6 +293,7 @@ describe('useAuth outside its provider', () => {
       await click(user, 'Sign in')
       await click(user, 'Sign out')
       expect(status()).toHaveTextContent(/^loading, no token$/)
+      expect(screen.getByTestId('unconfirmed')).toBeEmptyDOMElement()
       expect(getAccessToken()).toBeNull()
       expect(fetchSpy).not.toHaveBeenCalled()
     } finally {

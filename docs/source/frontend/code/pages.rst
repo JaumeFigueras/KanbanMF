@@ -25,15 +25,16 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
 
 ``OverdueTasks`` — ``/overdue``
    Every overdue card the user can see, from ``/boards/overdue``, grouped by
-   board and list; clicking a card opens it on its board.
+   board and list; each card is a link to it on its board.
 
 ``SearchResults`` — ``/search``
    The results of a search, laid out like the overdue page, from ``/search``.
    The query and the scope live in the address (``q``, ``board``,
    ``archived``; see ``utils/search.ts``), so the page reloads and goes Back
-   like any other. Its own box updates ``q`` in place as you type. Live cards
-   open on their board; archived ones lead back to the archive view or to the
-   boards page's Archived Boards section (``/boards?archived=1``).
+   like any other. Its own box updates ``q`` in place as you type. Each card
+   is a link: a live card to its board; an archived one back to the archive
+   view or to the boards page's Archived Boards section
+   (``/boards?archived=1``).
 
 ``OAuthConsent`` — ``/oauth/consent``
    Where an app such as Claude asks to reach the user's boards: the backend's
@@ -52,13 +53,19 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
 
 ``SignIn`` — ``/signin``
    E-mail and password sign-in (``/auth/local/login``), or the Google button.
+   Only a 401 or a 422 says the address or password is wrong.
 
 ``SignUp`` — ``/signup``
    Account creation (``/auth/local/register``), in the language chosen on the
    page. With ``?invite=<token>`` it previews the invitation
-   (``/invitations/<token>``) and says who invited the user to which board.
+   (``/invitations/<token>``) and says who invited the user to which board;
+   :guilabel:`Create account` waits for the preview, a failed one offers
+   :guilabel:`Try again`, and only a 404 says the invitation is no longer
+   valid. An address the backend refuses is said under the field.
 
 ``VerifyEmail`` — ``/verify-email``
    Opened from the verification e-mail: posts the token to
-   ``/auth/local/verify-email`` and reports the result. Unguarded, so it
-   works whether or not the user is signed in.
+   ``/auth/local/verify-email`` and reports the result. Only a 400 says the
+   link is invalid or expired; a server error or no answer offers
+   :guilabel:`Try again`. Unguarded, so it works whether or not the user is
+   signed in.

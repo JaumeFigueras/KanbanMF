@@ -91,6 +91,36 @@ events can't be relied on: React Router applies the navigation to ``/signin``
 as a transition, after the render in which the token is already gone, so
 ``ProtectedRoute`` first sees the page it is on with no session.
 
+``logout()`` never rejects. When the server can't confirm the sign-out (no
+answer, or a server error) it still signs the page out, but the refresh cookie
+may still be good, and opening the app again would sign back in; it then also
+sets ``signOutUnconfirmed`` (until the next ``login()``), and the sign-in page
+shows a warning. That flag is in the context too, not in the router state of
+the navigation to ``/signin``, for the same reason: ``ProtectedRoute``'s own
+redirect to ``/signin`` can land after it and replace it.
+
+Whatever can be clicked can also be reached with the keyboard, and is
+announced by screen readers for what it is: a link when it leads to another
+page, a button when it acts on this one. A ``Box`` or ``Typography`` with an
+``onClick`` is neither, and :kbd:`Tab` skips it. That is how the top bar's
+profile, its KanbanMF title and the cards on the overdue and search pages
+used to be. The profile is now a ``ButtonBase`` that says it opens a menu
+(``aria-haspopup``, ``aria-expanded``, ``aria-controls``). The title is a
+``Link`` to ``/boards``, and each card a ``CardActionArea`` rendered as a
+router link, so both also open in a new tab. The cards on a board are the
+one exception: the card itself only takes a click, but its menu button has
+:guilabel:`Edit card`.
+
+Every button has a name, in the page's language. The buttons that every
+board, list or card repeats are named after it — "Menu for Website
+redesign", "Add a card to To do", "Move the list Doing" — or a screen
+reader's list of buttons would show the same name over and over. A tooltip
+names the button it wraps, but a name the button gives itself wins, so a
+tile's star shows "Star" and is called "Star Website redesign". The
+signed-out pages' controls (language, theme, show password) are translated
+like everything else, and the sign-up page's two show-password buttons are
+told apart ("Show the repeated password").
+
 Signing in and staying signed in
 --------------------------------
 
@@ -153,6 +183,52 @@ No CORS, no host or port to configure, and the cookie just works. A hardcoded
 ``http://localhost:8000`` would seem to work in development and break in
 production, where the browser can't reach port 8000 at all. New code should
 use ``apiFetch`` with a relative path.
+
+When a load fails
+~~~~~~~~~~~~~~~~~
+
+A page that reads ``r.ok ? r.json() : []`` turns a server error into "no
+boards" or "no overdue tasks", which reads as an answer. Loads go through
+``loadJson()`` instead, which rejects anything but an ``ok`` answer just as a
+dropped connection, and the page keeps where its load stands in a
+``LoadState`` — ``'loading'``, ``'failed'`` or ``'loaded'``. Its "nothing
+here" text shows only once ``'loaded'``; ``'failed'`` shows a ``LoadFailure``
+with :guilabel:`Try again` in its place, and the boards page, the archive,
+the overdue tasks and the time tracker show nothing at all while
+``'loading'``. Try again goes back to ``'loading'`` first, so a second failure
+shows as a new answer rather than as nothing happening. The search page shows
+:guilabel:`Searching…` until its answer, and keeps a failure with the query it
+belongs to, as it keeps its results.
+
+A fetch made again later — on a notification, or after a change that
+failed — replaces what was there when it fails too: the page can no longer
+tell whether what it shows is still true. On the board, a list whose cards
+couldn't be loaded says so in its column and loses the cards it showed; the
+board doesn't ask for them again on its own (Try again does), and a card
+dropped on it goes back, since the order the drop saves would leave out the
+cards not shown. The board itself, or its lists, failing replaces the whole
+page.
+
+The top bar loads the user's profile on every signed-in page. A failure leaves
+the page where it is, and puts :guilabel:`Try again` at the top of the user
+menu. The name and the language dialogs start from that profile, and save
+every field they show, so their menu entries wait for it rather than open on
+defaults. (The bar used to go to ``/signin``, which sends a signed-in user on
+to the boards, whose bar failed the same way: the board or search the user was
+on was lost, and while the failure lasted the page bounced between the two.)
+An expired session needs nothing from the bar: the failed refresh clears the
+token, and ``ProtectedRoute`` goes to ``/signin``, remembering the page.
+
+The signed-out pages keep the same line between no answer and a refusal.
+Signing in, signing up and the verification link say *KanbanMF couldn't be
+reached* when the request gets no answer, and *Something went wrong* when the
+server fails; only the backend's own refusal says the password is wrong, the
+link invalid or expired, or the invitation no longer valid — told by the
+status, and by ``detail`` where one status covers several things (a 400 from
+``/register`` is an expired invitation only with that ``detail``, and a 422
+is the address only when its ``loc`` names it). The invitation preview is a
+load like the others, with a ``LoadFailure``, and :guilabel:`Create account`
+waits for it, since it decides which address is locked.
 
 Real-time updates
 -----------------
@@ -217,6 +293,21 @@ hand, and under the alphabetical sorts positions aren't saved at all; see
 ``src/utils/cardSort.ts``. The boards page orders board tiles the same way,
 per section, and dialogs reorder labels, checklists and checklist items.
 
+The card's order waits for its move, since the backend refuses an order that
+names a card it still has in another list. If either is refused, or isn't
+sent at all, the board puts the lists the drag touched back as they were when
+it started (it keeps a copy of every list's cards and order at the start),
+fetches them again, and says so in a ``FailureMessage`` at the foot of the
+page. With a connection, the fetch shows whatever the server has; without
+one, it fails too, and those lists say their cards couldn't be loaded (see
+`When a load fails`_). A list reorder,
+and a tile on the boards page, go back the same way. The other changes made
+on these pages without a dialog — archiving a card or a list from its menu,
+*Archive All Cards*, a star, restoring a board, list or card — leave the page
+as it was when they fail (a star goes back) and say so the same way; the
+archives and restores also fetch again what they touched, in case it changed
+elsewhere meanwhile.
+
 Theming and colours
 -------------------
 
@@ -236,6 +327,17 @@ of the boards page are folded. ``sessionStorage``: the page to come back to
 after signing in. The access token and the tab's client id stay in memory
 only, so every page load starts without them. Everything else comes from the
 server on every load.
+
+All of it goes through ``src/utils/storage.ts`` (``readStored``,
+``writeStored``, ``removeStored``), and ``eslint.config.js`` refuses any other
+use of ``localStorage`` or ``sessionStorage`` in the app's code. A browser that
+blocks site data throws as soon as either is read — a ``SecurityError`` from
+the property itself, not only from its methods — and a full storage throws on
+writing. Read straight, that was a blank page, since the theme is read before
+anything is drawn; through these functions the app works and only forgets. What
+is read back is checked too: a sort mode that isn't one is the custom order,
+and only true or false is taken for a folded section. The tests block the
+storage with ``blockSiteData()`` (``src/test/blockSiteData.ts``).
 
 Internationalisation
 --------------------

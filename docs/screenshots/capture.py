@@ -129,9 +129,9 @@ class Shooter:
         return self.page.locator(".MuiCard-root", has=self.page.get_by_text(name, exact=True)).first
 
     def open_tile_menu(self, name: str) -> Locator:
-        """Open a board tile's menu (its last icon button) and return the tile."""
+        """Open a board tile's menu and return the tile."""
         tile = self.board_tile(name)
-        tile.locator("button.MuiIconButton-root").last.click()
+        self.labelled_with("boards.boardMenuNamed", tile, name=name).click()
         self.settle(300)
         return tile
 
@@ -391,7 +391,7 @@ def sort_cards(s: Shooter) -> None:
 def list_menu(s: Shooter) -> None:
     s.open_board()
     column = s.list_column(s.text["lists"][1])
-    s.labelled("board.listMenu", column).click()
+    s.labelled_with("board.listMenuNamed", column, name=s.text["lists"][1]).click()
     s.settle(300)
     s.save("list-menu", column.get_by_text(s.text["lists"][1], exact=True), s.menu())
     s.escape()
@@ -567,7 +567,9 @@ def card_replaced(s: Shooter) -> None:
     s.button("board.archive").click()
     s.settle(900)
     replaced = s.page.locator(".MuiCard-root", has=s.page.get_by_text(s.t("board.replaced"), exact=True)).first
-    s.labelled("board.cardMenu", replaced).click()
+    # Its menu is named after the card, whose name isn't known here: the
+    # card's last icon button, as with a board tile's.
+    replaced.locator("button.MuiIconButton-root").last.click()
     s.settle(300)
     s.menu_item("board.restore").click()
     s.settle()

@@ -16,9 +16,10 @@ import {
   Typography,
 } from '@mui/material'
 import MainAppBar from '../components/MainAppBar'
+import LoadFailure from '../components/LoadFailure'
 import CardListColumn from '../components/CardListColumn'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
-import { apiFetch } from '../api/client'
+import { apiFetch, loadJson } from '../api/client'
 import { subscribeToNotifications } from '../api/ws'
 import type { BoardRead, SearchResults as SearchResultsData } from '../types/board'
 import type { DateFormat } from '../utils/locale'
@@ -47,6 +48,10 @@ export default function SearchResults() {
   // The results with the query they answer, so a slow answer to an older
   // query is never shown for the current one.
   const [results, setResults] = useState<{ key: string; data: SearchResultsData } | null>(null)
+  // The query whose search last failed, kept by its key for the same
+  // reason, and Try again's count, which runs the search once more.
+  const [failedKey, setFailedKey] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const [boardName, setBoardName] = useState('')
   // Board sections start open; this holds the ones the user folded.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -78,16 +83,24 @@ export default function SearchResults() {
   useEffect(() => {
     if (q.length < MIN_SEARCH_LENGTH) return
     const fetchResults = () => {
-      apiFetch(`/api/v1/search?${key}`)
-        .then((r) => (r.ok ? (r.json() as Promise<SearchResultsData>) : null))
-        .then((data) => { if (data) setResults({ key, data }) })
-        .catch(() => {})
+      loadJson<SearchResultsData>(`/api/v1/search?${key}`)
+        .then((data) => {
+          setResults({ key, data })
+          setFailedKey((prev) => (prev === key ? null : prev))
+        })
+        .catch(() => setFailedKey(key))
     }
     fetchResults()
     // Any change anywhere can add or remove a match, so this page just
     // searches again on every notification, as the overdue page does.
     return subscribeToNotifications(() => fetchResults())
-  }, [key, q])
+  }, [key, q, attempt])
+
+  // Try again: the failure goes, so "Searching…" shows until the answer.
+  function retrySearch() {
+    setFailedKey(null)
+    setAttempt((n) => n + 1)
+  }
 
   // The board's name, for the heading and the back button.
   useEffect(() => {
@@ -98,6 +111,7 @@ export default function SearchResults() {
       .catch(() => {})
   }, [boardId])
 
+  const failed = q.length >= MIN_SEARCH_LENGTH && failedKey === key
   const data = q.length >= MIN_SEARCH_LENGTH && results?.key === key ? results.data : null
 
   let scopeText: string
@@ -119,10 +133,10 @@ export default function SearchResults() {
 
   // Where a result leads. Live cards open on their board, with their dialog
   // up; archived ones can't be opened, so they lead to where they're kept.
-  function openCard(cardBoardId: string, cardId: string) {
-    if (!archived) navigate(`/boards/${cardBoardId}?card=${cardId}`)
-    else if (boardId) navigate(`/boards/${cardBoardId}?archive=1&highlight=${cardId}`)
-    else navigate('/boards?archived=1')
+  function cardLink(cardBoardId: string, cardId: string): string {
+    if (!archived) return `/boards/${cardBoardId}?card=${cardId}`
+    if (boardId) return `/boards/${cardBoardId}?archive=1&highlight=${cardId}`
+    return '/boards?archived=1'
   }
 
   function openBoard(matchedBoardId: string) {
@@ -178,7 +192,13 @@ export default function SearchResults() {
           <Typography variant="body2" color="text.secondary">
             {t('search.tooShort', { count: MIN_SEARCH_LENGTH })}
           </Typography>
-        ) : data && (
+        ) : failed ? (
+          <LoadFailure message={t('search.failed')} onRetry={retrySearch} />
+        ) : !data ? (
+          <Typography variant="body2" color="text.secondary" role="status">
+            {t('search.searching')}
+          </Typography>
+        ) : (
           <>
             {data.matching_boards.length > 0 && (
               <Box sx={{ mb: 3 }}>
@@ -251,7 +271,7 @@ export default function SearchResults() {
                       dateFormat={dateFormat}
                       cardColors={board.card_colors}
                       matchedIn={board.matched_in}
-                      onCardClick={(card) => openCard(board.board_id, card.id)}
+                      cardLink={(card) => cardLink(board.board_id, card.id)}
                     />
                   ))}
                 </AccordionDetails>

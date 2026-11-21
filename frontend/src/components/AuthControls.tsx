@@ -8,7 +8,7 @@ import { useThemeToggle } from '../context/useThemeToggle'
 
 export default function AuthControls() {
   const { dark, toggleDark } = useThemeToggle()
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [langAnchor, setLangAnchor] = useState<HTMLElement | null>(null)
 
   return (
@@ -33,7 +33,9 @@ export default function AuthControls() {
       <IconButton
         sx={{ display: { xs: 'flex', md: 'none' } }}
         onClick={(e) => setLangAnchor(e.currentTarget)}
-        aria-label="select language"
+        aria-label={t('common.language')}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(langAnchor)}
         color="inherit"
       >
         <Translate />
@@ -59,7 +61,12 @@ export default function AuthControls() {
         ))}
       </Menu>
 
-      <IconButton onClick={toggleDark} aria-label="toggle light/dark mode" color="inherit">
+      {/* Named for what it does, as in the user menu. */}
+      <IconButton
+        onClick={toggleDark}
+        aria-label={dark ? t('boards.changeToLight') : t('boards.changeToDark')}
+        color="inherit"
+      >
         {dark ? <LightMode /> : <DarkMode />}
       </IconButton>
     </Box>

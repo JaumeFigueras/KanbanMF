@@ -1,4 +1,5 @@
-import { Box, Card, Paper, Typography } from '@mui/material'
+import { Box, Card, CardActionArea, Paper, Typography } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { ListCardsRead, SearchField } from '../types/board'
 import type { DateFormat } from '../utils/locale'
@@ -13,7 +14,8 @@ interface Props {
   // The viewer's colors for the cards of the board this list belongs to,
   // keyed by card id — same shape the board page passes down.
   cardColors: Record<string, string>
-  onCardClick: (card: { id: string; list_id: string }) => void
+  // Where each card leads: the page decides.
+  cardLink: (card: { id: string; list_id: string }) => string
   // Search results only: which fields of each card matched, keyed by card
   // id, shown under the card since its face only shows the name.
   matchedIn?: Record<string, SearchField[]>
@@ -22,14 +24,17 @@ interface Props {
 // A read-only echo of BoardListColumn for the pages that gather cards from
 // many boards (overdue tasks, search results): same 330px column, same tints,
 // same card face — but no drag handles, menus or add buttons, since nothing
-// here is editable in place. Clicking a card is the column's only
+// here is editable in place. Opening a card is the column's only
 // interaction; the page decides where it leads.
+//
+// Each card is a link (it was a card with a click handler, which the
+// keyboard couldn't reach), so it can also open in a new tab.
 export default function CardListColumn({
   list,
   numberLocale,
   dateFormat,
   cardColors,
-  onCardClick,
+  cardLink,
   matchedIn,
 }: Props) {
   const { t } = useTranslation()
@@ -70,29 +75,29 @@ export default function CardListColumn({
             <Card
               key={card.id}
               variant="outlined"
-              onClick={() => onCardClick(card)}
               sx={{
                 mb: 1,
-                cursor: 'pointer',
                 // Opaque (not alpha) so this doesn't blend with the column's
                 // own tint behind it — see utils/colorTint.
                 bgcolor: (theme) => tintColor(cardColor, theme.palette.background.paper, STRONG_TINT_WEIGHT),
                 borderColor: cardColor,
               }}
             >
-              <CardFace
-                card={card}
-                numberLocale={numberLocale}
-                dateFormat={dateFormat}
-                color={cardColor}
-              />
-              {matchedIn?.[card.id]?.length ? (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.5, pb: 1 }}>
-                  {t('search.foundIn', {
-                    fields: matchedIn[card.id].map((field) => t(`search.field.${field}`)).join(', '),
-                  })}
-                </Typography>
-              ) : null}
+              <CardActionArea component={RouterLink} to={cardLink(card)}>
+                <CardFace
+                  card={card}
+                  numberLocale={numberLocale}
+                  dateFormat={dateFormat}
+                  color={cardColor}
+                />
+                {matchedIn?.[card.id]?.length ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', px: 1.5, pb: 1 }}>
+                    {t('search.foundIn', {
+                      fields: matchedIn[card.id].map((field) => t(`search.field.${field}`)).join(', '),
+                    })}
+                  </Typography>
+                ) : null}
+              </CardActionArea>
             </Card>
           )
         })}

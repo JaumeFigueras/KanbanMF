@@ -19,4 +19,20 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // A browser that blocks site data throws on any use of its storage:
+    // the app reaches it only through src/utils/storage.ts, which doesn't.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/utils/storage.ts', 'src/**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'no-restricted-globals': ['error',
+        { name: 'localStorage', message: 'Use readStored/writeStored from src/utils/storage.ts.' },
+        { name: 'sessionStorage', message: 'Use readStored/writeStored from src/utils/storage.ts.' },
+      ],
+      'no-restricted-properties': ['error',
+        { object: 'window', property: 'localStorage', message: 'Use readStored/writeStored from src/utils/storage.ts.' },
+        { object: 'window', property: 'sessionStorage', message: 'Use readStored/writeStored from src/utils/storage.ts.' },
+      ],
+    },
+  },
 ])

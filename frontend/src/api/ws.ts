@@ -33,6 +33,9 @@ export type BoardNotificationType =
   | 'card_deleted'
   // Sent only to the board owner, whose share dialog lists the invitations.
   | 'board_invitations_changed'
+  // A label renamed, recoloured, reordered or deleted: every card showing
+  // labels needs fetching again.
+  | 'labels_changed'
 
 export interface BoardNotification {
   type: BoardNotificationType

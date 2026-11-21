@@ -23,14 +23,17 @@ import { peekReturnTo } from '../utils/returnTo'
 export default function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, signOutUnconfirmed } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
+  // Controlled, as on the sign-up page, rather than read with
+  // new FormData(form), which the tests' FormData can't do.
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const data = new FormData(e.currentTarget)
     setErrorKey(null)
     setLoading(true)
     try {
@@ -38,10 +41,7 @@ export default function SignIn() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          email: data.get('email'),
-          password: data.get('password'),
-        }),
+        body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
         if (res.status === 429) {
@@ -49,8 +49,12 @@ export default function SignIn() {
         } else if (res.status === 403) {
           const body = await res.json().catch(() => ({}))
           setErrorKey(body.detail === 'Email not verified' ? 'signIn.errorNotVerified' : 'signIn.errorCredentials')
-        } else {
+        } else if (res.status === 401 || res.status === 422) {
+          // A wrong password or an unknown address (401), or something that
+          // isn't an e-mail address at all (422).
           setErrorKey('signIn.errorCredentials')
+        } else {
+          setErrorKey('common.saveError')
         }
         return
       }
@@ -58,7 +62,9 @@ export default function SignIn() {
       login(access_token)
       navigate(peekReturnTo() ?? '/boards')
     } catch {
-      setErrorKey('signIn.errorCredentials')
+      // No answer, or none that can be read: the connection dropped, before
+      // the answer or in the middle of it.
+      setErrorKey('common.unreachable')
     } finally {
       setLoading(false)
     }
@@ -82,6 +88,12 @@ export default function SignIn() {
             {t('signIn.title')}
           </Typography>
 
+          {signOutUnconfirmed && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {t('signIn.signOutUnconfirmed')}
+            </Alert>
+          )}
+
           {errorKey && (
             <Alert severity={errorKey === 'signIn.errorNotVerified' ? 'warning' : 'error'} sx={{ mb: 2 }}>
               {t(errorKey)}
@@ -97,11 +109,15 @@ export default function SignIn() {
               required
               margin="normal"
               autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <TextField
               label={t('signIn.password')}
               name="password"
               type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               fullWidth
               required
               margin="normal"
@@ -113,7 +129,7 @@ export default function SignIn() {
                       <IconButton
                         onClick={() => setShowPassword((v) => !v)}
                         edge="end"
-                        aria-label="toggle password visibility"
+                        aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>

@@ -81,6 +81,7 @@ export default function ArchivedBoardCard({ board, numberLocale, dateFormat, onR
 
         <IconButton
           size="small"
+          aria-label={t('boards.boardMenuNamed', { name: board.name })}
           onClick={(e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget) }}
         >
           <MenuIcon sx={{ fontSize: 18 }} />

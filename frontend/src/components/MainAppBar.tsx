@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import {
   AppBar,
   Avatar,
   Box,
+  ButtonBase,
   Divider,
   IconButton,
   InputBase,
+  Link,
   ListItemIcon,
   ListItemText,
   Menu,
@@ -26,6 +28,7 @@ import {
   LightMode,
   Lock,
   Logout,
+  Refresh,
   Search,
   Timer,
 } from '@mui/icons-material'
@@ -42,6 +45,7 @@ import ChangePasswordDialog from './ChangePasswordDialog'
 import UploadAvatarDialog from './UploadAvatarDialog'
 import LanguageLocalizationDialog from './LanguageLocalizationDialog'
 import ConnectedAppsDialog from './ConnectedAppsDialog'
+import type { LoadState } from './LoadFailure'
 
 const LOCALE_TO_I18N: Record<string, string> = { en: 'en', ca_ES: 'ca' }
 
@@ -77,6 +81,10 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
   const [timezone, setTimezone] = useState(getBrowserTimezone())
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarUrlRef = useRef<string | null>(null)
+  // Until the profile is in, the name and language dialogs would start from
+  // defaults rather than the user's own settings, and a save would write
+  // those defaults over them: their menu entries wait for it.
+  const [profileLoad, setProfileLoad] = useState<LoadState>('loading')
 
   // Keep a stable ref to the callback so the fetch effect never re-fires just
   // because the parent re-rendered and passed a new inline function reference.
@@ -111,7 +119,7 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
       .catch(() => setAvatarUrl(null))
   }, [])
 
-  useEffect(() => {
+  const fetchProfile = useCallback(() => {
     apiFetch('/api/v1/users/me')
       .then((r) => {
         if (!r.ok) throw new Error()
@@ -130,15 +138,29 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
         setTimezone(data.timezone ?? getBrowserTimezone())
         i18n.changeLanguage(LOCALE_TO_I18N[lang] ?? 'en')
         onLocaleChangedRef.current?.(num, fmt)
+        setProfileLoad('loaded')
       })
-      .catch(() => navigate('/signin'))
+      // The page stays. It used to go to /signin, which sends a signed-in
+      // user on to the boards, whose bar failed the same way: the board or
+      // search was lost, and the page bounced between the two while the
+      // failure lasted. An expired session needs nothing here: the failed
+      // refresh signs the page out, and ProtectedRoute goes to /signin.
+      .catch(() => setProfileLoad('failed'))
+  }, [])
 
+  function retryProfile() {
+    setProfileLoad('loading')
+    fetchProfile()
+  }
+
+  useEffect(() => {
+    fetchProfile()
     fetchAvatar()
 
     return () => {
       if (avatarUrlRef.current) URL.revokeObjectURL(avatarUrlRef.current)
     }
-  }, [navigate, fetchAvatar])
+  }, [fetchProfile, fetchAvatar])
 
   async function handleSignOut() {
     setMenuAnchor(null)
@@ -189,13 +211,21 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
       <AppBar position="fixed">
         <Toolbar>
           {isPhone && searchOpen ? searchBox : (
-            <Typography
-              variant="h6"
-              onClick={() => navigate('/boards')}
-              sx={{ flexGrow: 1, fontWeight: 700, letterSpacing: 0.5, cursor: 'pointer' }}
-            >
-              KanbanMF
-            </Typography>
+            // A link, so the keyboard reaches it (it was a plain heading
+            // with a click handler) and it can open the boards in a new tab.
+            // Only the name is the link, not the empty bar beside it.
+            <Box sx={{ flexGrow: 1 }}>
+              <Link
+                component={RouterLink}
+                to="/boards"
+                variant="h6"
+                color="inherit"
+                underline="none"
+                sx={{ fontWeight: 700, letterSpacing: 0.5 }}
+              >
+                KanbanMF
+              </Link>
+            </Box>
           )}
 
           {search && !isPhone && searchBox}
@@ -216,16 +246,22 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
             </IconButton>
           </Tooltip>
 
+          {/* A button, so the keyboard can open the menu (it was a plain box
+              with a click handler); named "User profile" by its tooltip. */}
           <Tooltip title={t('boards.userProfile')}>
-            <Box
+            <ButtonBase
+              id="profile-button"
+              focusRipple
               onClick={(e) => setMenuAnchor(e.currentTarget)}
+              aria-haspopup="menu"
+              aria-expanded={Boolean(menuAnchor)}
+              aria-controls={menuAnchor ? 'profile-menu' : undefined}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                cursor: 'pointer',
                 borderRadius: 1,
                 px: 0.5,
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
+                '&:hover, &.Mui-focusVisible': { bgcolor: 'rgba(255,255,255,0.1)' },
               }}
             >
               <Avatar
@@ -242,9 +278,9 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
                 {initials}
               </Avatar>
               {displayName && (
-                <Typography variant="body2">{displayName}</Typography>
+                <Typography variant="body2" component="span">{displayName}</Typography>
               )}
-            </Box>
+            </ButtonBase>
           </Tooltip>
 
           <Tooltip title={t('boards.signOut')}>
@@ -254,13 +290,30 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
           </Tooltip>
 
           <Menu
+            id="profile-menu"
             anchorEl={menuAnchor}
             open={Boolean(menuAnchor)}
             onClose={() => setMenuAnchor(null)}
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            slotProps={{ list: { 'aria-labelledby': 'profile-button' } }}
           >
-            <MenuItem onClick={() => { setMenuAnchor(null); setChangeNameOpen(true) }}>
+            {/* An array, not a fragment: Menu doesn't take fragments. */}
+            {profileLoad === 'failed' && [
+              <MenuItem key="profile-failed" onClick={retryProfile}>
+                <ListItemIcon><Refresh fontSize="small" /></ListItemIcon>
+                <ListItemText
+                  primary={t('boards.profileLoadFailed')}
+                  secondary={t('common.tryAgain')}
+                  slotProps={{ primary: { color: 'error' } }}
+                />
+              </MenuItem>,
+              <Divider key="profile-failed-divider" />,
+            ]}
+            <MenuItem
+              disabled={profileLoad !== 'loaded'}
+              onClick={() => { setMenuAnchor(null); setChangeNameOpen(true) }}
+            >
               <ListItemIcon><DriveFileRenameOutline fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.changeDisplayName')}</ListItemText>
             </MenuItem>
@@ -276,7 +329,10 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
                 {avatarUrl ? t('boards.changeRemoveAvatar') : t('boards.uploadAvatar')}
               </ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { setMenuAnchor(null); setLangLocOpen(true) }}>
+            <MenuItem
+              disabled={profileLoad !== 'loaded'}
+              onClick={() => { setMenuAnchor(null); setLangLocOpen(true) }}
+            >
               <ListItemIcon><Language fontSize="small" /></ListItemIcon>
               <ListItemText>{t('boards.languageLocalization')}</ListItemText>
             </MenuItem>

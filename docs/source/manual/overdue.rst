@@ -20,8 +20,8 @@ How the page is laid out
 ------------------------
 
 - One section per board, the board with the most overdue cards first. The
-  number next to the board's name is how many it has. Click a section's
-  title to fold it.
+  number next to the board's name is how many it has. The sections start
+  folded: click a section's title to open it, and again to fold it.
 - Inside each board, the lists that have overdue cards, in the board's own
   order.
 - Inside each list, the cards, oldest due date first.
@@ -30,5 +30,6 @@ Boards, lists and cards keep the colours you gave them, and the cards look
 the same as on the board.
 
 Click a card to open it on its board, ready to edit — to give it a new due
-date, an end date, or whatever it needs. :guilabel:`Back to Boards` returns
-to the overview.
+date, an end date, or whatever it needs. Each card is a link, so it can also
+be opened in a new tab, or reached with the :kbd:`Tab` key.
+:guilabel:`Back to Boards` returns to the overview.

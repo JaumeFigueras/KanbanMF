@@ -10,7 +10,9 @@ component state. What is shared lives in two contexts and two API modules.
 ``AuthContext.tsx`` and ``useAuth.ts``
    ``AuthProvider`` checks the session on load, exposes ``accessToken``,
    ``loading``, ``loggedOut`` (whether this page signed out on purpose, until
-   the next sign-in), ``login()`` and ``logout()``, hands the token to the
+   the next sign-in), ``signOutUnconfirmed`` (whether that sign-out went
+   without the server's confirmation, so the session may still be alive),
+   ``login()`` and ``logout()`` (which never rejects), hands the token to the
    WebSocket client, and applies the user's language. ``useAuth()`` reads it.
 
 ``ThemeToggleContext.tsx`` and ``useThemeToggle.ts``
@@ -22,7 +24,9 @@ component state. What is shared lives in two contexts and two API modules.
 ``client.ts``
    ``apiFetch()``, the fetch wrapper every authenticated call uses: adds the
    ``Authorization`` and ``X-Client-Id`` headers, and on a ``401`` refreshes
-   the token once and retries. Also ``refreshAccessToken()`` (one refresh at
+   the token once and retries. ``loadJson()`` is the same for loading data:
+   it gives the answer's JSON, and rejects any answer that isn't ``ok`` just
+   as a dropped connection. Also ``refreshAccessToken()`` (one refresh at
    a time, shared by concurrent callers), the access token itself with
    ``setAccessToken()`` and ``onAccessTokenChange()``, and ``getClientId()``,
    the page's id, kept in memory. ``API_BASE`` is empty on purpose: every URL

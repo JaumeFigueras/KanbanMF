@@ -11,10 +11,12 @@ import {
 } from '@mui/material'
 import { ArrowBack, ExpandMore } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
-import { apiFetch } from '../api/client'
+import { loadJson } from '../api/client'
 import { subscribeToNotifications } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CardListColumn from '../components/CardListColumn'
+import LoadFailure from '../components/LoadFailure'
+import type { LoadState } from '../components/LoadFailure'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
 import type { DateFormat } from '../utils/locale'
@@ -27,16 +29,26 @@ export default function OverdueTasks() {
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
   const [boards, setBoards] = useState<OverdueBoardRead[]>([])
+  // "No overdue tasks" reads as all done, so it waits for the answer, and a
+  // failed load says so instead.
+  const [load, setLoad] = useState<LoadState>('loading')
   // Which board accordions are open, keyed by board id. Not persisted: the
   // set of boards with overdue cards changes on its own as due dates pass.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const fetchOverdue = useCallback(() => {
-    apiFetch('/api/v1/boards/overdue')
-      .then((r) => (r.ok ? (r.json() as Promise<OverdueBoardRead[]>) : []))
-      .then(setBoards)
-      .catch(() => {})
+    loadJson<OverdueBoardRead[]>('/api/v1/boards/overdue')
+      .then((data) => {
+        setBoards(data)
+        setLoad('loaded')
+      })
+      .catch(() => setLoad('failed'))
   }, [])
+
+  function retryOverdue() {
+    setLoad('loading')
+    fetchOverdue()
+  }
 
   useEffect(() => {
     fetchOverdue()
@@ -46,11 +58,9 @@ export default function OverdueTasks() {
   // just refetches on every notification rather than inspecting the payload.
   useEffect(() => subscribeToNotifications(() => fetchOverdue()), [fetchOverdue])
 
-  // Opens the card on its own board, with its edit dialog already up — see
+  // A card opens on its own board, with its edit dialog already up — see
   // the `card` search param Board.tsx reads.
-  function openCard(boardId: string, cardId: string) {
-    navigate(`/boards/${boardId}?card=${cardId}`)
-  }
+  const cardLink = (boardId: string, cardId: string) => `/boards/${boardId}?card=${cardId}`
 
   return (
     <>
@@ -72,7 +82,9 @@ export default function OverdueTasks() {
           </Typography>
         </Box>
 
-        {boards.length === 0 ? (
+        {load === 'failed' ? (
+          <LoadFailure message={t('overdue.loadFailed')} onRetry={retryOverdue} />
+        ) : load === 'loading' ? null : boards.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             {t('overdue.noOverdueTasks')}
           </Typography>
@@ -114,7 +126,7 @@ export default function OverdueTasks() {
                     numberLocale={numberLocale}
                     dateFormat={dateFormat}
                     cardColors={board.card_colors}
-                    onCardClick={(card) => openCard(board.board_id, card.id)}
+                    cardLink={(card) => cardLink(board.board_id, card.id)}
                   />
                 ))}
               </AccordionDetails>

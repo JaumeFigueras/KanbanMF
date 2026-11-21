@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """Routes for a board's labels. Anyone with access to the board can read them;
-only the owner can create, change, reorder or delete them.
+only the owner can create, change, reorder or delete them. A change that
+shows on the cards (a rename, a new colour, a new order, a deletion) is
+notified to everyone on the board.
 """
 
 import uuid
@@ -11,8 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_user, get_db
+from src.api.deps import get_client_id, get_current_user, get_db
 from src.core.access import get_accessible_board, reject_if_template
+from src.core.ws_manager import manager
+from src.core.ws_notify import board_notification, board_recipients
 from src.model.board import Board
 from src.model.label import Label
 from src.model.user import User
@@ -29,6 +33,14 @@ async def _require_owner(board_id: uuid.UUID, user: User, db: AsyncSession) -> B
             detail="Only the board owner can manage labels",
         )
     return board
+
+
+async def _notify_labels_changed(board: Board, client_id: str | None, db: AsyncSession) -> None:
+    """Tell everyone on the board its labels changed: each card shows its
+    labels, in the labels' order, so the cards need fetching again. A new
+    label is on no card yet, so creating one isn't notified."""
+    recipients = await board_recipients(board.id, board.owner_id, db)
+    await manager.notify_many(recipients, board_notification("labels_changed", board.id, client_id))
 
 
 @router.get("", response_model=list[LabelRead])
@@ -59,14 +71,14 @@ async def create_label(
     Owner only."""
     board = await _require_owner(board_id, current_user, db)
     reject_if_template(board, "Templates cannot hold labels")
-    count_result = await db.execute(
-        select(func.count()).select_from(Label).where(Label.board_id == board_id)
-    )
+    # After the last label: counting them would repeat a position once one
+    # has been deleted, and two labels would then share it.
+    last = await db.scalar(select(func.max(Label.position)).where(Label.board_id == board_id))
     label = Label(
         board_id=board_id,
         name=body.name,
         color=body.color,
-        position=count_result.scalar_one(),
+        position=0 if last is None else last + 1,
     )
     db.add(label)
     await db.commit()
@@ -80,10 +92,11 @@ async def update_label_order(
     body: LabelOrderUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> list[LabelRead]:
     """Reorder a board's labels — body must list every label on the board
     exactly once; position is set to each id's index. Owner only."""
-    await _require_owner(board_id, current_user, db)
+    board = await _require_owner(board_id, current_user, db)
     result = await db.execute(select(Label).where(Label.board_id == board_id))
     labels = {lbl.id: lbl for lbl in result.scalars().all()}
     if set(body.label_ids) != set(labels.keys()):
@@ -94,6 +107,7 @@ async def update_label_order(
     for position, label_id in enumerate(body.label_ids):
         labels[label_id].position = position
     await db.commit()
+    await _notify_labels_changed(board, client_id, db)
 
     result = await db.execute(
         select(Label).where(Label.board_id == board_id).order_by(Label.position)
@@ -108,9 +122,10 @@ async def update_label(
     body: LabelUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> LabelRead:
     """Rename or recolour a label. Owner only."""
-    await _require_owner(board_id, current_user, db)
+    board = await _require_owner(board_id, current_user, db)
     result = await db.execute(
         select(Label).where(Label.id == label_id, Label.board_id == board_id)
     )
@@ -123,6 +138,7 @@ async def update_label(
         label.color = body.color
     await db.commit()
     await db.refresh(label)
+    await _notify_labels_changed(board, client_id, db)
     return LabelRead.model_validate(label)
 
 
@@ -132,9 +148,10 @@ async def delete_label(
     label_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    client_id: str | None = Depends(get_client_id),
 ) -> None:
     """Delete a label and remove it from all cards. Owner only."""
-    await _require_owner(board_id, current_user, db)
+    board = await _require_owner(board_id, current_user, db)
     result = await db.execute(
         select(Label).where(Label.id == label_id, Label.board_id == board_id)
     )
@@ -142,3 +159,4 @@ async def delete_label(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Label not found")
     await db.execute(delete(Label).where(Label.id == label_id))
     await db.commit()
+    await _notify_labels_changed(board, client_id, db)

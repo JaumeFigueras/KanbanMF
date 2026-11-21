@@ -5,7 +5,7 @@ import { LANGUAGES, type LanguageCode } from '../i18n'
 type Language = (typeof LANGUAGES)[number]
 
 export default function LanguageSelector() {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const current = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0]
 
@@ -21,9 +21,12 @@ export default function LanguageSelector() {
       getOptionLabel={(o) => o.label}
       isOptionEqualToValue={(a, b) => a.code === b.code}
       disableClearable
+      // MUI's own names for the arrow button are English.
+      openText={t('common.open')}
+      closeText={t('common.close')}
       size="small"
       sx={{ width: 160 }}
-      renderInput={(params) => <TextField {...params} label="Language" />}
+      renderInput={(params) => <TextField {...params} label={t('common.language')} />}
     />
   )
 }

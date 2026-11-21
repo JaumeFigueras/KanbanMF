@@ -3,6 +3,7 @@ import i18n from '../i18n'
 import { apiFetch, onAccessTokenChange, refreshAccessToken, setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 import { AuthContext } from './useAuth'
+import { removeStored } from '../utils/storage'
 
 // Relative on purpose — see the comment on API_BASE in api/client.ts.
 const API = ''
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loggedOut, setLoggedOut] = useState(false)
+  const [signOutUnconfirmed, setSignOutUnconfirmed] = useState(false)
 
   // Single place that keeps React state and the WebSocket in sync with the
   // module-level token — covers explicit login/logout as well as silent
@@ -36,11 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function signInFromCookie() {
       // Earlier versions kept the access token in localStorage; don't leave
       // one behind.
-      try {
-        localStorage.removeItem('access_token')
-      } catch {
-        // storage blocked: nothing to remove
-      }
+      removeStored('local', 'access_token')
 
       // The access token is only ever in memory (see api/client.ts), so a
       // page load starts without one: the refresh cookie, if there's a
@@ -64,20 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function login(token: string) {
     setLoggedOut(false)
+    setSignOutUnconfirmed(false)
     setAccessToken(token)
   }
 
   async function logout() {
-    try {
-      await apiFetch(`${API}/api/v1/auth/local/logout`, { method: 'POST' })
-    } finally {
-      setLoggedOut(true)
-      setAccessToken(null)
-    }
+    // Whether the server ended the session. A 401, after apiFetch's
+    // refresh, means there was none left to end.
+    const ended = await apiFetch(`${API}/api/v1/auth/local/logout`, { method: 'POST' })
+      .then((res) => res.ok || res.status === 401, () => false)
+    setSignOutUnconfirmed(!ended)
+    setLoggedOut(true)
+    setAccessToken(null)
   }
 
   return (
-    <AuthContext.Provider value={{ accessToken, loading, loggedOut, login, logout }}>
+    <AuthContext.Provider value={{ accessToken, loading, loggedOut, signOutUnconfirmed, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

@@ -36,6 +36,9 @@ interface Props {
   // put in its map — which is what then repaints the card.
   onColorChanged: (cardId: string, color: string | null) => void
   onArchived: (cardId: string) => void
+  // The archive was refused, or the connection dropped: the board says so,
+  // and fetches the list again.
+  onArchiveFailed: (card: CardRead) => void
   onUpdated: (card: CardRead) => void
   // Same shape as CardDialog's onCreated — lets the copy show up immediately
   // when it lands on a list already on screen.
@@ -58,6 +61,7 @@ export default function CardItem({
   color: cardColor,
   onColorChanged,
   onArchived,
+  onArchiveFailed,
   onUpdated,
   onCopied,
   onChecklistCopied,
@@ -103,19 +107,16 @@ export default function CardItem({
 
   async function handleArchive() {
     closeMenu()
-    try {
-      const r = await apiFetch(
-        `/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ is_archived: true }),
-        },
-      )
-      if (r.ok) onArchived(card.id)
-    } catch {
-      // silently ignore — parent still shows the card
-    }
+    const r = await apiFetch(
+      `/api/v1/boards/${boardId}/lists/${listId}/cards/${card.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_archived: true }),
+      },
+    ).catch(() => null)
+    if (r?.ok) onArchived(card.id)
+    else onArchiveFailed(card)
   }
 
   return (

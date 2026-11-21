@@ -73,3 +73,8 @@ Exporting
 chose — as a spreadsheet file. It has one row per entry with the start, the
 end, the duration both as hours and minutes (``2:05``) and as decimal hours
 (``2.08``), the board, the card, the labels and the comment.
+
+Card and board names, and labels, can be written by anyone on a board you
+share. So that a spreadsheet never runs one as a formula, a cell that starts
+with ``=``, ``+``, ``-`` or ``@`` is written with an apostrophe in front, which
+keeps it as text; your spreadsheet may show that apostrophe.
