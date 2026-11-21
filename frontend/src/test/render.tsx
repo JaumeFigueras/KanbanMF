@@ -22,6 +22,11 @@ export interface RenderOptions {
   // fake backend answer the start-up refresh and /users/me. Pass a user (or
   // part of one) to change who is signed in.
   auth?: boolean | Partial<TestUser>
+  // Wrap the whole tree in StrictMode, as main.tsx does, so effects run
+  // twice on mount the way they do in development. A <StrictMode> inside
+  // the rendered element isn't enough: React only does that for one at the
+  // root, above the providers.
+  strictMode?: boolean
 }
 
 export type RenderWithProvidersResult = RenderResult & { user: UserEvent }
@@ -35,7 +40,7 @@ export type RenderWithProvidersResult = RenderResult & { user: UserEvent }
 // dialog the way its parent page would.
 export function renderWithProviders(
   ui: ReactElement,
-  { route = '/', path, theme = 'light', auth = false }: RenderOptions = {},
+  { route = '/', path, theme = 'light', auth = false, strictMode = false }: RenderOptions = {},
 ): RenderWithProvidersResult {
   if (auth) {
     const user = makeUser(auth === true ? {} : auth)
@@ -61,6 +66,6 @@ export function renderWithProviders(
     )
   }
 
-  const result = render(ui, { wrapper: Providers })
+  const result = render(ui, { wrapper: Providers, reactStrictMode: strictMode })
   return { ...result, user: userEvent.setup() }
 }

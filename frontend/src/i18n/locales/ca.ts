@@ -38,7 +38,8 @@ const ca = {
     signInNow: 'Inicia sessió',
     errorTitle: 'La verificació ha fallat',
     errorExpired: 'Aquest enllaç de verificació ha caducat. Registra\'t de nou per obtenir-ne un de nou.',
-    errorInvalid: 'Aquest enllaç de verificació no és vàlid o ja s\'ha utilitzat.',
+    invalidTitle: 'Aquest enllaç no es pot fer servir',
+    errorInvalid: "Aquest enllaç de verificació no és vàlid, o ja s'ha utilitzat: si ja has verificat la teva adreça, inicia sessió.",
     tryAgain: 'Torna al registre',
   },
   boards: {

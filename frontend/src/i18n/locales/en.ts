@@ -38,7 +38,8 @@ const en = {
     signInNow: 'Sign in',
     errorTitle: 'Verification failed',
     errorExpired: 'This verification link has expired. Please sign up again to get a new one.',
-    errorInvalid: 'This verification link is invalid or has already been used.',
+    invalidTitle: "This link can't be used",
+    errorInvalid: "This verification link is invalid, or it has already been used: if you've verified your address, sign in.",
     tryAgain: 'Back to sign up',
   },
   boards: {

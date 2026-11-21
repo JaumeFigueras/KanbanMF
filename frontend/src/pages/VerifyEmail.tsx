@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams, Link as RouterLink } from 'react-router-dom'
 import { Box, Card, CardContent, Typography, Alert, CircularProgress, Button } from '@mui/material'
 import { CheckCircleOutlined, ErrorOutlined } from '@mui/icons-material'
@@ -17,7 +17,6 @@ export default function VerifyEmail() {
   const [state, setState] = useState<State>(token ? 'pending' : 'invalid')
 
   const verify = useCallback(() => {
-    if (!token) return
     fetch('/api/v1/auth/local/verify-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,9 +40,17 @@ export default function VerifyEmail() {
     verify()
   }
 
+  // The link works once: the server forgets the token as it verifies it, so
+  // a second request is answered "invalid". One check per link, then, even
+  // when React's development mode runs this effect twice; Try again is the
+  // only way to send another.
+  const checked = useRef<string | null>(null)
+
   useEffect(() => {
+    if (!token || checked.current === token) return
+    checked.current = token
     verify()
-  }, [verify])
+  }, [token, verify])
 
   return (
     <Box
@@ -90,13 +97,28 @@ export default function VerifyEmail() {
             </>
           )}
 
-          {(state === 'invalid' || state === 'expired') && (
+          {/* Unknown or already used: the server can't tell them apart, and a
+              used link is the usual case (a second click, a reload), so
+              signing in comes first. */}
+          {state === 'invalid' && (
+            <>
+              <ErrorOutlined sx={{ fontSize: 56, color: 'error.main' }} />
+              <Typography variant="h6">{t('verifyEmail.invalidTitle')}</Typography>
+              <Alert severity="error" sx={{ width: '100%' }}>{t('verifyEmail.errorInvalid')}</Alert>
+              <Button component={RouterLink} to="/signin" variant="contained" fullWidth>
+                {t('verifyEmail.signInNow')}
+              </Button>
+              <Button component={RouterLink} to="/signup" variant="outlined" fullWidth>
+                {t('verifyEmail.tryAgain')}
+              </Button>
+            </>
+          )}
+
+          {state === 'expired' && (
             <>
               <ErrorOutlined sx={{ fontSize: 56, color: 'error.main' }} />
               <Typography variant="h6">{t('verifyEmail.errorTitle')}</Typography>
-              <Alert severity="error" sx={{ width: '100%' }}>
-                {state === 'expired' ? t('verifyEmail.errorExpired') : t('verifyEmail.errorInvalid')}
-              </Alert>
+              <Alert severity="error" sx={{ width: '100%' }}>{t('verifyEmail.errorExpired')}</Alert>
               <Button component={RouterLink} to="/signup" variant="outlined" fullWidth>
                 {t('verifyEmail.tryAgain')}
               </Button>

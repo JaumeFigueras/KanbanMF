@@ -24,6 +24,11 @@ link is valid for 24 hours — if it expires, sign up again to get a new one.
 If the page the link opens says KanbanMF couldn't be reached, check your
 connection and click **Try again**.
 
+The link works only once. If you open it again — a second click, or
+reloading the page — the page says the link can't be used, since KanbanMF
+can't tell a used link from a wrong one. If you've already verified your
+address, click **Sign in**: your account is active.
+
 If the address already has an account, the page says the same, "check your
 e-mail": the e-mail is what tells you that you already have an account, and
 where to sign in. (The page doesn't say it, so that nobody can use it to find

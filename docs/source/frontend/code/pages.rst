@@ -67,5 +67,11 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
    Opened from the verification e-mail: posts the token to
    ``/auth/local/verify-email`` and reports the result. Only a 400 says the
    link is invalid or expired; a server error or no answer offers
-   :guilabel:`Try again`. Unguarded, so it works whether or not the user is
-   signed in.
+   :guilabel:`Try again`. The token works once — the backend forgets it as it
+   verifies the address — so the page sends one check per link, even when
+   React's development mode runs the effect twice (a ref remembers the token
+   it checked); only :guilabel:`Try again` sends another. Opening the link
+   again is still a new page, and the backend can't tell a used token from an
+   unknown one, so "invalid" says the link may have been used already and
+   offers :guilabel:`Sign in` first, then :guilabel:`Back to sign up`.
+   Unguarded, so it works whether or not the user is signed in.
