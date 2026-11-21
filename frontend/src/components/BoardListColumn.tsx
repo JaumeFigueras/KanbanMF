@@ -19,6 +19,7 @@ import { sortCards } from '../utils/cardSort'
 import { apiFetch } from '../api/client'
 import CardDialog from './CardDialog'
 import CardItem from './CardItem'
+import ArchiveAllCardsDialog from './ArchiveAllCardsDialog'
 import LoadFailure from './LoadFailure'
 import RenameListDialog from './RenameListDialog'
 import ChangeListColorDialog from './ChangeListColorDialog'
@@ -94,6 +95,11 @@ export default function BoardListColumn({
   const [renameOpen, setRenameOpen] = useState(false)
   const [cardDialogOpen, setCardDialogOpen] = useState(false)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
+  const [archiveAllOpen, setArchiveAllOpen] = useState(false)
+  // The question counts the cards as they are, and goes if the list empties
+  // meanwhile (someone else archived or moved them), rather than ask about
+  // none — or come back by itself when a card arrives later.
+  if (archiveAllOpen && cards.length === 0) setArchiveAllOpen(false)
   const [listColor, setListColor] = useState<string | null>(initialColor)
 
   const sortedCards = useMemo(
@@ -138,11 +144,17 @@ export default function BoardListColumn({
     setMenuAnchor(null)
   }
 
-  // Archives every card currently in the list, one PATCH per card (there is no
-  // bulk endpoint); each success removes that card from the parent's state,
-  // and the board is told how many couldn't be archived, if any.
-  async function handleArchiveAllCards() {
+  function handleAskArchiveAllCards() {
     closeMenu()
+    setArchiveAllOpen(true)
+  }
+
+  // Once confirmed, archives every card now in the list, one PATCH per card
+  // (there is no bulk endpoint); each success removes that card from the
+  // parent's state, and the board is told how many couldn't be archived, if
+  // any.
+  async function handleArchiveAllCards() {
+    setArchiveAllOpen(false)
     const archived = await Promise.all(
       cards.map(async card => {
         const r = await apiFetch(
@@ -311,7 +323,7 @@ export default function BoardListColumn({
 
       <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
         {!isTemplate && (
-          <MenuItem onClick={handleArchiveAllCards} disabled={cards.length === 0}>
+          <MenuItem onClick={handleAskArchiveAllCards} disabled={cards.length === 0}>
             {t('board.archiveAllCards')}
           </MenuItem>
         )}
@@ -319,6 +331,14 @@ export default function BoardListColumn({
         <MenuItem onClick={handleChangeColor}>{t('board.changeListColor')}</MenuItem>
         <MenuItem onClick={handleArchive}>{t('board.archiveList')}</MenuItem>
       </Menu>
+
+      <ArchiveAllCardsDialog
+        open={archiveAllOpen}
+        listName={list.name}
+        count={cards.length}
+        onClose={() => setArchiveAllOpen(false)}
+        onConfirm={handleArchiveAllCards}
+      />
 
       <RenameListDialog
         open={renameOpen}

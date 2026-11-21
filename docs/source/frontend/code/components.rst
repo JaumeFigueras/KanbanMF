@@ -24,7 +24,8 @@ Boards overview
 
 The board
    ``BoardListColumn`` (a list: header, menu and its cards),
-   ``CreateListDialog``, ``RenameListDialog``, ``ChangeListColorDialog``,
+   ``ArchiveAllCardsDialog`` (asks, with the count, before the list's
+   :guilabel:`Archive All Cards`), ``CreateListDialog``, ``RenameListDialog``, ``ChangeListColorDialog``,
    ``CardItem`` (a draggable card with its menu) around ``CardFace`` (what
    a card shows, reused on the overdue and search pages), ``CardDialog`` (create and edit,
    with labels, dates, people and checklists), ``CardDateField``,

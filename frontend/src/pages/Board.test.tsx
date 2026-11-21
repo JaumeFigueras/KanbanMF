@@ -103,6 +103,12 @@ async function fromListMenu(user: UserEvent, list: string, entry: string) {
   await user.click(await screen.findByRole('menuitem', { name: entry }))
 }
 
+// "Archive All Cards" from a list's menu, then Archive in the question it asks.
+async function archiveAllCards(user: UserEvent, list: string) {
+  await fromListMenu(user, list, 'Archive All Cards')
+  await user.click(within(await screen.findByRole('dialog', { name: 'Archive all cards?' })).getByRole('button', { name: 'Archive' }))
+}
+
 describe('Board', () => {
   describe('the sort mode, as the browser keeps it (6I)', () => {
     const ABOUT = makeCard({ id: 'card-about', list_id: 'list-1', name: 'About page' })
@@ -329,7 +335,7 @@ describe('Board', () => {
       })
       const { user } = await renderBoard()
 
-      await fromListMenu(user, 'To do', 'Archive All Cards')
+      await archiveAllCards(user, 'To do')
 
       expect(await failure()).toHaveTextContent('2 cards in "To do" couldn\'t be archived. Please try again.')
       await waitFor(() => expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1']))
@@ -348,7 +354,7 @@ describe('Board', () => {
       })
       const { user } = await renderBoard()
 
-      await fromListMenu(user, 'To do', 'Archive All Cards')
+      await archiveAllCards(user, 'To do')
 
       expect(await failure()).toHaveTextContent('1 card in "To do" couldn\'t be archived. Please try again.')
     })
@@ -361,7 +367,7 @@ describe('Board', () => {
       })
       const { user } = await renderBoard()
 
-      await fromListMenu(user, 'To do', 'Archive All Cards')
+      await archiveAllCards(user, 'To do')
 
       await waitFor(() => expect(screen.queryByText('Contact form')).not.toBeInTheDocument())
       expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
@@ -620,6 +626,117 @@ describe('Board', () => {
       expect(await screen.findByRole('button', { name: 'Menú de la llista To do' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Afegeix una tarja a To do' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Mou la llista To do' })).toBeInTheDocument()
+    })
+  })
+
+  describe('asking before archiving all cards (6L)', () => {
+    const question = () => screen.findByRole('dialog', { name: 'Archive all cards?' })
+    const THREE = 'Archive the 3 cards in "To do"? To get them back, you restore them one by one from the board\'s archive.'
+
+    // Archiving a card works, and takes it out of the list.
+    function archiving(server: ReturnType<typeof boardServer>) {
+      return fakeEndpoint('patch', CARD_URL, ({ url }) => {
+        server.archived(new URL(url).pathname.split('/').at(-1)!)
+        return HttpResponse.json({})
+      })
+    }
+
+    it('asks first, saying how many cards and from which list, and archives nothing until told to', async () => {
+      const server = boardServer({ more: [CONTACT, SEARCH] })
+      const archived = archiving(server)
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', 'Archive All Cards')
+
+      expect(await question()).toHaveTextContent(THREE)
+      await settle()
+      expect(archived.requests).toHaveLength(0)
+      expect(screen.getByText('Contact form')).toBeInTheDocument()
+      await user.click(within(await question()).getByRole('button', { name: 'Archive' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.queryByText('Contact form')).not.toBeInTheDocument())
+      expect(archived.requests.map((r) => r.url.pathname.split('/').at(-1)).sort()).toEqual(['card-contact', 'card-list-1', 'card-search'])
+      expect(screen.getByText('Footer links')).toBeInTheDocument()
+    })
+
+    it('says it in the singular for a list of one card', async () => {
+      boardServer()
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', 'Archive All Cards')
+
+      expect(await question()).toHaveTextContent('Archive the only card in "To do"? To get it back, you restore it from the board\'s archive.')
+    })
+
+    it.each([
+      ['Cancel', async (user: UserEvent) => user.click(within(await question()).getByRole('button', { name: 'Cancel' }))],
+      ['Escape', async (user: UserEvent) => { await question(); await user.keyboard('{Escape}') }],
+    ])('archives nothing when told not to with %s', async (_way, cancel) => {
+      const server = boardServer({ more: [CONTACT] })
+      const archived = archiving(server)
+      const { user } = await renderBoard()
+      await fromListMenu(user, 'To do', 'Archive All Cards')
+
+      await cancel(user)
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      await settle()
+      expect(archived.requests).toHaveLength(0)
+      expect(screen.getByText('Homepage layout')).toBeInTheDocument()
+      expect(screen.getByText('Contact form')).toBeInTheDocument()
+    })
+
+    it('counts the cards as they are when someone else archives one meanwhile, and archives the ones left', async () => {
+      const server = boardServer({ more: [CONTACT, SEARCH] })
+      const archived = archiving(server)
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      await fromListMenu(user, 'To do', 'Archive All Cards')
+      expect(await question()).toHaveTextContent(THREE)
+
+      server.archived('card-search')
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+
+      await waitFor(async () => expect(await question()).toHaveTextContent('Archive the 2 cards in "To do"?'))
+      await user.click(within(await question()).getByRole('button', { name: 'Archive' }))
+      await waitFor(() => expect(screen.queryByText('Contact form')).not.toBeInTheDocument())
+      expect(archived.requests.map((r) => r.url.pathname.split('/').at(-1)).sort()).toEqual(['card-contact', 'card-list-1'])
+    })
+
+    it("goes by itself when the list empties meanwhile, and doesn't come back when a card arrives", async () => {
+      const more: CardRead[] = []
+      const server = boardServer({ more })
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      await fromListMenu(user, 'To do', 'Archive All Cards')
+      await question()
+
+      server.archived('card-list-1')
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      more.push(CONTACT)
+      socket.receive({ type: 'card_created', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      expect(await screen.findByText('Contact form')).toBeInTheDocument()
+      await settle()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it.each<[string, CardRead[], string]>([
+      ['one card', [], 'Vols arxivar l\'única targeta de "To do"? Per recuperar-la, l\'has de restaurar des de l\'arxiu del tauler.'],
+      ['two cards', [CONTACT], 'Vols arxivar les 2 targetes de "To do"? Per recuperar-les, les has de restaurar una per una des de l\'arxiu del tauler.'],
+      ['three cards', [CONTACT, SEARCH], 'Vols arxivar les 3 targetes de "To do"? Per recuperar-les, les has de restaurar una per una des de l\'arxiu del tauler.'],
+    ])('asks in Catalan for a user who reads Catalan (%s)', async (_case, more, message) => {
+      boardServer({ more })
+      const { user } = renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: { language_locale: 'ca_ES' } })
+
+      await user.click(await screen.findByRole('button', { name: 'Menú de la llista To do' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Arxiva totes les targetes' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Arxivar totes les targetes?' })
+      expect(dialog).toHaveTextContent(message)
+      expect(within(dialog).getByRole('button', { name: 'Arxiva' })).toBeInTheDocument()
+      expect(within(dialog).getByRole('button', { name: 'Cancel·la' })).toBeInTheDocument()
     })
   })
 })

@@ -176,7 +176,9 @@ the list menu (☰).
 
 :guilabel:`Archive All Cards`
    Archive every card in the list in one go — handy for clearing out a
-   *Done* list. The list itself stays.
+   *Done* list. The list itself stays. It asks first, saying how many cards
+   it will archive, since getting them back means restoring them one by one
+   from the :ref:`archive <manual-archive>`.
 
 :guilabel:`Rename List`
    Change the list's name.
