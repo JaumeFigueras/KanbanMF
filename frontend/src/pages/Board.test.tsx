@@ -8,7 +8,7 @@ import { blockSiteData } from '../test/blockSiteData'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
 import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
-import { makeBoard, makeCard, makeLabel, makeList } from '../test/fixtures'
+import { makeBoard, makeCard, makeLabel, makeList, makeUser } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
 import Board from './Board'
 
@@ -38,7 +38,7 @@ function boardServer({ more = [] }: { more?: CardRead[] } = {}) {
     ...more.filter((c) => c.list_id === listId),
   ].filter((c) => !archived.has(c.id))
   const listOf = (url: string, from: number) => new URL(url).pathname.split('/').at(from)!
-  fakeEndpoint('get', '/api/v1/boards/:boardId', unless('board', () => HttpResponse.json(BOARD)))
+  const board = fakeEndpoint('get', '/api/v1/boards/:boardId', unless('board', () => HttpResponse.json(BOARD)))
   const lists = fakeEndpoint('get', '/api/v1/boards/:boardId/lists', unless('lists', () => HttpResponse.json([TODO, DOING])))
   fakeEndpoint('get', '/api/v1/boards/:boardId/lists/order', () => HttpResponse.json({ board_id: 'board-1', list_ids: ['list-1', 'list-2'] }))
   fakeEndpoint('get', '/api/v1/boards/:boardId/colors', () => HttpResponse.json({ board: null, lists: {}, cards: {} }))
@@ -63,6 +63,7 @@ function boardServer({ more = [] }: { more?: CardRead[] } = {}) {
       return loads
     },
     listLoads: () => lists.requests.length,
+    boardLoads: () => board.requests.length,
     labelIs: (next: LabelRead) => { label = next },
     archived: (cardId: string) => { archived.add(cardId) },
   }
@@ -598,6 +599,113 @@ describe('Board', () => {
 
       await screen.findByText('Homepage layout')
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('who you are (6Q)', () => {
+    // The page asks who you are itself, as does its top bar: signed out, the
+    // test answers both.
+    function whoYouAre(first: Answer) {
+      let answer = first
+      fakeEndpoint('get', '/api/v1/users/me', (request) => answer(request))
+      return { answers: (next: Answer) => { answer = next } }
+    }
+    const renderSignedOut = () => renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId' })
+
+    it.each([
+      ['a server error', SERVER_ERROR],
+      ['a dropped connection', DROPPED],
+    ])("says the board couldn't be loaded when it fails with %s, and loads it with Try again", async (_case, answer) => {
+      boardServer()
+      const me = whoYouAre(answer)
+      const { user } = renderSignedOut()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("This board couldn't be loaded.")
+      expect(screen.queryByText('To do')).not.toBeInTheDocument()
+      me.answers(() => HttpResponse.json(makeUser({ id: 'user-1' })))
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      await screen.findByText('Homepage layout')
+      expect(screen.getByText('Footer links')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('brings the message back if who you are fails again', async () => {
+      boardServer()
+      const me = whoYouAre(SERVER_ERROR)
+      const { user } = renderSignedOut()
+      await screen.findByText("This board couldn't be loaded.")
+      const held = heldAnswer(SERVER_ERROR)
+      me.answers(held.answer)
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(screen.queryByText("This board couldn't be loaded.")).not.toBeInTheDocument()
+      held.release()
+      expect(await screen.findByText("This board couldn't be loaded.")).toBeInTheDocument()
+    })
+  })
+
+  describe('a board you have lost (6Q)', () => {
+    it.each([
+      ['refused (403)', 403],
+      ['gone (404)', 404],
+    ])('goes straight to Forbidden when its lists are %s before the board is', async (_case, status) => {
+      const server = boardServer()
+      const refused: Answer = () => HttpResponse.json({ detail: 'No' }, { status })
+      const held = heldAnswer(refused)
+      server.fail('board', held.answer)
+      server.fail('lists', refused)
+      renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: true })
+      // The lists are refused; the board's answer is still to come.
+      await waitFor(() => expect(server.listLoads()).toBe(1))
+      await settle()
+
+      expect(screen.queryByText("This board couldn't be loaded.")).not.toBeInTheDocument()
+      held.release()
+
+      expect(await screen.findByText('Forbidden')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it("asks for the board again when its lists are refused, and says they couldn't be loaded if it still opens", async () => {
+      const server = boardServer()
+      const held = heldAnswer(() => HttpResponse.json(BOARD))
+      server.fail('board', held.answer)
+      server.fail('lists', REFUSED)
+      renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: true })
+      await waitFor(() => expect(server.boardLoads()).toBe(2))
+      await settle()
+
+      expect(screen.queryByText("This board couldn't be loaded.")).not.toBeInTheDocument()
+      held.release()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("This board couldn't be loaded.")
+      expect(screen.queryByText('Forbidden')).not.toBeInTheDocument()
+    })
+
+    it("asks for the board once when its lists fail otherwise, and says so at once", async () => {
+      const server = boardServer()
+      server.fail('lists')
+      renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: true })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("This board couldn't be loaded.")
+      await settle()
+      expect(server.boardLoads()).toBe(1)
+    })
+
+    it('shows Forbidden when a change to its lists finds them refused, as the board is', async () => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      server.fail('board', REFUSED)
+      server.fail('lists', REFUSED)
+
+      socket.receive({ type: 'list_renamed', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+
+      expect(await screen.findByText('Forbidden')).toBeInTheDocument()
+      expect(screen.queryByText("This board couldn't be loaded.")).not.toBeInTheDocument()
     })
   })
 

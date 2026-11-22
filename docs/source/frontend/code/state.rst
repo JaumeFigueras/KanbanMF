@@ -28,7 +28,8 @@ component state. What is shared lives in two contexts and two API modules.
    ``Authorization`` and ``X-Client-Id`` headers, and on a ``401`` refreshes
    the token once and retries. ``loadJson()`` is the same for loading data:
    it gives the answer's JSON, and rejects any answer that isn't ``ok`` just
-   as a dropped connection. Also ``refreshAccessToken()`` (one refresh at
+   as a dropped connection, with an ``HttpError`` that carries the status
+   (so a refusal can be told from a server error). Also ``refreshAccessToken()`` (one refresh at
    a time, shared by concurrent callers; it signs out only when refused, and
    rejects with ``RefreshUnanswered``, keeping the token, when it gets no
    answer or a server error), the access token itself with

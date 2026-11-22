@@ -5,31 +5,34 @@ import { blockSiteData } from '../test/blockSiteData'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
 import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
-import { makeBoard } from '../test/fixtures'
+import { makeBoard, makeUser } from '../test/fixtures'
 import { renderWithProviders, type RenderOptions } from '../test/render'
 import type { UserEvent } from '@testing-library/user-event'
+import type { BoardRead } from '../types/board'
 import Boards from './Boards'
 
 const WEBSITE = makeBoard({ id: 'board-1', name: 'Website redesign', owner_id: 'user-1' })
 const OLD_SITE = makeBoard({ id: 'board-2', name: 'Old site', owner_id: 'user-1', is_archived: true })
+const SPRINT = makeBoard({ id: 'board-3', name: 'Sprint template', owner_id: 'user-1', is_template: true })
 
 // What can be made to fail: the boards (with their order), and the archived
 // boards.
 type Failing = 'boards' | 'order' | 'archived'
 
 // The boards page's requests: one board of the user's own, starred or not,
-// and one archived board. `server.restored()` moves the archived board among
+// any templates, and one archived board. `server.restored()` moves the archived board among
 // the user's own from then on. `server.fail(...)` makes a load fail from then
 // on (a server error, unless told otherwise), and `server.recover(...)` makes
 // it work again.
-function boardsServer({ starred = false }: { starred?: boolean } = {}) {
+function boardsServer({ starred = false, templates = [] }: { starred?: boolean, templates?: BoardRead[] } = {}) {
   let restored = false
   const down = new Map<Failing, Answer>()
   const unless = (what: Failing, answer: Answer): Answer => (request) => (down.get(what) ?? answer)(request)
   const owned = () => [{ ...WEBSITE, is_starred: starred }, ...(restored ? [{ ...OLD_SITE, is_archived: false }] : [])]
-  const boards = fakeEndpoint('get', '/api/v1/boards', unless('boards', () => HttpResponse.json({ owned: owned(), shared: [], templates: [] })))
+  const boards = fakeEndpoint('get', '/api/v1/boards', unless('boards', () => HttpResponse.json({ owned: owned(), shared: [], templates })))
   fakeEndpoint('get', '/api/v1/boards/order', unless('order', () => HttpResponse.json({
-    starred_ids: starred ? ['board-1'] : [], owned_ids: owned().map((b) => b.id), shared_ids: [], template_ids: [],
+    starred_ids: starred ? ['board-1'] : [], owned_ids: owned().map((b) => b.id), shared_ids: [],
+    template_ids: templates.map((b) => b.id),
   })))
   const archived = fakeEndpoint('get', '/api/v1/boards/archived', unless('archived', () => HttpResponse.json(restored ? [] : [OLD_SITE])))
   fakeEndpoint('get', '/api/v1/boards/:boardId/color', () => HttpResponse.json({ color: null }))
@@ -347,6 +350,102 @@ describe('Boards', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent("The archived boards couldn't be loaded.")
       const section = screen.getByText('Archived Boards').closest<HTMLElement>('.MuiAccordion-root')!
       expect(within(section).queryByText('No boards here yet.')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('who you are (6Q)', () => {
+    // The page asks who you are itself, as does its top bar: signed out, the
+    // test answers both.
+    function whoYouAre(first: Answer) {
+      let answer = first
+      fakeEndpoint('get', '/api/v1/users/me', (request) => answer(request))
+      return { answers: (next: Answer) => { answer = next } }
+    }
+    const YOU: Answer = () => HttpResponse.json(makeUser({ id: 'user-1' }))
+
+    // The entries of a board tile's menu, which closes again.
+    async function menuOf(user: UserEvent, board: string) {
+      await user.click(screen.getByRole('button', { name: `Menu for ${board}` }))
+      const entries = (await screen.findAllByRole('menuitem')).map((e) => e.textContent)
+      await user.keyboard('{Escape}')
+      return entries
+    }
+
+    it.each([
+      ['a server error', SERVER_ERROR],
+      ['a dropped connection', DROPPED],
+    ])("says the boards couldn't be loaded when it fails with %s, rather than show your templates as someone else's", async (_case, answer) => {
+      const server = boardsServer({ templates: [SPRINT] })
+      const me = whoYouAre(answer)
+      const { user } = renderWithProviders(<Boards />, { route: '/boards' })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Your boards couldn't be loaded.")
+      expect(screen.queryByText('Sprint template')).not.toBeInTheDocument()
+      expect(screen.queryByText('Website redesign')).not.toBeInTheDocument()
+      me.answers(YOU)
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      await screen.findByText('Sprint template')
+      expect(await menuOf(user, 'Sprint template')).toEqual(['Change Name', 'Change Color', 'Share', 'Duplicate', 'Archive Template'])
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      // The boards had come: only who you are is asked again.
+      expect(server.boardLoads()).toBe(1)
+    })
+
+    it('asks again for the boards too when both failed', async () => {
+      const server = boardsServer()
+      server.fail('boards')
+      const me = whoYouAre(SERVER_ERROR)
+      const { user } = renderWithProviders(<Boards />, { route: '/boards' })
+      await screen.findByText("Your boards couldn't be loaded.")
+      server.recover('boards')
+      me.answers(YOU)
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      await screen.findByText('Website redesign')
+      expect(server.boardLoads()).toBe(2)
+    })
+
+    it('brings the message back if who you are fails again', async () => {
+      boardsServer()
+      const me = whoYouAre(SERVER_ERROR)
+      const { user } = renderWithProviders(<Boards />, { route: '/boards' })
+      await screen.findByText("Your boards couldn't be loaded.")
+      const held = heldAnswer(SERVER_ERROR)
+      me.answers(held.answer)
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(screen.queryByText("Your boards couldn't be loaded.")).not.toBeInTheDocument()
+      held.release()
+      expect(await screen.findByText("Your boards couldn't be loaded.")).toBeInTheDocument()
+    })
+
+    it('shows no sections until it knows who you are, and then your templates as yours', async () => {
+      const server = boardsServer({ templates: [SPRINT] })
+      const held = heldAnswer(YOU)
+      whoYouAre(held.answer)
+      const { user } = renderWithProviders(<Boards />, { route: '/boards' })
+      await waitFor(() => expect(server.boardLoads()).toBe(1))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(screen.queryByText('Sprint template')).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Templates \(/)).not.toBeInTheDocument()
+      held.release()
+
+      await screen.findByText('Sprint template')
+      expect(await menuOf(user, 'Sprint template')).toContain('Archive Template')
+    })
+
+    it("keeps someone else's template theirs", async () => {
+      boardsServer({ templates: [{ ...SPRINT, owner_id: 'user-2' }] })
+      whoYouAre(YOU)
+      const { user } = renderWithProviders(<Boards />, { route: '/boards' })
+      await screen.findByText('Sprint template')
+
+      expect(await menuOf(user, 'Sprint template')).toEqual(['Change Color', 'Duplicate'])
     })
   })
 

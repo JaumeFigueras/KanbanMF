@@ -47,7 +47,7 @@ import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
 import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isSortMode, isUndated, sortCards } from '../utils/cardSort'
 import { readStored, writeStored } from '../utils/storage'
-import { apiFetch, loadJson } from '../api/client'
+import { HttpError, apiFetch, loadJson } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
 const BOARD_ACCESS_EVENT_TYPES = new Set(['board_archived', 'board_unshared', 'board_deleted'])
@@ -161,7 +161,11 @@ export default function Board() {
   // The lists whose cards couldn't be loaded. Each says so in its column,
   // rather than look empty, until it's tried again.
   const [cardsFailed, setCardsFailed] = useState<ReadonlySet<string>>(() => new Set())
+  // Who this viewer is, to tell whether they own the board. Its failure
+  // fails the page too, as the archive view would otherwise hide the owner's
+  // Delete without a word.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [meFailed, setMeFailed] = useState(false)
 
   useEffect(() => {
     if (!boardId) return
@@ -182,9 +186,11 @@ export default function Board() {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   )
 
-  const fetchBoard = useCallback(() => {
-    if (!boardId) return
-    apiFetch(`/api/v1/boards/${boardId}`)
+  // Resolves to whether the board opened: not when it's refused (the
+  // Forbidden page) or couldn't be loaded.
+  const fetchBoard = useCallback((): Promise<boolean> => {
+    if (!boardId) return Promise.resolve(false)
+    return apiFetch(`/api/v1/boards/${boardId}`)
       .then(r => {
         if (r.status === 403 || r.status === 404) {
           setAccessDenied(true)
@@ -194,11 +200,15 @@ export default function Board() {
         return r.json() as Promise<BoardRead>
       })
       .then(data => {
-        if (!data) return
+        if (!data) return false
         setBoard(data)
         setBoardFailed(false)
+        return true
       })
-      .catch(() => setBoardFailed(true))
+      .catch(() => {
+        setBoardFailed(true)
+        return false
+      })
   }, [boardId])
 
   useEffect(() => { fetchBoard() }, [fetchBoard])
@@ -218,12 +228,16 @@ export default function Board() {
 
   // Needed to tell whether *this* viewer is the board owner — permanently
   // deleting a list or card in the archive view is an owner-only action.
-  useEffect(() => {
-    apiFetch('/api/v1/users/me')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setCurrentUserId(data.id) })
-      .catch(() => {})
+  const fetchMe = useCallback(() => {
+    loadJson<{ id: string }>('/api/v1/users/me')
+      .then(data => {
+        setCurrentUserId(data.id)
+        setMeFailed(false)
+      })
+      .catch(() => setMeFailed(true))
   }, [])
+
+  useEffect(() => { fetchMe() }, [fetchMe])
 
   const isOwner = board?.owner_id === currentUserId
 
@@ -247,8 +261,18 @@ export default function Board() {
         setColors(fetchedColors)
         setListsFailed(false)
       })
-      .catch(() => setListsFailed(true))
-  }, [boardId])
+      .catch((error) => {
+        // A refusal most likely means the board was taken away (unshared,
+        // archived, deleted). The board's own answer decides: the Forbidden
+        // page, or, if it still opens, the lists' failure. Saying so before
+        // that would flash "couldn't be loaded" on the way to Forbidden.
+        if (error instanceof HttpError && (error.status === 403 || error.status === 404)) {
+          fetchBoard().then(opened => { if (opened) setListsFailed(true) })
+        } else {
+          setListsFailed(true)
+        }
+      })
+  }, [boardId, fetchBoard])
 
   useEffect(() => {
     fetchLists()
@@ -328,6 +352,10 @@ export default function Board() {
     cardsFailed.forEach(retryCards)
     fetchBoard()
     fetchLists()
+    if (meFailed) {
+      setMeFailed(false)
+      fetchMe()
+    }
   }
 
   // Card changes made elsewhere (owner's other session, or a shared member)
@@ -796,7 +824,7 @@ export default function Board() {
     )
   }
 
-  if (boardFailed || listsFailed) {
+  if (boardFailed || listsFailed || meFailed) {
     return (
       <>
         <MainAppBar

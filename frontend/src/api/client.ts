@@ -125,12 +125,24 @@ export async function apiFetch(url: string, init: RequestInit = {}): Promise<Res
   return response
 }
 
+// What loadJson rejects with when the server answers, but not with the
+// data: its status tells a refusal (403, 404) from a server error.
+export class HttpError extends Error {
+  readonly status: number
+
+  constructor(url: string, status: number) {
+    super(`${url} answered ${status}`)
+    this.name = 'HttpError'
+    this.status = status
+  }
+}
+
 // For loading data: the answer's JSON, or a rejection for a refusal or a
 // server error just as for a dropped connection. A failed load then can't
 // be read as "nothing here" (an empty list, no boards), and the page can say
 // it couldn't load instead.
 export async function loadJson<T>(url: string): Promise<T> {
   const response = await apiFetch(url)
-  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
+  if (!response.ok) throw new HttpError(url, response.status)
   return response.json() as Promise<T>
 }

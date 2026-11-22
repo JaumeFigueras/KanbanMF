@@ -237,6 +237,28 @@ dropped on it goes back, since the order the drop saves would leave out the
 cards not shown. The board itself, or its lists, failing replaces the whole
 page.
 
+The boards page and the board page also ask ``/users/me`` who the user is,
+and that answer is part of their load. On the boards page it tells which
+templates are the user's own (the Templates section mixes theirs with shared
+ones); on the board page it tells whether the user owns the board, which
+shows :guilabel:`Delete` in the archive. Without it, a template of the user's
+would look like someone else's and Delete would be missing, without a word.
+So the boards page shows its sections once both the boards and that answer
+are in, and its failure shows the same ``LoadFailure`` as the boards'; on the
+board page it fails the page as the board does. Try again asks again for
+whichever failed.
+
+A board's lists refused (``403`` or ``404``) most likely mean the board was
+taken away — unshared, archived for someone it was shared with, deleted —
+and the board's own answer then shows the Forbidden page. The lists usually
+answer first, though, so saying they couldn't be loaded would flash on the
+way to Forbidden. A refused list asks for the board again instead, and waits
+for that answer: Forbidden, or, if the board still opens, the lists' failure.
+``loadJson()`` rejects with an ``HttpError`` carrying the status, which is
+how the page tells a refusal from a server error; any other failure of the
+lists says so at once. A notification that fetches the lists after the user
+lost the board thus also ends on Forbidden.
+
 The top bar loads the user's profile on every signed-in page. A failure leaves
 the page where it is, and puts :guilabel:`Try again` at the top of the user
 menu. The name and the language dialogs start from that profile, and save

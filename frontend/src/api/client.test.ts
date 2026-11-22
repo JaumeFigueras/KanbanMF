@@ -5,6 +5,7 @@ import {
   apiFetch,
   getAccessToken,
   getClientId,
+  HttpError,
   loadJson,
   onAccessTokenChange,
   refreshAccessToken,
@@ -369,13 +370,18 @@ describe('loadJson', () => {
     ['refusal', 403],
     ['missing board', 404],
     ['server error', 500],
-  ])('rejects a %s (%d), so it is never read as no data', async (_, status) => {
+  ])('rejects a %s (%d) with its status, so it is never read as no data', async (_, status) => {
     server.use(http.get('/api/v1/boards', () => HttpResponse.json({ detail: 'no' }, { status })))
-    await expect(loadJson('/api/v1/boards')).rejects.toThrow(`/api/v1/boards answered ${status}`)
+    const rejection = loadJson('/api/v1/boards')
+    await expect(rejection).rejects.toThrow(`/api/v1/boards answered ${status}`)
+    await expect(rejection).rejects.toBeInstanceOf(HttpError)
+    await expect(rejection).rejects.toMatchObject({ status })
   })
 
-  it('rejects when the connection drops', async () => {
+  it('rejects when the connection drops, with no status', async () => {
     server.use(http.get('/api/v1/boards', () => HttpResponse.error()))
-    await expect(loadJson('/api/v1/boards')).rejects.toThrow()
+    const rejection = loadJson('/api/v1/boards')
+    await expect(rejection).rejects.toThrow()
+    await expect(rejection).rejects.not.toBeInstanceOf(HttpError)
   })
 })

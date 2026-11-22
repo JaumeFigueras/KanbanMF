@@ -103,7 +103,10 @@ export default function Boards() {
 
   // Owned and shared templates share one section, so which ones this user
   // owns (and may rename/share/archive) is decided by owner_id, not section.
+  // The sections wait for it as for the boards, and fail with it: a template
+  // of yours would otherwise look like someone else's, without a word.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [meLoad, setMeLoad] = useState<LoadState>('loading')
 
   // This user's personal color per board, keyed by board id. Lifted up here
   // (rather than fetched inside BoardCard) because a starred board renders
@@ -178,11 +181,31 @@ export default function Boards() {
       .catch(() => setArchivedLoad('failed'))
   }, [])
 
-  // Try again: what was there goes while it loads, so a second failure
-  // shows as a new answer rather than nothing happening.
+  const fetchMe = useCallback(() => {
+    loadJson<{ id: string }>('/api/v1/users/me')
+      .then(data => {
+        setCurrentUserId(data.id)
+        setMeLoad('loaded')
+      })
+      .catch(() => setMeLoad('failed'))
+  }, [])
+
+  // The boards' sections: shown once the boards and who you are are both in.
+  const sectionsLoad: LoadState = boardsLoad === 'failed' || meLoad === 'failed' ? 'failed'
+    : boardsLoad === 'loaded' && meLoad === 'loaded' ? 'loaded'
+      : 'loading'
+
+  // Try again, for whichever failed: what was there goes while it loads, so
+  // a second failure shows as a new answer rather than nothing happening.
   function retryBoards() {
-    setBoardsLoad('loading')
-    fetchBoards()
+    if (boardsLoad === 'failed') {
+      setBoardsLoad('loading')
+      fetchBoards()
+    }
+    if (meLoad === 'failed') {
+      setMeLoad('loading')
+      fetchMe()
+    }
   }
 
   function retryArchivedBoards() {
@@ -219,12 +242,7 @@ export default function Boards() {
     }, { replace: true })
   }, [searchParams, setSearchParams])
 
-  useEffect(() => {
-    apiFetch('/api/v1/users/me')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setCurrentUserId(data.id) })
-      .catch(() => {})
-  }, [])
+  useEffect(() => { fetchMe() }, [fetchMe])
 
   // Fetch this user's color for each board the first time it's seen; boards
   // already fetched are skipped so re-renders (e.g. a star toggle) don't
@@ -580,10 +598,10 @@ export default function Boards() {
           </Button>
         </Box>
 
-        {boardsLoad === 'failed' && (
+        {sectionsLoad === 'failed' && (
           <LoadFailure message={t('boards.loadFailed')} onRetry={retryBoards} />
         )}
-        {boardsLoad === 'loaded' && (
+        {sectionsLoad === 'loaded' && (
           <>
             {/* Starred */}
             <Accordion expanded={accordion.starred} onChange={() => toggleAccordion('starred')}>
