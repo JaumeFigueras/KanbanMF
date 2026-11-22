@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { Route, Routes, useLocation } from 'react-router-dom'
-import type { CardRead, LabelRead } from '../types/board'
+import type { BoardColorsRead, CardRead, ChecklistRead, LabelRead } from '../types/board'
 import { getClientId } from '../api/client'
 import { blockSiteData } from '../test/blockSiteData'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
@@ -118,6 +118,71 @@ async function fromListMenu(user: UserEvent, list: string, entry: string) {
 async function archiveAllCards(user: UserEvent, list: string) {
   await fromListMenu(user, list, 'Archive All Cards')
   await user.click(within(await screen.findByRole('dialog', { name: 'Archive all cards?' })).getByRole('button', { name: 'Archive' }))
+}
+
+// The address the router is at.
+function Address() {
+  const location = useLocation()
+  return <p data-testid="address">{location.pathname + location.search}</p>
+}
+const address = () => screen.getByTestId('address').textContent
+
+// The board page at an address (as /boards/board-1?card=…), shown on
+// /boards/:boardId only, as the app does, with the address beside it.
+function renderBoardAt(route: string) {
+  const page = (
+    <>
+      <Routes>
+        <Route path="/boards/:boardId" element={<Board />} />
+        <Route path="*" element={null} />
+      </Routes>
+      <Address />
+    </>
+  )
+  return renderWithProviders(page, { route, auth: true })
+}
+
+// The colours the viewer has chosen on the board, as the server has them
+// from now on.
+function coloursAre(colors: Partial<BoardColorsRead>) {
+  fakeEndpoint('get', '/api/v1/boards/:boardId/colors', () => HttpResponse.json({ board: null, lists: {}, cards: {}, ...colors }))
+}
+
+// The list whose cards a request asks for.
+const listOfCards = (url: string) => new URL(url).pathname.split('/').at(-2)!
+
+// A list's header, underlined in the list's colour, and a card, outlined
+// in its own.
+const listHeader = (name: string) => screen.getByText(name).parentElement!
+const cardBox = (name: string) => screen.getByText(name).closest<HTMLElement>('.MuiCard-root')!
+const DEFAULT_PURPLE = '#9C27B0'
+
+// The lists, by name, in the order the page shows them.
+const listOrder = () => screen.getAllByRole('button', { name: /^Menu for the list / })
+  .map((button) => button.getAttribute('aria-label')!.replace('Menu for the list ', ''))
+
+// What the card dialog asks for (the board's people, and the card's
+// checklists once saved), and the card it saves, created or changed.
+function cardSaves(saved: CardRead) {
+  fakeEndpoint('get', '/api/v1/boards/:boardId/members', () => HttpResponse.json([]))
+  fakeEndpoint('get', `${CARD_URL}/checklists`, () => HttpResponse.json([]))
+  return {
+    created: fakeEndpoint('post', CARDS_URL, () => HttpResponse.json(saved, { status: 201 })),
+    updated: fakeEndpoint('patch', CARD_URL, () => HttpResponse.json(saved)),
+  }
+}
+
+// Adds a card to a list from its header's button, under the name given.
+async function addCard(user: UserEvent, list: string, name: string) {
+  await user.click(screen.getByRole('button', { name: `Add a card to ${list}` }))
+  await user.type(screen.getByRole('textbox', { name: /^Card name/ }), name)
+  await user.click(screen.getByRole('button', { name: 'Save' }))
+}
+
+// The board's archive: no archived lists, and the archived cards given.
+function archiveHolds(cards: CardRead[]) {
+  fakeEndpoint('get', '/api/v1/boards/:boardId/lists/archived', () => HttpResponse.json([]))
+  fakeEndpoint('get', '/api/v1/boards/:boardId/cards/archived', () => HttpResponse.json(cards))
 }
 
 describe('Board', () => {
@@ -989,34 +1054,522 @@ describe('Board', () => {
 
   // 6V: it was a button, which can't open the boards in a new tab.
   describe('going back to the boards', () => {
-    function Address() {
-      const location = useLocation()
-      return <p data-testid="address">{location.pathname + location.search}</p>
-    }
-
     it.each([
       ['refused', 'Forbidden', () => HttpResponse.json({ detail: 'Forbidden' }, { status: 403 })],
       ['archived', 'Board Archived', () => HttpResponse.json({ ...BOARD, is_archived: true })],
     ])('goes back from a link when the board is %s', async (_case, title, answer: Answer) => {
       boardServer()
       fakeEndpoint('get', '/api/v1/boards/:boardId', answer)
-      const page = (
-        <>
-          <Routes>
-            <Route path="/boards/:boardId" element={<Board />} />
-            <Route path="*" element={null} />
-          </Routes>
-          <Address />
-        </>
-      )
-      const { user } = renderWithProviders(page, { route: '/boards/board-1', auth: true })
+      const { user } = renderBoardAt('/boards/board-1')
       expect(await screen.findByText(title)).toBeInTheDocument()
       const back = screen.getByRole('link', { name: 'Back to Boards' })
       expect(back).toHaveAttribute('href', '/boards')
 
       await user.click(back)
 
-      expect(screen.getByTestId('address').textContent).toBe('/boards')
+      expect(address()).toBe('/boards')
+    })
+  })
+  // 5G: a list's colour, like a card's, lives in the board's colours only,
+  // which is what the floating copy of a dragged list or card is drawn from.
+  describe('colours (5G)', () => {
+    it("repaints a list in the colour chosen from its menu, and gives it to the cards added to it", async () => {
+      boardServer()
+      const saved = fakeEndpoint('put', `${LIST_URL}/color`)
+      const { created } = cardSaves(makeCard({ id: 'card-new', list_id: 'list-1', name: 'Contact form' }))
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', 'Change Color')
+      await user.click(screen.getByRole('button', { name: '#4CAF50' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(listHeader('To do')).toHaveStyle({ borderBottomColor: '#4CAF50' }))
+      expect(saved.requests.map((r) => [r.url.pathname, r.body])).toEqual([['/api/v1/boards/board-1/lists/list-1/color', { color: '#4CAF50' }]])
+      expect(listHeader('Doing')).toHaveStyle({ borderBottomColor: DEFAULT_PURPLE })
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      await addCard(user, 'To do', 'Contact form')
+
+      expect(await screen.findByText('Contact form')).toBeInTheDocument()
+      expect(created.requests).toHaveLength(1)
+      expect(cardBox('Contact form')).toHaveStyle({ borderColor: '#4CAF50' })
+    })
+
+    it("goes back to the default colour once a list's colour is reset", async () => {
+      boardServer()
+      coloursAre({ lists: { 'list-1': '#2196F3' } })
+      fakeEndpoint('delete', `${LIST_URL}/color`)
+      const { user } = await renderBoard()
+      expect(listHeader('To do')).toHaveStyle({ borderBottomColor: '#2196F3' })
+
+      await fromListMenu(user, 'To do', 'Change Color')
+      await user.click(screen.getByRole('button', { name: 'Reset to default' }))
+
+      await waitFor(() => expect(listHeader('To do')).toHaveStyle({ borderBottomColor: DEFAULT_PURPLE }))
+    })
+
+    it("keeps none of its own: a list shows the colour fetched again on a change", async () => {
+      boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      expect(listHeader('To do')).toHaveStyle({ borderBottomColor: DEFAULT_PURPLE })
+      coloursAre({ lists: { 'list-1': '#F44336' } })
+
+      socket.receive({ type: 'list_renamed', board_id: 'board-1', list_id: null, origin_client_id: null })
+
+      await waitFor(() => expect(listHeader('To do')).toHaveStyle({ borderBottomColor: '#F44336' }))
+    })
+
+    it("keeps a card's colour chosen from its menu when the card is drawn afresh in another list", async () => {
+      boardServer()
+      fakeEndpoint('put', `${CARD_URL}/color`)
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+
+      await user.click(screen.getByRole('button', { name: 'Menu for Homepage layout' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Change Color' }))
+      await user.click(screen.getByRole('button', { name: '#4CAF50' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(cardBox('Homepage layout')).toHaveStyle({ borderColor: '#4CAF50' }))
+
+      // Moved to Doing in another tab, so drawn there by a column of its own.
+      fakeEndpoint('get', CARDS_URL, ({ url }) => HttpResponse.json(listOfCards(url) === 'list-1' ? [] : [
+        makeCard({ id: 'card-list-2', list_id: 'list-2', name: 'Footer links' }),
+        makeCard({ id: 'card-list-1', list_id: 'list-2', name: 'Homepage layout' }),
+      ]))
+      socket.receive({ type: 'card_moved', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_moved', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+
+      await waitFor(() => expect(within(column('Doing')).getByText('Homepage layout')).toBeInTheDocument())
+      expect(cardBox('Homepage layout')).toHaveStyle({ borderColor: '#4CAF50' })
+    })
+  })
+
+  describe('the address', () => {
+    it("opens the card ?card= names once its list is in, and takes it off the address on closing", async () => {
+      boardServer()
+      cardSaves(makeCard())
+      const { user } = renderBoardAt('/boards/board-1?card=card-list-2')
+
+      const dialog = await screen.findByRole('dialog', { name: 'Edit Card' })
+      expect(within(dialog).getByRole('textbox', { name: /^Card name/ })).toHaveValue('Footer links')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(address()).toBe('/boards/board-1')
+    })
+
+    it('opens nothing for a card that isn\'t on the board', async () => {
+      boardServer()
+      renderBoardAt('/boards/board-1?card=card-elsewhere')
+      await screen.findByText('Homepage layout')
+      await screen.findByText('Footer links')
+      await settle()
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('shows on the board what is saved in the card it opened', async () => {
+      boardServer()
+      const { updated } = cardSaves(makeCard({ id: 'card-list-2', list_id: 'list-2', name: 'Footer links v2' }))
+      const { user } = renderBoardAt('/boards/board-1?card=card-list-2')
+      const dialog = await screen.findByRole('dialog', { name: 'Edit Card' })
+
+      await user.type(within(dialog).getByRole('textbox', { name: /^Card name/ }), ' v2')
+      await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+      expect(await within(column('Doing')).findByText('Footer links v2')).toBeInTheDocument()
+      expect(updated.requests[0].url.pathname).toBe('/api/v1/boards/board-1/lists/list-2/cards/card-list-2')
+    })
+
+    it('opens the archive for ?archive=1, outlines the card &highlight= names, and takes both off the address', async () => {
+      boardServer()
+      archiveHolds([makeCard({ id: 'card-old', list_id: 'list-1', name: 'Old hero', is_archived: true })])
+      const scrolled = vi.fn()
+      Element.prototype.scrollIntoView = scrolled
+      // @ts-expect-error -- jsdom has none; put it back that way.
+      onTestFinished(() => { delete Element.prototype.scrollIntoView })
+      renderBoardAt('/boards/board-1?archive=1&highlight=card-old')
+
+      expect(await screen.findByRole('button', { name: 'Return to Board' })).toBeInTheDocument()
+      await waitFor(() => expect(scrolled).toHaveBeenCalled())
+      expect(scrolled.mock.contexts[0]).toBe(cardBox('Old hero'))
+      expect(cardBox('Old hero')).toHaveStyle({ outlineColor: '#1976d2' })
+      expect(address()).toBe('/boards/board-1')
+    })
+
+    it('searches the board from the bar', async () => {
+      boardServer()
+      const { user } = renderBoardAt('/boards/board-1')
+      await screen.findByText('Homepage layout')
+
+      await user.type(screen.getByRole('textbox', { name: 'Search this board' }), 'hero{Enter}')
+
+      expect(address()).toBe('/search?q=hero&board=board-1')
+    })
+
+    it("searches the board's archive from the archive's bar", async () => {
+      boardServer()
+      archiveHolds([])
+      const { user } = renderBoardAt('/boards/board-1?archive=1')
+      await screen.findByRole('button', { name: 'Return to Board' })
+
+      await user.type(screen.getByRole('textbox', { name: "Search this board's archive" }), 'hero{Enter}')
+
+      expect(address()).toBe('/search?q=hero&board=board-1&archived=1')
+    })
+
+    it("opens the card that replaced an archived one, when the archive can't restore it", async () => {
+      boardServer()
+      archiveHolds([makeCard({ id: 'card-old', list_id: 'list-1', name: 'Old hero', is_archived: true })])
+      cardSaves(makeCard())
+      // After cardSaves, whose own answer to a card's PATCH it replaces.
+      fakeEndpoint('patch', CARD_URL, () => HttpResponse.json(
+        { detail: { code: 'card_replaced', replaced_by_id: 'card-list-2' } }, { status: 409 },
+      ))
+      const { user } = renderBoardAt('/boards/board-1?archive=1')
+      await user.click(await screen.findByRole('button', { name: 'Menu for Old hero' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Restore' }))
+
+      await user.click(await screen.findByRole('button', { name: 'Open the current card' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'Edit Card' })
+      expect(within(dialog).getByRole('textbox', { name: /^Card name/ })).toHaveValue('Footer links')
+      expect(address()).toBe('/boards/board-1?card=card-list-2')
+    })
+  })
+
+  describe('lists', () => {
+    it.each([
+      ["the board's colour", '#4CAF50', '#4CAF50'],
+      ['the default colour, the board having none', null, DEFAULT_PURPLE],
+    ])('adds a list at the end, in %s', async (_case, boardColour, shown) => {
+      boardServer()
+      coloursAre({ board: boardColour })
+      const created = fakeEndpoint('post', '/api/v1/boards/:boardId/lists', () => HttpResponse.json(
+        makeList({ id: 'list-3', board_id: 'board-1', name: 'Done' }), { status: 201 },
+      ))
+      fakeEndpoint('get', CARDS_URL, ({ url }) => {
+        const listId = listOfCards(url)
+        return HttpResponse.json(listId === 'list-3' ? [] : [
+          makeCard({ id: `card-${listId}`, list_id: listId, name: listId === 'list-1' ? 'Homepage layout' : 'Footer links' }),
+        ])
+      })
+      const { user } = await renderBoard()
+
+      await user.click(screen.getByRole('button', { name: 'Add List' }))
+      await user.type(screen.getByRole('textbox', { name: 'List name' }), 'Done{Enter}')
+
+      await waitFor(() => expect(listOrder()).toEqual(['To do', 'Doing', 'Done']))
+      expect(created.requests.map((r) => r.body)).toEqual([{ name: 'Done' }])
+      expect(listHeader('Done')).toHaveStyle({ borderBottomColor: shown })
+    })
+
+    it('adds no list when the dialog is cancelled', async () => {
+      boardServer()
+      const created = fakeEndpoint('post', '/api/v1/boards/:boardId/lists', () => HttpResponse.json({}, { status: 201 }))
+      const { user } = await renderBoard()
+
+      await user.click(screen.getByRole('button', { name: 'Add List' }))
+      await user.click(within(screen.getByRole('dialog', { name: 'Create a new List' })).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(created.requests).toHaveLength(0)
+      expect(listOrder()).toEqual(['To do', 'Doing'])
+    })
+
+    it('renames a list from its menu', async () => {
+      boardServer()
+      const renamed = fakeEndpoint('patch', LIST_URL, () => HttpResponse.json({ ...TODO, name: 'Backlog' }))
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', 'Rename List')
+      const name = screen.getByRole('textbox', { name: 'List name' })
+      await user.clear(name)
+      await user.type(name, 'Backlog{Enter}')
+
+      await waitFor(() => expect(listOrder()).toEqual(['Backlog', 'Doing']))
+      expect(renamed.requests.map((r) => [r.url.pathname, r.body])).toEqual([['/api/v1/boards/board-1/lists/list-1', { name: 'Backlog' }]])
+    })
+
+    it.each([
+      ['Rename List', 'Rename List'],
+      ['Change Color', 'Change Color'],
+    ])('changes nothing when %s is cancelled', async (entry, title) => {
+      boardServer()
+      const sent = [fakeEndpoint('patch', LIST_URL), fakeEndpoint('put', `${LIST_URL}/color`)]
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', entry)
+      await user.click(within(screen.getByRole('dialog', { name: title })).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(sent.map((endpoint) => endpoint.requests.length)).toEqual([0, 0])
+      expect(listOrder()).toEqual(['To do', 'Doing'])
+    })
+
+    it('archives a list from its menu, taking it off the board', async () => {
+      const server = boardServer()
+      const archived = fakeEndpoint('patch', LIST_URL, () => HttpResponse.json({}))
+      const { user } = await renderBoard()
+
+      await fromListMenu(user, 'To do', 'Archive List')
+
+      await waitFor(() => expect(listOrder()).toEqual(['Doing']))
+      expect(archived.requests.map((r) => r.body)).toEqual([{ is_archived: true }])
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(server.listLoads()).toBe(1)
+    })
+  })
+
+  describe('cards', () => {
+    it("adds a card to a list in the default colour, the list having none", async () => {
+      boardServer()
+      cardSaves(makeCard({ id: 'card-new', list_id: 'list-2', name: 'Contact form' }))
+      const { user } = await renderBoard()
+
+      await addCard(user, 'Doing', 'Contact form')
+
+      expect(await within(column('Doing')).findByText('Contact form')).toBeInTheDocument()
+      expect(cardBox('Contact form')).toHaveStyle({ borderColor: DEFAULT_PURPLE })
+    })
+
+    it("adds a card in its list's colour, as the board's colours hold it", async () => {
+      boardServer()
+      coloursAre({ lists: { 'list-2': '#2196F3' } })
+      cardSaves(makeCard({ id: 'card-new', list_id: 'list-2', name: 'Contact form' }))
+      const { user } = await renderBoard()
+
+      await addCard(user, 'Doing', 'Contact form')
+
+      expect(await within(column('Doing')).findByText('Contact form')).toBeInTheDocument()
+      expect(cardBox('Contact form')).toHaveStyle({ borderColor: '#2196F3' })
+    })
+
+    it('copies a card into another list, in the colour it was copied with', async () => {
+      boardServer()
+      fakeEndpoint('get', '/api/v1/boards', () => HttpResponse.json({ owned: [BOARD], shared: [], templates: [] }))
+      const copied = fakeEndpoint('post', `${CARD_URL}/copy`, () => HttpResponse.json(
+        makeCard({ id: 'card-copy', list_id: 'list-2', name: 'Homepage layout v2' }), { status: 201 },
+      ))
+      fakeEndpoint('get', `${CARD_URL}/color`, () => HttpResponse.json({ color: '#4CAF50' }))
+      const { user } = await renderBoard()
+
+      await user.click(screen.getByRole('button', { name: 'Menu for Homepage layout' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Copy Card' }))
+      const dialog = screen.getByRole('dialog', { name: 'Copy Card' })
+      await waitFor(() => expect(within(dialog).getByRole('combobox', { name: 'List' })).toHaveTextContent('To do'))
+      await user.click(within(dialog).getByRole('combobox', { name: 'List' }))
+      await user.click(screen.getByRole('option', { name: 'Doing' }))
+      await user.type(within(dialog).getByRole('textbox', { name: 'Card name' }), ' v2')
+      await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      expect(await within(column('Doing')).findByText('Homepage layout v2')).toBeInTheDocument()
+      expect(cardBox('Homepage layout v2')).toHaveStyle({ borderColor: '#4CAF50' })
+      expect(copied.requests[0].url.pathname).toBe('/api/v1/boards/board-1/lists/list-1/cards/card-list-1/copy')
+    })
+
+    it('shows what is saved in a card opened from its list', async () => {
+      boardServer()
+      cardSaves(makeCard({ id: 'card-list-1', list_id: 'list-1', name: 'Homepage layout v2' }))
+      const { user } = await renderBoard()
+      await user.click(screen.getByText('Homepage layout'))
+      const dialog = screen.getByRole('dialog', { name: 'Edit Card' })
+
+      await user.type(within(dialog).getByRole('textbox', { name: /^Card name/ }), ' v2')
+      await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+      expect(await within(column('To do')).findByText('Homepage layout v2')).toBeInTheDocument()
+    })
+  })
+
+  // Checklist writes send no notification, so the board fetches the list a
+  // checklist was copied to itself.
+  describe('a checklist copied onto another card', () => {
+    const AT = '2026-01-01T00:00:00Z'
+    const LAUNCH: ChecklistRead = {
+      id: 'checklist-1', card_id: 'card-post', name: 'Launch', position: 0, created_at: AT, updated_at: AT,
+      items: [{ id: 'item-1', checklist_id: 'checklist-1', text: 'Write copy', is_done: false, position: 0, created_at: AT, updated_at: AT }],
+    }
+    const POST = makeCard({ id: 'card-post', list_id: 'list-2', name: 'Launch post', checklists: [LAUNCH] })
+    const MARKETING = makeBoard({ id: 'board-2', name: 'Marketing' })
+
+    async function copyLaunch(user: UserEvent, toBoard?: string) {
+      await user.click(screen.getByText('Launch post'))
+      await user.click(screen.getByRole('button', { name: 'Menu for the checklist Launch' }))
+      await user.click(screen.getByRole('menuitem', { name: 'Copy checklist to another card' }))
+      const dialog = screen.getByRole('dialog', { name: 'Copy Checklist' })
+      await waitFor(() => expect(within(dialog).getByRole('combobox', { name: 'Card' })).toHaveTextContent('Launch post'))
+      if (toBoard) {
+        await user.click(within(dialog).getByRole('combobox', { name: 'Board' }))
+        await user.click(screen.getByRole('option', { name: toBoard }))
+        await waitFor(() => expect(within(dialog).getByRole('combobox', { name: 'Card' })).toHaveTextContent('Homepage layout'))
+      }
+      await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Copy Checklist' })).not.toBeInTheDocument())
+    }
+
+    // The copy dialog asks for the cards it offers at the same address as
+    // the board does, so the board's own loads are told by the order it asks
+    // for alongside them, which the dialog doesn't.
+    function copies() {
+      cardSaves(POST)
+      fakeEndpoint('get', '/api/v1/boards', () => HttpResponse.json({ owned: [BOARD, MARKETING], shared: [], templates: [] }))
+      fakeEndpoint('post', `${CARD_URL}/checklists`, () => HttpResponse.json({ id: 'checklist-9' }, { status: 201 }))
+      const orders = fakeEndpoint('get', `${CARDS_URL}/order`, ({ url }) => HttpResponse.json({ list_id: new URL(url).pathname.split('/').at(-3), card_ids: [] }))
+      return {
+        items: fakeEndpoint('post', `${CARD_URL}/checklists/:checklistId/items`, () => HttpResponse.json({}, { status: 201 })),
+        boardLoads: () => orders.requests.map((r) => r.url.pathname.split('/').at(-3)),
+      }
+    }
+
+    it("fetches the list's cards again when it's on this board", async () => {
+      boardServer({ more: [POST] })
+      const { items, boardLoads } = copies()
+      const { user } = await renderBoard()
+      expect(boardLoads().sort()).toEqual(['list-1', 'list-2'])
+
+      await copyLaunch(user)
+
+      await waitFor(() => expect(boardLoads().sort()).toEqual(['list-1', 'list-2', 'list-2']))
+      expect(items.requests[0].url.pathname).toBe('/api/v1/boards/board-1/lists/list-2/cards/card-post/checklists/checklist-9/items')
+    })
+
+    it("fetches nothing when it's on another board, even a list there of the same id", async () => {
+      boardServer({ more: [POST] })
+      const { items, boardLoads } = copies()
+      const { user } = await renderBoard()
+
+      await copyLaunch(user, 'Marketing')
+
+      await waitFor(() => expect(items.requests).toHaveLength(1))
+      expect(items.requests[0].url.pathname).toMatch(/^\/api\/v1\/boards\/board-2\/lists\/list-1\//)
+      await settle()
+      expect(boardLoads().sort()).toEqual(['list-1', 'list-2'])
+    })
+  })
+
+  describe('changes made elsewhere', () => {
+    it("fetches the lists again on a list change made elsewhere, and a restored list's cards", async () => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+
+      socket.receive({ type: 'list_renamed', board_id: 'board-1', list_id: null, origin_client_id: null })
+      await waitFor(() => expect(server.listLoads()).toBe(2))
+      socket.receive({ type: 'list_unarchived', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+
+      await waitFor(() => expect(server.listLoads()).toBe(3))
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 2 }))
+    })
+
+    it("fetches a list's cards again on a card change made elsewhere", async () => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 }))
+      expect(server.listLoads()).toBe(1)
+    })
+
+    it.each([
+      ['list', 'list_renamed'],
+      ['card', 'card_updated'],
+    ])('ignores its own %s changes, those on another board, and other kinds', async (_kind, type) => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+
+      socket.receive({ type, board_id: 'board-1', list_id: 'list-1', origin_client_id: getClientId() })
+      socket.receive({ type, board_id: 'board-2', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'board_shared', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+
+      await settle()
+      expect(server.listLoads()).toBe(1)
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
+    })
+
+    it('fetches every list\'s cards again when you change your avatar, which their people show', async () => {
+      const server = boardServer()
+      fakeEndpoint('delete', '/api/v1/users/me/avatar')
+      fakeEndpoint('get', '/api/v1/users/me/avatar', () => new HttpResponse(new Blob(['png'], { type: 'image/png' })))
+      URL.createObjectURL = vi.fn(() => 'blob:avatar-1')
+      URL.revokeObjectURL = vi.fn()
+      onTestFinished(() => {
+        // @ts-expect-error -- jsdom doesn't have them; put it back that way.
+        delete URL.createObjectURL
+        // @ts-expect-error -- as above.
+        delete URL.revokeObjectURL
+      })
+      const { user } = await renderBoard()
+
+      await user.click(screen.getByRole('button', { name: 'User profile' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Change / Remove avatar' }))
+      await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove avatar' }))
+
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 }))
+    })
+  })
+
+  describe('the board menu', () => {
+    it("opens your e-mail notifications for the board, and closes them", async () => {
+      boardServer()
+      const settings = fakeEndpoint('get', '/api/v1/boards/:boardId/notifications', () => HttpResponse.json({
+        board_id: 'board-1', is_enabled: false, notify_hour: 9, notify_weekdays: [1, 2, 3, 4, 5], offset_days: [], overdue_repeat_after_days: null,
+      }))
+      const { user } = await renderBoard()
+
+      await user.click(screen.getByRole('button', { name: 'Board menu' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'E-Mail notification' }))
+
+      const dialog = await screen.findByRole('dialog', { name: 'My e-mail notifications' })
+      await waitFor(() => expect(settings.requests).toHaveLength(1))
+      expect(settings.requests[0].url.pathname).toBe('/api/v1/boards/board-1/notifications')
+      await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+  })
+
+  describe('a template', () => {
+    it('shows its lists, without what a template holds none of: cards, labels, notifications, search', async () => {
+      boardServer()
+      fakeEndpoint('get', '/api/v1/boards/:boardId', () => HttpResponse.json({ ...BOARD, is_template: true }))
+      fakeEndpoint('get', CARDS_URL, () => HttpResponse.json([]))
+      renderBoardAt('/boards/board-1')
+
+      expect(await screen.findByText('Template')).toBeInTheDocument()
+      await waitFor(() => expect(listOrder()).toEqual(['To do', 'Doing']))
+      expect(screen.getByRole('button', { name: 'Add List' })).toBeInTheDocument()
+      for (const name of ['Labels', 'Sort cards', 'Board menu', 'Add a card to To do']) {
+        expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+      }
+      expect(screen.queryByRole('textbox', { name: /^Search/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe("the viewer's formats", () => {
+    it("writes the cards' dates in the viewer's own format once their profile is in", async () => {
+      boardServer({ more: [makeCard({ id: 'card-due', list_id: 'list-2', name: 'Launch', due_at: '2026-03-05T10:00:00Z' })] })
+      renderWithProviders(<Board />, {
+        route: '/boards/board-1', path: '/boards/:boardId', auth: { number_locale: 'en_GB', date_format: 'textual' },
+      })
+
+      expect(await screen.findByText(/^Thursday.*5 March 2026\b.*\b11:00$/)).toBeInTheDocument()
+    })
+  })
+
+  describe('without a board in the address', () => {
+    it('asks the server for nothing about a board', async () => {
+      const fetched = vi.spyOn(globalThis, 'fetch')
+      renderWithProviders(<Board />, { route: '/boards', path: '/boards', auth: true })
+      await screen.findByRole('button', { name: 'User profile' })
+      await settle()
+
+      const urls = fetched.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)))
+      expect(urls.filter((url) => url.includes('/api/v1/boards'))).toEqual([])
     })
   })
 })

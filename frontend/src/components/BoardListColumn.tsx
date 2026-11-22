@@ -37,11 +37,16 @@ interface Props {
   numberLocale: string
   dateFormat: DateFormat
   sortMode: SortMode
-  // The viewer's color for this list, and for every card on the board,
-  // fetched once up front by the parent — avoids the default-color flash
-  // that per-entity fetch-on-mount used to cause. See Board.tsx's `colors`.
-  initialColor: string | null
+  // The viewer's color for this list, and for every card on the board, from
+  // the board page's `colors` map (fetched once up front, which avoids the
+  // default-color flash that fetching them on mount used to cause). The
+  // column draws exactly these and keeps no color of its own: the floating
+  // copy shown while the list is dragged reads the same map.
+  color: string | null
   cardColors: Record<string, string>
+  // The list's color saved (or reset: null) from its menu, for the board to
+  // put in its map — which is what then repaints the column.
+  onColorChanged: (listId: string, color: string | null) => void
   onRenamed: (listId: string, newName: string) => void
   onArchived: (listId: string) => void
   // The list's archive was refused, or the connection dropped.
@@ -75,8 +80,9 @@ export default function BoardListColumn({
   numberLocale,
   dateFormat,
   sortMode,
-  initialColor,
+  color: listColor,
   cardColors,
+  onColorChanged,
   onRenamed,
   onArchived,
   onArchiveFailed,
@@ -100,7 +106,6 @@ export default function BoardListColumn({
   // meanwhile (someone else archived or moved them), rather than ask about
   // none — or come back by itself when a card arrives later.
   if (archiveAllOpen && cards.length === 0) setArchiveAllOpen(false)
-  const [listColor, setListColor] = useState<string | null>(initialColor)
 
   const sortedCards = useMemo(
     () => sortCards(cards, sortMode, customOrderIds),
@@ -352,7 +357,7 @@ export default function BoardListColumn({
         onClose={() => setColorDialogOpen(false)}
         list={list}
         currentColor={listColor}
-        onSaved={setListColor}
+        onSaved={(saved) => onColorChanged(list.id, saved)}
       />
 
       <CardDialog

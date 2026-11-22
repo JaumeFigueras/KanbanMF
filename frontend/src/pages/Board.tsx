@@ -286,7 +286,6 @@ export default function Board() {
   // through the MCP server): the backend gave it the list's color, which
   // the `colors` map fetched at load doesn't know about yet.
   const fetchColors = useCallback(() => {
-    if (!boardId) return
     track('colors', apiFetch(`/api/v1/boards/${boardId}/colors`))
       .then(r => r.ok ? r.json() as Promise<BoardColorsRead> : null)
       .then(fetchedColors => { if (fetchedColors) setColors(fetchedColors) })
@@ -301,7 +300,6 @@ export default function Board() {
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's.
   const fetchCardsForList = useCallback((listId: string) => {
-    if (!boardId) return
     cardsPendingRef.current.add(listId)
     track(`cards:${listId}`, Promise.all([
       loadJson<CardRead[]>(`/api/v1/boards/${boardId}/lists/${listId}/cards`),
@@ -428,6 +426,13 @@ export default function Board() {
     }
   }
 
+  // The top bar hands over the viewer's number locale and date format once
+  // their profile loads, on whichever page it's on.
+  function handleLocaleChanged(num: string, fmt: DateFormat) {
+    setNumberLocale(num)
+    setDateFormat(fmt)
+  }
+
   function openSortMenu(e: React.MouseEvent<HTMLElement>) {
     setSortMenuAnchor(e.currentTarget)
   }
@@ -470,16 +475,16 @@ export default function Board() {
     }
   }
 
-  // A card's color saved (or reset) from its menu. The map is what every
-  // drawing of the card reads — the card in its list, the floating copy
-  // while it's dragged, and the card drawn afresh in the list it's dropped
-  // in — so updating it here repaints all three.
-  function handleCardColorChanged(cardId: string, color: string | null) {
+  // A list's or card's color saved (or reset) from its menu. The map is what
+  // every drawing of it reads — the list or card on the board, the floating
+  // copy while it's dragged, and a card drawn afresh in the list it's
+  // dropped in — so updating it here repaints them all.
+  function handleColorChanged(kind: 'lists' | 'cards', id: string, color: string | null) {
     setColors(prev => {
-      const cards = { ...prev.cards }
-      if (color) cards[cardId] = color
-      else delete cards[cardId]
-      return { ...prev, cards }
+      const next = { ...prev[kind] }
+      if (color) next[id] = color
+      else delete next[id]
+      return { ...prev, [kind]: next }
     })
   }
 
@@ -806,10 +811,7 @@ export default function Board() {
     return (
       <>
         <MainAppBar
-          onLocaleChanged={(num, fmt) => {
-            setNumberLocale(num)
-            setDateFormat(fmt)
-          }}
+          onLocaleChanged={handleLocaleChanged}
         />
         <Toolbar />
         <Box
@@ -843,10 +845,7 @@ export default function Board() {
     return (
       <>
         <MainAppBar
-          onLocaleChanged={(num, fmt) => {
-            setNumberLocale(num)
-            setDateFormat(fmt)
-          }}
+          onLocaleChanged={handleLocaleChanged}
         />
         <Toolbar />
         <Box sx={{ p: 3 }}>
@@ -860,10 +859,7 @@ export default function Board() {
     return (
       <>
         <MainAppBar
-          onLocaleChanged={(num, fmt) => {
-            setNumberLocale(num)
-            setDateFormat(fmt)
-          }}
+          onLocaleChanged={handleLocaleChanged}
         />
         <Toolbar />
         <Box
@@ -909,10 +905,7 @@ export default function Board() {
     return (
       <>
         <MainAppBar
-          onLocaleChanged={(num, fmt) => {
-            setNumberLocale(num)
-            setDateFormat(fmt)
-          }}
+          onLocaleChanged={handleLocaleChanged}
           search={boardId ? { boardId, archived: true } : undefined}
         />
         <ArchivedListsView
@@ -940,10 +933,7 @@ export default function Board() {
   return (
     <>
       <MainAppBar
-        onLocaleChanged={(num, fmt) => {
-          setNumberLocale(num)
-          setDateFormat(fmt)
-        }}
+        onLocaleChanged={handleLocaleChanged}
         // A card carries its members' and assignees' avatar state, so an
         // avatar change of the viewer's own only lands on a refetch.
         onAvatarChanged={() => lists.forEach(l => fetchCardsForList(l.id))}
@@ -1097,8 +1087,9 @@ export default function Board() {
                 numberLocale={numberLocale}
                 dateFormat={dateFormat}
                 sortMode={sortMode}
-                initialColor={colors.lists[list.id] ?? null}
+                color={colors.lists[list.id] ?? null}
                 cardColors={colors.cards}
+                onColorChanged={(listId, color) => handleColorChanged('lists', listId, color)}
                 onRenamed={handleListRenamed}
                 onArchived={handleListArchived}
                 onArchiveFailed={handleListArchiveFailed}
@@ -1107,7 +1098,7 @@ export default function Board() {
                 onCardArchiveFailed={handleCardArchiveFailed}
                 onArchiveAllCardsFailed={handleArchiveAllCardsFailed}
                 onCardUpdated={handleCardUpdated}
-                onCardColorChanged={handleCardColorChanged}
+                onCardColorChanged={(cardId, color) => handleColorChanged('cards', cardId, color)}
                 onChecklistCopied={handleChecklistCopied}
                 isTemplate={isTemplate}
               />
@@ -1142,8 +1133,9 @@ export default function Board() {
               numberLocale={numberLocale}
               dateFormat={dateFormat}
               sortMode={sortMode}
-              initialColor={colors.lists[activeList.id] ?? null}
+              color={colors.lists[activeList.id] ?? null}
               cardColors={colors.cards}
+              onColorChanged={() => {}}
               onRenamed={() => {}}
               onArchived={() => {}}
               onArchiveFailed={() => {}}

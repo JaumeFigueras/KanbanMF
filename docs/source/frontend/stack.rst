@@ -394,8 +394,12 @@ the choice in ``localStorage``, per browser, and the language comes from
 i18next. Board, list and card colours come from the
 API — they are per user — and are applied as tints, blended into an opaque
 colour where tints nest (a card on a coloured list) so they don't bleed into
-each other (``src/utils/colorTint.ts``). Pickers offer the fixed palette in
-``src/utils/colorPalette.ts``.
+each other (``src/utils/colorTint.ts``). On the board page, the viewer's
+colour for every list and card is in one map, fetched with the lists. Columns
+and cards draw from it and keep no colour of their own, and a colour saved
+from a menu goes back into the map. That way the floating copy of a dragged
+list or card, and a card drawn afresh in the list it's dropped in, all show
+it. Pickers offer the fixed palette in ``src/utils/colorPalette.ts``.
 
 What the browser keeps
 ----------------------
