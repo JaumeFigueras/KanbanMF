@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
+import i18n from '../i18n'
 import { ThemeToggleProvider } from '../context/ThemeToggleContext'
 import { renderWithProviders } from '../test/render'
 import AuthControls from './AuthControls'
@@ -52,6 +53,32 @@ describe('AuthControls', () => {
 
       expect(await screen.findByLabelText('Idioma', { selector: 'button' })).toHaveAttribute('aria-expanded', 'false')
       expect(screen.getByRole('combobox', { name: 'Idioma' })).toBeInTheDocument()
+    })
+  })
+
+  describe("the phone's language menu", () => {
+    it('marks the language in use', async () => {
+      const { user } = renderControls()
+
+      await user.click(phoneButton('Language'))
+
+      const menu = await screen.findByRole('menu')
+      expect(within(menu).getByRole('menuitem', { name: 'English' })).toHaveClass('Mui-selected')
+      expect(within(menu).getByRole('menuitem', { name: 'Català' })).not.toHaveClass('Mui-selected')
+    })
+
+    it('closes with Escape, leaving the language as it was', async () => {
+      const { user } = renderControls()
+      const button = phoneButton('Language')
+      await user.click(button)
+      await screen.findByRole('menu')
+
+      await user.keyboard('{Escape}')
+
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+      expect(button).toHaveAttribute('aria-expanded', 'false')
+      expect(i18n.language).toBe('en')
+      expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument()
     })
   })
 })
