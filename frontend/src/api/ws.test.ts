@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { server } from '../test/server'
-import { getClientId, onAccessTokenChange } from './client'
+import { getClientId, onAccessTokenChange, setAccessToken } from './client'
 import { isOwnNotification, setWebSocketToken, subscribeToNotifications, type BoardNotification } from './ws'
 
 // Vitest's jsdom environment exposes the JSDOM instance as a global.
@@ -29,7 +29,7 @@ function notification(overrides: Partial<BoardNotification> = {}): BoardNotifica
 }
 
 // The refresh endpoint, counting how often it was asked.
-function fakeRefresh(answer: () => Response = () => HttpResponse.json({ access_token: 'new' })) {
+function fakeRefresh(answer: () => Response | Promise<Response> = () => HttpResponse.json({ access_token: 'new' })) {
   const calls = { count: 0 }
   server.use(
     http.post('/api/v1/auth/local/refresh', () => {
@@ -189,6 +189,103 @@ describe('when the backend refuses the token (1008)', () => {
     await vi.advanceTimersByTimeAsync(RECONNECT_MS * 2)
     unsubscribe()
     expect(sockets()).toHaveLength(1)
+  })
+
+  // Signed in as AuthContext does it: the client holds the token, and every
+  // new token goes to the socket. Returns the unsubscribe.
+  function signedIn(token: string) {
+    const unsubscribe = onAccessTokenChange(setWebSocketToken)
+    setAccessToken(token)
+    return unsubscribe
+  }
+
+  it('asks again every 3 s while the refresh gets no answer, then reconnects with the new token (6N)', async () => {
+    let unanswered = 2
+    const refresh = fakeRefresh(() => {
+      if (unanswered === 0) return HttpResponse.json({ access_token: 'new' })
+      unanswered -= 1
+      return HttpResponse.error()
+    })
+    const unsubscribe = signedIn('tok-1')
+    lastSocket().open()
+    lastSocket().serverClose(1008)
+
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    await vi.waitFor(() => expect(refresh.count).toBe(1))
+    // Not at once: half the delay later (vi.waitFor moves the clock a
+    // little too), it hasn't asked again.
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS / 2)
+    expect(refresh.count).toBe(1)
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS / 2)
+    await vi.waitFor(() => expect(refresh.count).toBe(2))
+    expect(sockets()).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    await vi.waitFor(() => expect(sockets()).toHaveLength(2))
+    unsubscribe()
+
+    expect(refresh.count).toBe(3)
+    lastSocket().open()
+    expect(sentBy(lastSocket())).toEqual([{ type: 'auth', token: 'new' }])
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS * 3)
+    expect(refresh.count).toBe(3)
+  })
+
+  // A refresh that gets no answer, but only once `answer()` is called: what
+  // happens while it's under way can then be tested.
+  function heldUnansweredRefresh() {
+    let answer: () => void = () => {}
+    const refresh = fakeRefresh(async () => {
+      await new Promise<void>((resolve) => (answer = resolve))
+      return HttpResponse.error()
+    })
+    return { refresh, answer: () => answer() }
+  }
+
+  it.each([
+    ['after it', false],
+    ['while it is under way', true],
+  ])('stops asking once signed out %s, when the refresh gets no answer (6N)', async (_case, underWay) => {
+    const { refresh, answer } = heldUnansweredRefresh()
+    const unsubscribe = signedIn('tok-1')
+    lastSocket().open()
+    lastSocket().serverClose(1008)
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    await vi.waitFor(() => expect(refresh.count).toBe(1))
+
+    if (!underWay) answer()
+    await vi.advanceTimersByTimeAsync(0)
+    setAccessToken(null)
+    if (underWay) answer()
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS * 3)
+    unsubscribe()
+
+    expect(refresh.count).toBe(1)
+    expect(sockets()).toHaveLength(1)
+  })
+
+  it.each([
+    ['after it', false],
+    ['while it is under way', true],
+  ])('stops asking once a new token got elsewhere %s has reconnected the socket (6N)', async (_case, underWay) => {
+    const { refresh, answer } = heldUnansweredRefresh()
+    const unsubscribe = signedIn('tok-1')
+    lastSocket().open()
+    lastSocket().serverClose(1008)
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    await vi.waitFor(() => expect(refresh.count).toBe(1))
+
+    if (!underWay) answer()
+    await vi.advanceTimersByTimeAsync(0)
+    // A page's request refreshed the token meanwhile, as apiFetch does.
+    setAccessToken('tok-2')
+    if (underWay) answer()
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS * 3)
+    unsubscribe()
+
+    expect(refresh.count).toBe(1)
+    expect(sockets()).toHaveLength(2)
+    lastSocket().open()
+    expect(sentBy(lastSocket())).toEqual([{ type: 'auth', token: 'tok-2' }])
   })
 
   it('reconnects with the new token when the refresh succeeds', async () => {

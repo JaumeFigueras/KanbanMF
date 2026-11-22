@@ -3,9 +3,10 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { Box, CircularProgress } from '@mui/material'
 import { useAuth } from '../context/useAuth'
 import { clearReturnTo, rememberReturnTo } from '../utils/returnTo'
+import UnreachablePage from './UnreachablePage'
 
 export default function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { accessToken, loading, loggedOut } = useAuth()
+  const { accessToken, loading, loggedOut, unreachable, retryStartUp } = useAuth()
   const location = useLocation()
 
   useEffect(() => {
@@ -19,6 +20,10 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
       </Box>
     )
   }
+
+  // No answer from the start-up check: there may well be a session, so
+  // this isn't a reason to send anyone to sign in.
+  if (!accessToken && unreachable) return <UnreachablePage onRetry={retryStartUp} />
 
   if (!accessToken) {
     // Come back here after signing in (see utils/returnTo.ts), unless the

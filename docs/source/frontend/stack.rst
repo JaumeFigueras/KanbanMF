@@ -72,7 +72,10 @@ wraps every route in ``AuthProvider``. The routes are:
 
 ``ProtectedRoute`` shows a spinner while ``AuthProvider`` checks the session,
 then either the page or a redirect to ``/signin``; ``PublicRoute`` sends a
-signed-in user to ``/boards``.
+signed-in user to ``/boards``. When the check gets no answer at all (see
+`Signing in and staying signed in`_), ``ProtectedRoute`` shows
+``UnreachablePage`` instead — *KanbanMF couldn't be reached*, with
+:guilabel:`Try again` — and the ``/`` redirect goes to the boards to show it.
 
 A page that sends the user to sign in is where they come back to afterwards:
 ``ProtectedRoute`` keeps its path in ``sessionStorage`` (``utils/returnTo.ts``),
@@ -129,6 +132,27 @@ it has no access token: it asks for one with the refresh cookie (below) and,
 if there is a session, calls ``/api/v1/users/me``, which also sets the
 interface language from the user's preferences. No session, and the user is
 signed out.
+
+Only a refusal ends a session: the refresh answering ``401`` or ``403``
+(no session, or not any more), or ``/users/me`` doing so. No answer, or a
+server error — the proxy's ``502`` while the backend restarts, a laptop
+waking up before its network — says nothing about the session, which may
+well still be good, so nothing is decided on it:
+
+- ``/users/me`` failing that way leaves the user signed in; the top bar says
+  it couldn't load the profile (below), and loads it again on every page.
+- The start-up refresh failing that way sets ``unreachable``, and
+  ``ProtectedRoute`` says so with :guilabel:`Try again`, which runs the check
+  again (``retryStartUp()``). The signed-out pages are shown as usual: they
+  report a failed request themselves.
+- In the middle of work, ``refreshAccessToken()`` rejects with
+  ``RefreshUnanswered`` and keeps the token as it is. The request that needed
+  it fails like a dropped connection, so its page says it couldn't load or
+  save, and the next ``401`` tries the refresh again.
+
+All three used to sign the tab out: the user landed on the sign-in page with
+a session that was still good, and only a reload, once the server answered,
+signed them back in.
 
 The tokens themselves are explained in :doc:`../backend/stack`: a 15-minute
 access token the frontend keeps, and a 30-day refresh token in an
@@ -216,7 +240,7 @@ every field they show, so their menu entries wait for it rather than open on
 defaults. (The bar used to go to ``/signin``, which sends a signed-in user on
 to the boards, whose bar failed the same way: the board or search the user was
 on was lost, and while the failure lasted the page bounced between the two.)
-An expired session needs nothing from the bar: the failed refresh clears the
+An expired session needs nothing from the bar: the refused refresh clears the
 token, and ``ProtectedRoute`` goes to ``/signin``, remembering the page.
 
 The signed-out pages keep the same line between no answer and a refusal.
@@ -239,7 +263,9 @@ first message is ``{"type": "auth", "token": ...}`` with the access token:
 the token isn't in the address, which the web server logs. If the backend
 refuses it (close code 1008 — usually a token that expired while the computer
 slept), the client refreshes the token three seconds later, which reconnects
-it, or signs the user out if the session is gone. Messages say what changed — ``card_moved`` on such board and
+it, or signs the user out if the session is gone. A refresh that gets no
+answer is tried again every three seconds, until one is answered, the user
+signs out, or a token got by a page's request has reconnected the socket. Messages say what changed — ``card_moved`` on such board and
 list — and are handed to every subscriber.
 
 Pages subscribe with ``subscribeToNotifications()`` and react by refetching:

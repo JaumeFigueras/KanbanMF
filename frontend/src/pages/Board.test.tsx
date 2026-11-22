@@ -51,8 +51,17 @@ function boardServer({ more = [] }: { more?: CardRead[] } = {}) {
   return {
     fail: (what: Failing, answer: Answer = SERVER_ERROR) => { down.set(what, answer) },
     recover: (what: Failing) => { down.delete(what) },
-    // Which lists' cards were asked for, in order.
-    cardLoads: () => cards.requests.map((r) => r.url.pathname.split('/').at(-2)),
+    // How many times each list's cards were asked for. A count, not a
+    // sequence: the lists load at the same time, and their requests can
+    // reach the fake server either way round.
+    cardLoads: () => {
+      const loads: Record<string, number> = {}
+      for (const request of cards.requests) {
+        const listId = request.url.pathname.split('/').at(-2)!
+        loads[listId] = (loads[listId] ?? 0) + 1
+      }
+      return loads
+    },
     listLoads: () => lists.requests.length,
     labelIs: (next: LabelRead) => { label = next },
     archived: (cardId: string) => { archived.add(cardId) },
@@ -174,13 +183,13 @@ describe('Board', () => {
       const server = boardServer()
       await renderBoard()
       const socket = await openSocket()
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
       server.labelIs(BLOCKER)
 
       socket.receive({ type: 'labels_changed', board_id: 'board-1', list_id: null, origin_client_id: null })
 
       await waitFor(() => expect(shownLabels()).toEqual([['Blocker'], ['Blocker']]))
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 })
     })
 
     it('ignores its own label change, and one on another board', async () => {
@@ -193,7 +202,7 @@ describe('Board', () => {
 
       // Gives a refetch, were there one, time to be asked for.
       await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
     })
 
     it('fetches the cards again once the Labels dialog closes after a label was changed in it', async () => {
@@ -209,12 +218,12 @@ describe('Board', () => {
       await user.type(name, 'Blocker{Enter}')
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit label' })).not.toBeInTheDocument())
       server.labelIs(BLOCKER)
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
 
       await user.click(within(dialog).getByRole('button', { name: 'Close' }))
 
       await waitFor(() => expect(shownLabels()).toEqual([['Blocker'], ['Blocker']]))
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 })
     })
 
     it('fetches them only once for that change: closing the dialog again with nothing changed fetches nothing', async () => {
@@ -227,7 +236,7 @@ describe('Board', () => {
       await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Delete' }))
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label?' })).not.toBeInTheDocument())
       await user.click(within(screen.getByRole('dialog', { name: 'Labels' })).getByRole('button', { name: 'Close' }))
-      await waitFor(() => expect(server.cardLoads()).toHaveLength(4))
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 }))
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Labels' })).not.toBeInTheDocument())
 
       await user.click(screen.getByRole('button', { name: 'Labels' }))
@@ -236,7 +245,7 @@ describe('Board', () => {
 
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Labels' })).not.toBeInTheDocument())
       await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(server.cardLoads()).toHaveLength(4)
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 })
     })
 
     it("doesn't fetch them again when the Labels dialog closes with nothing changed", async () => {
@@ -251,7 +260,7 @@ describe('Board', () => {
 
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Labels' })).not.toBeInTheDocument())
       await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
     })
   })
 
@@ -265,7 +274,7 @@ describe('Board', () => {
       await user.click(await screen.findByRole('menuitem', { name: 'Archive card' }))
 
       expect(await failure()).toHaveTextContent('The card "Homepage layout" couldn\'t be archived. Please try again.')
-      await waitFor(() => expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1']))
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 }))
       expect(screen.getByText('Homepage layout')).toBeInTheDocument()
     })
 
@@ -294,7 +303,7 @@ describe('Board', () => {
 
       await waitFor(() => expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument())
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
     })
 
     it("says a list couldn't be archived, and fetches the lists again", async () => {
@@ -338,7 +347,7 @@ describe('Board', () => {
       await archiveAllCards(user, 'To do')
 
       expect(await failure()).toHaveTextContent('2 cards in "To do" couldn\'t be archived. Please try again.')
-      await waitFor(() => expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1']))
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 }))
       await waitFor(() => expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument())
       expect(screen.getByText('Contact form')).toBeInTheDocument()
       expect(screen.getByText('Search page')).toBeInTheDocument()
@@ -373,7 +382,7 @@ describe('Board', () => {
       expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
       expect(archived.requests).toHaveLength(2)
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
     })
 
     it('takes the message away with its close button', async () => {
@@ -432,7 +441,7 @@ describe('Board', () => {
 
       await user.click(within(column('To do')).getByRole('button', { name: 'Try again' }))
 
-      await waitFor(() => expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1']))
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 }))
       expect(within(column('To do')).queryByRole('alert')).not.toBeInTheDocument()
       held.release()
       expect(await within(column('To do')).findByRole('alert')).toHaveTextContent("This list's cards couldn't be loaded.")
@@ -467,13 +476,13 @@ describe('Board', () => {
       expect(within(column('Doing')).queryByRole('alert')).not.toBeInTheDocument()
       // It waits for Try again rather than ask on its own.
       await settle()
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
       server.recover('cards:list-1')
       await user.click(within(column('To do')).getByRole('button', { name: 'Try again' }))
 
       await screen.findByText('Homepage layout')
       expect(within(column('To do')).queryByRole('alert')).not.toBeInTheDocument()
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 })
     })
 
     it('takes the cards away when fetching them again fails, as they may be out of date', async () => {
@@ -571,7 +580,7 @@ describe('Board', () => {
       await user.click(within(column('To do')).getByRole('button', { name: 'Try again' }))
 
       await screen.findByText('Homepage layout')
-      expect(server.cardLoads()).toEqual(['list-1', 'list-2', 'list-1'])
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 1 })
     })
 
     it("loads the cards that failed again on coming back from the archive", async () => {

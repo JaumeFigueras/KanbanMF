@@ -8,6 +8,7 @@ import App from './App'
 import { onAccessTokenChange, refreshAccessToken } from './api/client'
 import { ThemeToggleProvider } from './context/ThemeToggleContext'
 import { useAuth } from './context/useAuth'
+import i18n from './i18n'
 import { makeUser } from './test/fixtures'
 import { server } from './test/server'
 import { peekReturnTo, rememberReturnTo } from './utils/returnTo'
@@ -320,6 +321,99 @@ describe('when the session ends', () => {
 
     await arrivesAt('/signin')
     expect(peekReturnTo()).toBe('/boards')
+  })
+})
+
+describe("when KanbanMF can't be reached at start-up (6N)", () => {
+  const UNREACHABLE = "KanbanMF couldn't be reached. Check your connection and try again."
+
+  // A refresh that gets no answer until `back()`, then the given answer.
+  function refreshDown(then: () => Response = () => HttpResponse.json({ access_token: 'tok-session' })) {
+    let down = true
+    server.use(
+      http.post(REFRESH, () => (down ? HttpResponse.error() : then())),
+      http.get(ME, () => HttpResponse.json(makeUser())),
+    )
+    return { back: () => { down = false } }
+  }
+
+  it.each(PROTECTED)('%s says so, with Try again, instead of going to /signin', async (start) => {
+    refreshDown()
+    renderApp(start)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(UNREACHABLE)
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+    expect(address()).toBe(start)
+    expect(peekReturnTo()).toBeNull()
+  })
+
+  it('opens the page on Try again once KanbanMF answers', async () => {
+    const refresh = refreshDown()
+    const user = renderApp('/boards/board-7')
+    await screen.findByRole('alert')
+    refresh.back()
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await showsPage('Board')
+    expect(screen.getByText('signed in')).toBeInTheDocument()
+    expect(address()).toBe('/boards/board-7')
+  })
+
+  it('goes to /signin on Try again when there is no session, and back after signing in', async () => {
+    const refresh = refreshDown(NO_SESSION)
+    const user = renderApp('/boards/board-7')
+    await screen.findByRole('alert')
+    refresh.back()
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await arrivesAt('/signin')
+    await user.click(await screen.findByRole('button', { name: 'Sign in' }))
+    await arrivesAt('/boards/board-7')
+  })
+
+  it('has the language and theme switches of the signed-out pages, and speaks Catalan', async () => {
+    await i18n.changeLanguage('ca')
+    refreshDown()
+    renderApp('/boards')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("No s'ha pogut connectar amb KanbanMF. Comprova la connexió i torna-ho a provar.")
+    expect(screen.getByRole('button', { name: 'Torna-ho a intentar' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Idioma' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Canvia al tema fosc' })).toBeInTheDocument()
+  })
+
+  it('/ goes to the boards, which say so', async () => {
+    refreshDown()
+    renderApp('/')
+
+    await arrivesAt('/boards')
+    expect(await screen.findByRole('alert')).toHaveTextContent(UNREACHABLE)
+  })
+
+  it.each(PUBLIC)('%s still shows %s', async (start, page) => {
+    refreshDown()
+    renderApp(start)
+
+    await showsPage(page)
+    expect(address()).toBe(start)
+  })
+})
+
+describe('when the refresh gets no answer in the middle of work (6N)', () => {
+  it('stays on the page, signed in', async () => {
+    fakeSession()
+    renderApp('/boards/board-7')
+    await showsPage('Board')
+    server.use(http.post(REFRESH, () => HttpResponse.error()))
+
+    await act(() => refreshAccessToken().catch(() => null))
+
+    expect(screen.getByRole('heading', { name: 'Board' })).toBeInTheDocument()
+    expect(screen.getByText('signed in')).toBeInTheDocument()
+    expect(address()).toBe('/boards/board-7')
   })
 })
 

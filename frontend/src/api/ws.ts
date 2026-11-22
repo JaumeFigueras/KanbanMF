@@ -1,4 +1,4 @@
-import { getClientId, refreshAccessToken } from './client'
+import { getAccessToken, getClientId, refreshAccessToken } from './client'
 
 const RECONNECT_DELAY_MS = 3000
 
@@ -68,6 +68,22 @@ function clearReconnectTimer() {
 // Closed by the backend: the token wasn't accepted.
 const WS_POLICY_VIOLATION = 1008
 
+// A refused token has most likely expired (say, the computer slept): get a
+// new one, which reconnects through setWebSocketToken, or signs out if the
+// session is gone too. After the same delay as a reconnect, so a token that
+// keeps being refused can't spin refreshes. A refresh with no answer (the
+// network not back yet) leaves the session as it is: ask again after the
+// same delay, unless the user signed out meanwhile or a new token has
+// already reconnected the socket.
+function refreshAfterDelay() {
+  reconnectTimer = setTimeout(() => {
+    currentToken = null
+    refreshAccessToken().catch(() => {
+      if (getAccessToken() && !socket) refreshAfterDelay()
+    })
+  }, RECONNECT_DELAY_MS)
+}
+
 function openSocket(token: string) {
   // The token goes in the first message, not the URL: addresses end up in
   // the web server's access log.
@@ -96,15 +112,8 @@ function openSocket(token: string) {
     if (socket !== ws) return
     socket = null
     clearReconnectTimer()
-    // A refused token has most likely expired (say, the computer slept):
-    // get a new one, which reconnects through setWebSocketToken, or signs
-    // out if the session is gone too. After the same delay as a reconnect,
-    // so a token that keeps being refused can't spin refreshes.
     if (event.code === WS_POLICY_VIOLATION) {
-      reconnectTimer = setTimeout(() => {
-        currentToken = null
-        void refreshAccessToken()
-      }, RECONNECT_DELAY_MS)
+      refreshAfterDelay()
       return
     }
     // Any other close: the connection dropped, so try again with the

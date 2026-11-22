@@ -14,9 +14,16 @@ export interface AuthCtx {
   // cookie may still be good, and opening KanbanMF again on this device
   // would sign back in. The sign-in page says so.
   signOutUnconfirmed: boolean
+  // True when the start-up check got no answer (a dropped connection, a
+  // server error), so whether there's a session is unknown: ProtectedRoute
+  // says KanbanMF couldn't be reached instead of sending the user to sign
+  // in. Cleared by any news of the token, and by retryStartUp().
+  unreachable: boolean
   login: (token: string) => void
   // Signs this page out whether or not the server answers; never rejects.
   logout: () => Promise<void>
+  // Runs the start-up check again (loading meanwhile).
+  retryStartUp: () => void
 }
 
 export const AuthContext = createContext<AuthCtx>({
@@ -24,8 +31,10 @@ export const AuthContext = createContext<AuthCtx>({
   loading: true,
   loggedOut: false,
   signOutUnconfirmed: false,
+  unreachable: false,
   login: () => {},
   logout: async () => {},
+  retryStartUp: () => {},
 })
 
 export const useAuth = () => useContext(AuthContext)

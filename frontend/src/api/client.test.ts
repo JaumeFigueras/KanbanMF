@@ -8,10 +8,21 @@ import {
   loadJson,
   onAccessTokenChange,
   refreshAccessToken,
+  RefreshUnanswered,
   setAccessToken,
 } from './client'
 
 const REFRESH = '/api/v1/auth/local/refresh'
+
+// Refresh answers that say nothing about the session: the session may well
+// still be good (6N).
+const UNANSWERED: [string, () => Response][] = [
+  ['the connection drops', () => HttpResponse.error()],
+  ['the server fails', () => new HttpResponse(null, { status: 500 })],
+  ["the proxy can't reach the backend", () => new HttpResponse(null, { status: 502 })],
+  ['the answer is garbled', () => new HttpResponse('<html>', { status: 200, headers: { 'Content-Type': 'application/json' } })],
+  ['the answer has no token', () => HttpResponse.json({})],
+]
 
 // The credentials mode of every fetch() call made while `run` runs. MSW
 // rebuilds requests from what goes over the wire, where the mode isn't, so
@@ -149,7 +160,7 @@ describe('apiFetch', () => {
     expect(heard).toEqual(['expired', 'new'])
   })
 
-  it('returns the 401 and clears the token when the refresh fails', async () => {
+  it('returns the 401 and clears the token when the refresh is refused', async () => {
     fakeRefresh(() => new HttpResponse(null, { status: 401 }))
     const seen = protectedEndpoint('/api/v1/boards')
     setAccessToken('expired')
@@ -205,6 +216,52 @@ describe('apiFetch', () => {
     expect(refresh.count).toBe(0)
   })
 
+  it.each(UNANSWERED)('rejects when %s on the refresh, keeping the token, and refreshes again on the next 401 (6N)', async (_case, answer) => {
+    let down = true
+    const refresh = fakeRefresh(() => (down ? answer() : HttpResponse.json({ access_token: 'new' })))
+    const seen = protectedEndpoint('/api/v1/boards')
+    setAccessToken('expired')
+    const heard: (string | null)[] = []
+    const unsubscribe = onAccessTokenChange((token) => heard.push(token))
+
+    await expect(apiFetch('/api/v1/boards')).rejects.toBeInstanceOf(RefreshUnanswered)
+    expect(getAccessToken()).toBe('expired')
+    expect(heard).toEqual([])
+
+    down = false
+    const response = await apiFetch('/api/v1/boards')
+    unsubscribe()
+
+    expect(response.status).toBe(200)
+    expect(refresh.count).toBe(2)
+    expect(seen).toEqual(['Bearer expired', 'Bearer expired', 'Bearer new'])
+    expect(heard).toEqual(['new'])
+  })
+
+  it('rejects every request waiting on a refresh that gets no answer, after one refresh (6N)', async () => {
+    let bothRefused: () => void = () => {}
+    const refused = new Promise<void>((resolve) => (bothRefused = resolve))
+    let refusals = 0
+    server.use(
+      http.get('/api/v1/:resource', () => {
+        refusals += 1
+        if (refusals === 2) bothRefused()
+        return new HttpResponse(null, { status: 401 })
+      }),
+    )
+    const refresh = fakeRefresh(async () => {
+      await refused
+      return HttpResponse.error()
+    })
+    setAccessToken('expired')
+
+    const outcomes = await Promise.allSettled([apiFetch('/api/v1/boards'), apiFetch('/api/v1/time-entries')])
+
+    expect(outcomes.map((o) => o.status)).toEqual(['rejected', 'rejected'])
+    expect(refresh.count).toBe(1)
+    expect(getAccessToken()).toBe('expired')
+  })
+
   it('shares one refresh between requests that get a 401 at the same time', async () => {
     // The refresh answers only once both requests have had their 401, so
     // they really are waiting for a new token together.
@@ -246,11 +303,31 @@ describe('refreshAccessToken', () => {
     expect(credentials).toEqual(['include'])
   })
 
-  it('gives null and clears the token when the network fails', async () => {
-    fakeRefresh(() => HttpResponse.error())
+  it.each([401, 403])('gives null and clears the token when refused with a %i', async (status) => {
+    fakeRefresh(() => new HttpResponse(null, { status }))
     setAccessToken('old')
     expect(await refreshAccessToken()).toBeNull()
     expect(getAccessToken()).toBeNull()
+  })
+
+  it.each(UNANSWERED)('rejects, and keeps the token as it is, when %s (6N)', async (_case, answer) => {
+    fakeRefresh(answer)
+    setAccessToken('old')
+    const heard: (string | null)[] = []
+    const unsubscribe = onAccessTokenChange((token) => heard.push(token))
+
+    await expect(refreshAccessToken()).rejects.toBeInstanceOf(RefreshUnanswered)
+    unsubscribe()
+
+    expect(getAccessToken()).toBe('old')
+    expect(heard).toEqual([])
+  })
+
+  it('asks again on the next call after one that got no answer', async () => {
+    const refresh = fakeRefresh(() => HttpResponse.error())
+    await expect(refreshAccessToken()).rejects.toBeInstanceOf(RefreshUnanswered)
+    await expect(refreshAccessToken()).rejects.toBeInstanceOf(RefreshUnanswered)
+    expect(refresh.count).toBe(2)
   })
 
   it('makes a new request once the previous refresh has finished', async () => {

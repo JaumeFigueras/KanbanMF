@@ -48,8 +48,24 @@ function withRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   return navigator.locks.request('kanbanmf.refresh', task)
 }
 
+// The refresh got no answer that says anything about the session: the
+// connection dropped, or the server failed (the proxy's 502 while the
+// backend restarts, say). The session may well still be good.
+export class RefreshUnanswered extends Error {
+  constructor() {
+    super("KanbanMF couldn't be reached to renew the session")
+    this.name = 'RefreshUnanswered'
+  }
+}
+
 // Rotates the refresh-token cookie for a new access token. Concurrent 401s
 // share a single in-flight refresh instead of each racing their own.
+//
+// Gives the new token, or null when the server refuses the cookie (401 or
+// 403: no session, or not any more), which signs the tab out. Anything else
+// rejects with RefreshUnanswered and keeps the token as it is, so a lost
+// connection doesn't sign out a session that's still good: the next 401
+// tries again.
 //
 // The access token lives only in this module's memory, never in
 // localStorage: a script injected into the page can't read it back later,
@@ -64,17 +80,19 @@ export function refreshAccessToken(): Promise<string | null> {
             method: 'POST',
             credentials: 'include',
           }),
-        )
-        if (!r.ok) {
+        ).catch(() => {
+          throw new RefreshUnanswered()
+        })
+        if (r.status === 401 || r.status === 403) {
           setAccessToken(null)
           return null
         }
-        const { access_token } = await r.json()
-        setAccessToken(access_token)
-        return access_token as string
-      } catch {
-        setAccessToken(null)
-        return null
+        // A cut or garbled answer is no answer either.
+        const body = r.ok ? await r.json().catch(() => null) : null
+        const token: unknown = body?.access_token
+        if (typeof token !== 'string' || !token) throw new RefreshUnanswered()
+        setAccessToken(token)
+        return token
       } finally {
         refreshPromise = null
       }
@@ -93,7 +111,9 @@ function withAuth(init: RequestInit, token: string | null): RequestInit {
 // Authenticated fetch: attaches the current access token and, on a 401
 // (missing, invalid, or expired token), transparently refreshes it once via
 // the cookie-based refresh token and retries the request — callers never
-// need to think about token expiry themselves.
+// need to think about token expiry themselves. A refresh that gets no
+// answer rejects, so the request fails as a dropped connection does, and
+// the tab stays signed in.
 export async function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   let response = await fetch(url, withAuth(init, currentAccessToken))
   if (response.status === 401) {

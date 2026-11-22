@@ -18,11 +18,13 @@ import OAuthConsent from './pages/OAuthConsent'
 import { peekReturnTo } from './utils/returnTo'
 
 function DefaultRedirect() {
-  const { accessToken, loading } = useAuth()
+  const { accessToken, loading, unreachable } = useAuth()
   if (loading) return null
   // Google sign-in comes back to "/", so this is also where it resumes a
-  // page that sent the user to sign in.
-  return <Navigate to={accessToken ? peekReturnTo() ?? '/boards' : '/signin'} replace />
+  // page that sent the user to sign in. With no answer from the start-up
+  // check there may be a session: the page itself says KanbanMF couldn't
+  // be reached (see ProtectedRoute), and opens once it can be.
+  return <Navigate to={accessToken || unreachable ? peekReturnTo() ?? '/boards' : '/signin'} replace />
 }
 
 export default function App() {

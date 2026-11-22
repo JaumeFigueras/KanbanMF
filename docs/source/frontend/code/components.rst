@@ -13,7 +13,8 @@ Application shell
    ``GoogleButton``.
 
 Routing guards
-   ``ProtectedRoute`` and ``PublicRoute``.
+   ``ProtectedRoute`` and ``PublicRoute``, and ``UnreachablePage``, which
+   ``ProtectedRoute`` shows when the start-up check got no answer.
 
 Boards overview
    ``BoardCard`` (a board or template tile, with its menu and drag handle),

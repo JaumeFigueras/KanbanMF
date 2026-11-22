@@ -121,6 +121,11 @@ KanbanMF keeps you signed in on each browser and device you use, so you
 don't have to type your password every time. If you don't use it on a device
 for 30 days, you will have to sign in again there.
 
+Losing the connection doesn't sign you out. If KanbanMF can't be reached
+when you open it, the page says so: check your connection and click **Try
+again**. While you work, what couldn't be loaded or saved says so in the
+same way.
+
 **Sign out** — the last item of the user menu, or the icon at the right of
 the top bar — signs you out of the browser you are using. You stay signed in
 on your other devices.

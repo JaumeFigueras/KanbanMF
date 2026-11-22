@@ -12,8 +12,10 @@ component state. What is shared lives in two contexts and two API modules.
    ``loading``, ``loggedOut`` (whether this page signed out on purpose, until
    the next sign-in), ``signOutUnconfirmed`` (whether that sign-out went
    without the server's confirmation, so the session may still be alive),
-   ``login()`` and ``logout()`` (which never rejects), hands the token to the
-   WebSocket client, and applies the user's language. ``useAuth()`` reads it.
+   ``unreachable`` (whether the start-up check got no answer, so whether
+   there's a session is unknown), ``login()``, ``logout()`` (which never
+   rejects) and ``retryStartUp()``, hands the token to the WebSocket client,
+   and applies the user's language. ``useAuth()`` reads it.
 
 ``ThemeToggleContext.tsx`` and ``useThemeToggle.ts``
    Light or dark, remembered in ``localStorage``, per browser.
@@ -27,7 +29,9 @@ component state. What is shared lives in two contexts and two API modules.
    the token once and retries. ``loadJson()`` is the same for loading data:
    it gives the answer's JSON, and rejects any answer that isn't ``ok`` just
    as a dropped connection. Also ``refreshAccessToken()`` (one refresh at
-   a time, shared by concurrent callers), the access token itself with
+   a time, shared by concurrent callers; it signs out only when refused, and
+   rejects with ``RefreshUnanswered``, keeping the token, when it gets no
+   answer or a server error), the access token itself with
    ``setAccessToken()`` and ``onAccessTokenChange()``, and ``getClientId()``,
    the page's id, kept in memory. ``API_BASE`` is empty on purpose: every URL
    is relative.

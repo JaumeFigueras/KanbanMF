@@ -17,15 +17,18 @@ const LOGOUT = '/api/v1/auth/local/logout'
 
 // Shows what useAuth() says ("loading, tok-1", "ready, no token", and
 // "ready, no token, logged out" after logout()), with a button for each of
-// its actions. Whether the last sign-out went unconfirmed is shown apart.
+// its actions. Whether the last sign-out went unconfirmed, and whether the
+// start-up check got no answer, are shown apart.
 function AuthProbe() {
-  const { accessToken, loading, loggedOut, signOutUnconfirmed, login, logout } = useAuth()
+  const { accessToken, loading, loggedOut, signOutUnconfirmed, unreachable, login, logout, retryStartUp } = useAuth()
   return (
     <>
       <output>{`${loading ? 'loading' : 'ready'}, ${accessToken ?? 'no token'}${loggedOut ? ', logged out' : ''}`}</output>
       <p data-testid="unconfirmed">{signOutUnconfirmed ? 'sign-out unconfirmed' : ''}</p>
+      <p data-testid="unreachable">{unreachable ? 'unreachable' : ''}</p>
       <button onClick={() => login('tok-login')}>Sign in</button>
       <button onClick={() => void logout()}>Sign out</button>
+      <button onClick={retryStartUp}>Try again</button>
     </>
   )
 }
@@ -39,13 +42,15 @@ function renderAuth() {
   return userEvent.setup()
 }
 
-function click(user: ReturnType<typeof userEvent.setup>, name: 'Sign in' | 'Sign out') {
+function click(user: ReturnType<typeof userEvent.setup>, name: 'Sign in' | 'Sign out' | 'Try again') {
   return user.click(screen.getByRole('button', { name }))
 }
 
 function status() {
   return screen.getByRole('status')
 }
+
+const unreachable = () => screen.getByTestId('unreachable')
 
 // The start-up check is over once loading has ended.
 async function startUpEnds() {
@@ -137,21 +142,121 @@ describe('start-up without a session', () => {
 })
 
 describe('start-up, other failures', () => {
-  it('signs out when /users/me is refused', async () => {
-    // A 403, say: the backend refuses accounts that aren't verified.
-    fakeStartUp({ me: () => new HttpResponse(null, { status: 403 }) })
+  it.each([
+    // The token refused even after a new one: the session is no good.
+    [401],
+    // The backend refuses accounts that aren't verified.
+    [403],
+  ])('signs out when /users/me is refused with a %i', async (refusal) => {
+    fakeStartUp({ me: () => new HttpResponse(null, { status: refusal }) })
     renderAuth()
     await startUpEnds()
     expect(status()).toHaveTextContent('ready, no token')
     expect(getAccessToken()).toBeNull()
+    expect(unreachable()).toBeEmptyDOMElement()
   })
 
-  it('signs out, and stops loading, when the network fails', async () => {
-    fakeStartUp({ me: () => HttpResponse.error() })
+  it.each([
+    ['the connection drops', () => HttpResponse.error()],
+    ['the server fails', () => new HttpResponse(null, { status: 500 })],
+    ['the answer is garbled', () => new HttpResponse('<html>', { status: 200, headers: { 'Content-Type': 'application/json' } })],
+  ])('stays signed in when %s on /users/me, without applying a language (6N)', async (_case, me) => {
+    await i18n.changeLanguage('ca')
+    fakeStartUp({ me })
     renderAuth()
     await startUpEnds()
-    expect(status()).toHaveTextContent('ready, no token')
-    expect(getAccessToken()).toBeNull()
+    expect(status()).toHaveTextContent(/^ready, tok-session$/)
+    expect(getAccessToken()).toBe('tok-session')
+    expect(i18n.language).toBe('ca')
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(unreachable()).toBeEmptyDOMElement()
+  })
+})
+
+describe("start-up when the refresh gets no answer (6N)", () => {
+  it.each([
+    ['the connection drops', () => HttpResponse.error()],
+    ['the server fails', () => new HttpResponse(null, { status: 500 })],
+    ["the proxy can't reach the backend", () => new HttpResponse(null, { status: 502 })],
+  ])('says it was unreachable when %s, deciding nothing about the session', async (_case, refresh) => {
+    const asked = fakeStartUp({ refresh })
+    renderAuth()
+    await startUpEnds()
+    expect(status()).toHaveTextContent(/^ready, no token$/)
+    expect(unreachable()).toHaveTextContent('unreachable')
+    expect(asked.me).toBe(0)
+    expect(FakeWebSocket.instances).toHaveLength(0)
+  })
+
+  it('asks again on Try again, loading meanwhile, and is signed in once it gets an answer', async () => {
+    // The second refresh holds its answer until the test releases it.
+    let refreshes = 0
+    let answer: () => void = () => {}
+    server.use(
+      http.post(REFRESH, async () => {
+        refreshes += 1
+        if (refreshes === 1) return HttpResponse.error()
+        await new Promise<void>((resolve) => (answer = resolve))
+        return HttpResponse.json({ access_token: 'tok-session' })
+      }),
+      http.get(ME, () => HttpResponse.json(makeUser({ language_locale: 'ca_ES' }))),
+    )
+    const user = renderAuth()
+    await startUpEnds()
+
+    await click(user, 'Try again')
+
+    await waitFor(() => expect(refreshes).toBe(2))
+    expect(status()).toHaveTextContent(/^loading, /)
+    expect(unreachable()).toBeEmptyDOMElement()
+    answer()
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready, tok-session$/))
+    expect(i18n.language).toBe('ca')
+  })
+
+  it('ends signed out, and no longer unreachable, when Try again finds no session', async () => {
+    let refresh = () => HttpResponse.error() as Response
+    server.use(http.post(REFRESH, () => refresh()))
+    const user = renderAuth()
+    await startUpEnds()
+    refresh = NO_SESSION
+
+    await click(user, 'Try again')
+
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready, no token$/))
+    expect(unreachable()).toBeEmptyDOMElement()
+  })
+
+  it('says it again when Try again gets no answer either', async () => {
+    let refreshes = 0
+    server.use(http.post(REFRESH, () => {
+      refreshes += 1
+      return HttpResponse.error()
+    }))
+    const user = renderAuth()
+    await startUpEnds()
+
+    await click(user, 'Try again')
+
+    await waitFor(() => expect(refreshes).toBe(2))
+    await startUpEnds()
+    expect(unreachable()).toHaveTextContent('unreachable')
+  })
+
+  it('is no longer unreachable once signed in some other way', async () => {
+    // The sign-in page works while the start-up check couldn't: the
+    // sign-in, and then signing out, settle it.
+    fakeStartUp({ refresh: () => HttpResponse.error() })
+    server.use(http.post(LOGOUT, () => new HttpResponse(null, { status: 204 })))
+    const user = renderAuth()
+    await startUpEnds()
+
+    await click(user, 'Sign in')
+    expect(unreachable()).toBeEmptyDOMElement()
+    await click(user, 'Sign out')
+
+    await waitFor(() => expect(status()).toHaveTextContent(/^ready, no token, logged out$/))
+    expect(unreachable()).toBeEmptyDOMElement()
   })
 })
 
@@ -272,7 +377,7 @@ describe('a refresh made elsewhere (by apiFetch)', () => {
     expect(status()).toHaveTextContent('ready, tok-refreshed')
   })
 
-  it('signs out when it fails, but not as a logout', async () => {
+  it('signs out when it is refused, but not as a logout', async () => {
     fakeStartUp()
     renderAuth()
     await startUpEnds()
@@ -281,6 +386,21 @@ describe('a refresh made elsewhere (by apiFetch)', () => {
     await act(() => refreshAccessToken())
 
     expect(status()).toHaveTextContent(/^ready, no token$/)
+  })
+
+  it('stays signed in, with the socket open, when it gets no answer (6N)', async () => {
+    fakeStartUp()
+    renderAuth()
+    await startUpEnds()
+    const socket = FakeWebSocket.instances[0]
+    socket.open()
+    server.use(http.post(REFRESH, () => HttpResponse.error()))
+
+    await act(() => refreshAccessToken().catch(() => null))
+
+    expect(status()).toHaveTextContent(/^ready, tok-session$/)
+    expect(unreachable()).toBeEmptyDOMElement()
+    expect(socket.readyState).toBe(FakeWebSocket.OPEN)
   })
 })
 
@@ -292,8 +412,10 @@ describe('useAuth outside its provider', () => {
       const user = userEvent.setup()
       await click(user, 'Sign in')
       await click(user, 'Sign out')
+      await click(user, 'Try again')
       expect(status()).toHaveTextContent(/^loading, no token$/)
       expect(screen.getByTestId('unconfirmed')).toBeEmptyDOMElement()
+      expect(unreachable()).toBeEmptyDOMElement()
       expect(getAccessToken()).toBeNull()
       expect(fetchSpy).not.toHaveBeenCalled()
     } finally {
