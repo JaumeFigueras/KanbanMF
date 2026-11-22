@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import type { ChecklistData } from '../types/board'
+import i18n from '../i18n'
 import { renderWithProviders } from '../test/render'
 import ChecklistDialog from './ChecklistDialog'
 
@@ -107,8 +108,29 @@ describe('ChecklistDialog', () => {
 
   it('removes an item', async () => {
     const { user } = renderDialog()
-    await user.click(screen.getAllByRole('button', { name: 'Remove item' })[0])
+    await user.click(button('Remove item 1'))
     expect(itemTexts()).toEqual(['Send the newsletter'])
+  })
+
+  it("names each item's buttons after its number, as its field is", async () => {
+    const { user } = renderDialog()
+    expect(screen.getAllByRole('button', { name: /^(Move|Remove) item \d+$/ }).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Move item 1', 'Remove item 1', 'Move item 2', 'Remove item 2'])
+
+    await user.click(button('Remove item 1'))
+
+    // The item left is now the first, and its buttons say so.
+    expect(item(1)).toHaveValue('Send the newsletter')
+    expect(screen.getAllByRole('button', { name: /^(Move|Remove) item \d+$/ }).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Move item 1', 'Remove item 1'])
+  })
+
+  it("names the items' buttons in Catalan", async () => {
+    await i18n.changeLanguage('ca')
+    renderDialog()
+    expect(screen.getByRole('textbox', { name: 'Element 2' })).toHaveValue('Send the newsletter')
+    expect(button("Mou l'element 2")).toBeInTheDocument()
+    expect(button("Elimina l'element 2")).toBeInTheDocument()
   })
 
   it('hands over the trimmed name and items, dropping blank ones and keeping ids and ticks, then closes', async () => {

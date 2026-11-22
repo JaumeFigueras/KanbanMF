@@ -477,6 +477,24 @@ describe('ShareBoardDialog', () => {
       expect(search.requests.map((r) => r.url.searchParams.get('q'))).toEqual(['oli'])
     })
 
+    it("says it's looking, and names the field's arrow button, in Catalan", async () => {
+      await i18n.changeLanguage('ca')
+      fakeShares()
+      const held = heldAnswer(() => HttpResponse.json([OLIVIA]))
+      fakeEndpoint('get', SEARCH, held.answer)
+      const { user } = renderDialog()
+      await screen.findByRole('button', { name: "Elimina Liam Chen d'aquest tauler" })
+
+      const field = screen.getByRole('combobox', { name: 'Afegeix persones' })
+      await user.type(field, 'oli')
+
+      expect(await screen.findByText("S'està carregant…")).toBeInTheDocument()
+      expect(within(field.closest('.MuiAutocomplete-root') as HTMLElement).getByRole('button', { name: 'Tanca' }))
+        .toBeInTheDocument()
+      held.release()
+      expect(await screen.findByRole('option', { name: 'Olivia Martin' })).toBeInTheDocument()
+    })
+
     it('looks up the text without the spaces around it', async () => {
       fakeShares()
       const search = fakeEndpoint('get', SEARCH, () => HttpResponse.json([]))

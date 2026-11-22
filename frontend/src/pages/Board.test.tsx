@@ -633,7 +633,7 @@ describe('Board', () => {
       renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: { language_locale: 'ca_ES' } })
 
       expect(await screen.findByRole('button', { name: 'Menú de la llista To do' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Afegeix una tarja a To do' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Afegeix una targeta a To do' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Mou la llista To do' })).toBeInTheDocument()
     })
   })

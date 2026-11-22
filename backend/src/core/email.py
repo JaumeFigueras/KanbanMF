@@ -131,7 +131,7 @@ The KanbanMF Team
     "ca": """\
 Hola {display_name},
 
-Aquest és un recordatori que la teva tarja "{card_name}" del tauler "{board_name}" {phrase}.
+Aquest és un recordatori que la teva targeta "{card_name}" del tauler "{board_name}" {phrase}.
 
 Data de venciment: {due_date}
 

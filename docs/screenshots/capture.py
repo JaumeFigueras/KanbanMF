@@ -107,7 +107,8 @@ class Shooter:
         label = self.t(key)
         for name, value in values.items():
             label = label.replace("{{" + name + "}}", value)
-        return (within or self.page).locator(f"[aria-label={json.dumps(label)}]").first
+        # ensure_ascii=False: CSS reads "ú" as it is, but not JSON's ú.
+        return (within or self.page).locator(f"[aria-label={json.dumps(label, ensure_ascii=False)}]").first
 
     def menu_item(self, key: str) -> Locator:
         return self.page.get_by_role("menuitem", name=self.t(key))

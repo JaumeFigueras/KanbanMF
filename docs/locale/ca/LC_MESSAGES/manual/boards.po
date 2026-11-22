@@ -503,7 +503,7 @@ msgid ""
 msgstr ""
 "Una targeta arxivada també pot tenir algú que es va eliminar mentre era "
 "arxivada. Tampoc no es pot restaurar tal com és; el diàleg anomena les "
-"persones que han marxat, i :guilabel:`Copia la tarja` en fa una còpia "
+"persones que han marxat, i :guilabel:`Copia la targeta` en fa una còpia "
 "sense elles. Si se'ls torna a donar accés al tauler, la targeta es pot "
 "restaurar."
 

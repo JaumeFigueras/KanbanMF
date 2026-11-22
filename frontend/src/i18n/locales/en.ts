@@ -287,9 +287,9 @@ const en = {
     checklistItems: 'Items',
     noChecklistItems: 'No items yet.',
     addChecklistItem: 'Add an item',
-    removeChecklistItem: 'Remove item',
+    removeChecklistItem: 'Remove item {{number}}',
     checklistItemField: 'Item {{number}}',
-    moveChecklistItem: 'Move item',
+    moveChecklistItem: 'Move item {{number}}',
     extractToCard: 'Extract to New Card',
     sortCards: 'Sort cards',
     sortDueDate: 'Due date',
@@ -449,11 +449,52 @@ const en = {
     // The sign-up page's second password field, where it is typed again.
     showRepeatedPassword: 'Show the repeated password',
     hideRepeatedPassword: 'Hide the repeated password',
+    // The change-password dialog's first two fields.
+    showCurrentPassword: 'Show the current password',
+    hideCurrentPassword: 'Hide the current password',
+    showNewPassword: 'Show the new password',
+    hideNewPassword: 'Hide the new password',
     language: 'Language',
     // A drop-down's arrow button, opening and closing its list.
     open: 'Open',
     moveFailed: 'The move couldn\'t be saved, and has been undone. Please try again.',
     tryAgain: 'Try again',
+  },
+  // MUI's own texts, given to it through the theme (src/theme/index.ts). The
+  // English ones are MUI's own words, so English is as MUI ships it.
+  mui: {
+    // The drop-downs (Autocomplete). Their arrow button is common.open and
+    // common.close, as is an alert's close button.
+    clear: 'Clear',
+    noOptions: 'No options',
+    loading: 'Loading…',
+    // The date pickers: the title of the dialog, its buttons (Cancel is
+    // common.cancel) and the date and time tabs.
+    dateTimePickerTitle: 'Select date & time',
+    next: 'Next',
+    ok: 'OK',
+    dateTab: 'pick date',
+    timeTab: 'pick time',
+    // The calendar.
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    yearViewOpen: 'year view is open, switch to calendar view',
+    calendarViewOpen: 'calendar view is open, switch to year view',
+    // The clock and its columns, read out by a screen reader.
+    openPreviousView: 'Open previous view',
+    openNextView: 'Open next view',
+    selectHours: 'Select hours',
+    selectMinutes: 'Select minutes',
+    selectSeconds: 'Select seconds',
+    selectMeridiem: 'Select meridiem',
+    noTimeSelected: 'No time selected',
+    selectedTime: 'Selected time is {{time}}',
+    hoursNumber_one: '{{count}} hour',
+    hoursNumber_other: '{{count}} hours',
+    minutesNumber_one: '{{count}} minute',
+    minutesNumber_other: '{{count}} minutes',
+    // The letter repeated for the year in an empty date field: DD/MM/YYYY.
+    yearLetter: 'Y',
   },
 } as const
 

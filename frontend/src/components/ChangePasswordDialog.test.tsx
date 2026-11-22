@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { fakeEndpoint, heldAnswer } from '../test/endpoints'
+import i18n from '../i18n'
 import { renderWithProviders } from '../test/render'
 import ChangePasswordDialog from './ChangePasswordDialog'
 
@@ -46,25 +47,55 @@ describe('ChangePasswordDialog', () => {
     expect(dialog).toHaveTextContent('This signs you out on every other device and browser. You stay signed in here.')
   })
 
-  it("shows or hides each password with its own button, named for what it'll do", async () => {
+  it("shows or hides each password with its own button, named for its field and what it'll do", async () => {
     const { user } = renderDialog()
-    const [showCurrent] = screen.getAllByRole('button', { name: 'Show password' })
 
-    await user.click(showCurrent)
+    await user.click(button('Show the current password'))
 
     expect(field('Current password')).toHaveAttribute('type', 'text')
     expect(field('New password')).toHaveAttribute('type', 'password')
-    expect(screen.getAllByRole('button', { name: 'Hide password' })).toHaveLength(1)
-    await user.click(button('Hide password'))
+    expect(field('Confirm password')).toHaveAttribute('type', 'password')
+    await user.click(button('Hide the current password'))
     expect(field('Current password')).toHaveAttribute('type', 'password')
+    expect(button('Show the current password')).toBeInTheDocument()
   })
 
   it('shows the new password and its confirmation with their own buttons', async () => {
     const { user } = renderDialog()
-    await user.click(screen.getAllByRole('button', { name: 'Show password' })[1])
+    await user.click(button('Show the new password'))
     expect(field('New password')).toHaveAttribute('type', 'text')
-    await user.click(screen.getAllByRole('button', { name: 'Show password' })[1])
+    expect(field('Confirm password')).toHaveAttribute('type', 'password')
+    await user.click(button('Show the repeated password'))
     expect(field('Confirm password')).toHaveAttribute('type', 'text')
+    await user.click(button('Hide the new password'))
+    expect(field('New password')).toHaveAttribute('type', 'password')
+    await user.click(button('Hide the repeated password'))
+    expect(field('Confirm password')).toHaveAttribute('type', 'password')
+  })
+
+  it('reaches each eye button with Tab, after its field', async () => {
+    const { user } = renderDialog()
+    expect(field('Current password')).toHaveFocus()
+    await user.tab()
+    expect(button('Show the current password')).toHaveFocus()
+    await user.tab()
+    expect(field('New password')).toHaveFocus()
+    await user.tab()
+    expect(button('Show the new password')).toHaveFocus()
+    await user.tab()
+    expect(field('Confirm password')).toHaveFocus()
+    await user.tab()
+    expect(button('Show the repeated password')).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(field('Confirm password')).toHaveAttribute('type', 'text')
+  })
+
+  it('names the eye buttons in Catalan', async () => {
+    await i18n.changeLanguage('ca')
+    renderDialog()
+    expect(button('Mostra la contrasenya actual')).toBeInTheDocument()
+    expect(button('Mostra la nova contrasenya')).toBeInTheDocument()
+    expect(button('Mostra la contrasenya repetida')).toBeInTheDocument()
   })
 
   it('sends the current and the new password, then closes', async () => {
@@ -163,7 +194,9 @@ describe('ChangePasswordDialog', () => {
   it('reopens empty and hidden, without the last error', async () => {
     const { user, reopen } = renderDialog()
     await fill(user, 'old secret', 'new secret 1', 'new secret 2')
-    for (const show of screen.getAllByRole('button', { name: 'Show password' })) await user.click(show)
+    for (const show of ['Show the current password', 'Show the new password', 'Show the repeated password']) {
+      await user.click(button(show))
+    }
     await user.click(button('Save'))
     await screen.findByRole('alert')
 

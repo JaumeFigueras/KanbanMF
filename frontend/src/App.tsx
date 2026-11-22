@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ThemeProvider, CssBaseline } from '@mui/material'
-import { lightTheme, darkTheme } from './theme'
+import { CssBaseline } from '@mui/material'
+import AppThemeProvider from './theme/AppThemeProvider'
 import { useThemeToggle } from './context/useThemeToggle'
 import { AuthProvider } from './context/AuthContext'
 import { useAuth } from './context/useAuth'
@@ -31,7 +31,7 @@ export default function App() {
   const { dark } = useThemeToggle()
 
   return (
-    <ThemeProvider theme={dark ? darkTheme : lightTheme}>
+    <AppThemeProvider dark={dark}>
       <CssBaseline />
       <BrowserRouter>
         <AuthProvider>
@@ -49,6 +49,6 @@ export default function App() {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
-    </ThemeProvider>
+    </AppThemeProvider>
   )
 }

@@ -178,8 +178,8 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
                   onEditText={(text) => handleEditItem(item.id, text)}
                   onRemove={() => handleRemoveItem(item.id)}
                   fieldLabel={t('board.checklistItemField', { number: index + 1 })}
-                  removeLabel={t('board.removeChecklistItem')}
-                  dragLabel={t('board.moveChecklistItem')}
+                  removeLabel={t('board.removeChecklistItem', { number: index + 1 })}
+                  dragLabel={t('board.moveChecklistItem', { number: index + 1 })}
                 />
               ))}
             </Stack>

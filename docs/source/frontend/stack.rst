@@ -119,10 +119,14 @@ board, list or card repeats are named after it — "Menu for Website
 redesign", "Add a card to To do", "Move the list Doing" — or a screen
 reader's list of buttons would show the same name over and over. A tooltip
 names the button it wraps, but a name the button gives itself wins, so a
-tile's star shows "Star" and is called "Star Website redesign". The
-signed-out pages' controls (language, theme, show password) are translated
-like everything else, and the sign-up page's two show-password buttons are
-told apart ("Show the repeated password").
+tile's star shows "Star" and is called "Star Website redesign". So are the
+buttons each item repeats in the checklist dialog, after the item's number,
+as its field is: "Remove item 2" beside "Item 2". The signed-out pages'
+controls (language, theme, show password) are translated like everything
+else. Where a form has more than one password, each show-password button
+says which: "Show the repeated password" on the sign-up page, "Show the
+current password" and "Show the new password" in the change-password
+dialog. :kbd:`Tab` reaches each, after its field.
 
 Signing in and staying signed in
 --------------------------------
@@ -337,9 +341,12 @@ elsewhere meanwhile.
 Theming and colours
 -------------------
 
-``src/theme/index.ts`` holds the light and dark MUI themes;
-``ThemeToggleContext`` switches between them and remembers the choice in
-``localStorage``, per browser. Board, list and card colours come from the
+``appTheme(dark, language)`` (``src/theme/index.ts``) builds the MUI theme:
+light or dark, with MUI's own texts in the given language (see
+:ref:`below <frontend-mui-texts>`). ``AppThemeProvider`` builds it again when
+either changes: ``ThemeToggleContext`` switches light and dark and remembers
+the choice in ``localStorage``, per browser, and the language comes from
+i18next. Board, list and card colours come from the
 API — they are per user — and are applied as tints, blended into an opaque
 colour where tints nest (a card on a coloured list) so they don't bleed into
 each other (``src/utils/colorTint.ts``). Pickers offer the fixed palette in
@@ -380,6 +387,26 @@ format* (``en``, ``en_GB`` or ``ca_ES``) picks the ``Intl`` and dayjs locale
 dates.
 
 A new text means a new key in **both** ``en.ts`` and ``ca.ts``.
+
+.. _frontend-mui-texts:
+
+MUI writes some texts of its own: a drop-down's arrow and clear buttons and
+its "No options" and "Loading…", an alert's close button, and everything in
+the date pickers (the dialog's title, its tabs and buttons, the clock's
+columns, the empty field's ``DD/MM/YYYY``). The theme gives MUI these from
+the app's translations, most of them in a ``mui`` section of the locale
+files, so a language switch reaches them too. English uses MUI's own words,
+so it reads as MUI ships it. MUI's own Catalan sits underneath, for what the
+app never shows (the week numbers, the range pickers); it isn't used for the
+rest because it gets some wrong (*Obert*, the adjective, for the drop-down's
+Open; *Tancat* for an alert's Close; the date and time tabs swapped) and puts
+the others in the infinitive, where KanbanMF uses the imperative. In Catalan
+the empty field reads ``DD/MM/AAAA``.
+
+The theme also writes the calendar's weekdays in two letters, where MUI
+writes one: one letter repeats (T and S in English), and in Catalan every
+weekday is a D. Those names, like the months, come from the dayjs locale, so
+they follow the dates & times format, not the language.
 
 Conventions for new UI
 ----------------------

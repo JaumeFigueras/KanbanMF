@@ -6,6 +6,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/en-gb'
 import 'dayjs/locale/ca'
+import i18n from '../i18n'
 import { renderWithProviders } from '../test/render'
 import CardDateField from './CardDateField'
 
@@ -178,6 +179,66 @@ describe('CardDateField', () => {
 
     expect(onChange).toHaveBeenCalledWith(null)
     expect(shown()).toBe('DD|MM|YYYY|hh|mm')
+  })
+
+  describe("the picker's own texts", () => {
+    // Everything the open picker shows or names, on its date view and then on
+    // its time view, as text.
+    async function pickerTexts(user: ReturnType<typeof renderField>['user'], open: string, next: string) {
+      await user.click(screen.getByRole('button', { name: open }))
+      const picker = await screen.findByRole('dialog')
+      const named = (role: string) => within(picker).getAllByRole(role).map((e) => e.getAttribute('aria-label') ?? e.textContent)
+      const date = {
+        title: picker.querySelector('.MuiPickersToolbar-title')?.textContent,
+        tabs: named('tab'),
+        weekdays: within(picker).getAllByRole('columnheader').map((e) => e.textContent),
+        buttons: within(picker).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent),
+      }
+      await user.click(within(picker).getByRole('gridcell', { name: '10' }))
+      await user.click(within(picker).getByRole('button', { name: next }))
+      const time = {
+        columns: named('listbox'),
+        firstHours: named('option').slice(0, 2),
+        buttons: within(picker).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent),
+      }
+      return { date, time }
+    }
+
+    it("are MUI's own English in English, with two-letter weekdays", async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-03-05T13:33:40Z'))
+      const { user } = renderField()
+      expect(shown()).toBe('DD|MM|YYYY|hh|mm')
+
+      const { date, time } = await pickerTexts(user, 'Choose date', 'Next')
+
+      expect(date.title).toBe('Select date & time')
+      expect(date.tabs).toEqual(['pick date', 'pick time'])
+      expect(date.weekdays).toEqual(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'])
+      expect(date.buttons).toEqual(expect.arrayContaining(['Previous month', 'Next month', 'Cancel', 'Next']))
+      expect(time.columns).toEqual(['Select hours', 'Select minutes'])
+      expect(time.firstHours).toEqual(['0 hours', '1 hour'])
+      expect(time.buttons).toEqual(expect.arrayContaining(['Cancel', 'OK']))
+    })
+
+    it("are KanbanMF's Catalan in Catalan, not MUI's", async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-03-05T13:33:40Z'))
+      await i18n.changeLanguage('ca')
+      const { user } = renderField(null, 'ca')
+      expect(shown()).toBe('DD|MM|AAAA|hh|mm')
+
+      const { date, time } = await pickerTexts(user, 'Tria la data', 'Següent')
+
+      expect(date.title).toBe("Tria la data i l'hora")
+      expect(date.tabs).toEqual(['tria la data', "tria l'hora"])
+      // MUI's one letter would be a D for every day.
+      expect(date.weekdays).toEqual(['Dl', 'Dt', 'Dc', 'Dj', 'Dv', 'Ds', 'Dg'])
+      expect(date.buttons).toEqual(expect.arrayContaining(['Mes anterior', 'Mes següent', 'Cancel·la', 'Següent']))
+      expect(time.columns).toEqual(['Tria les hores', 'Tria els minuts'])
+      expect(time.firstHours).toEqual(['0 hores', '1 hora'])
+      expect(time.buttons).toEqual(expect.arrayContaining(['Cancel·la', "D'acord"]))
+    })
   })
 
   describe('the picker, on an empty field', () => {

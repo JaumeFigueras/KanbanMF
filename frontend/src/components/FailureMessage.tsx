@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Alert, Snackbar } from '@mui/material'
-import { useTranslation } from 'react-i18next'
 
 // How long a message stays up, unless it's closed sooner.
 export const FAILURE_MESSAGE_MS = 10000
@@ -17,7 +16,6 @@ interface Props {
 // with Escape; a click elsewhere on the page leaves it up, so it can be read
 // while carrying on.
 export default function FailureMessage({ message, onClose }: Props) {
-  const { t } = useTranslation()
   // The last message, kept while the box slides away once closed, so it
   // doesn't empty itself on the way out.
   const [shown, setShown] = useState(message)
@@ -30,7 +28,7 @@ export default function FailureMessage({ message, onClose }: Props) {
       onClose={(_, reason) => { if (reason !== 'clickaway') onClose() }}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
     >
-      <Alert severity="error" variant="filled" onClose={onClose} closeText={t('common.close')} sx={{ width: '100%' }}>
+      <Alert severity="error" variant="filled" onClose={onClose} sx={{ width: '100%' }}>
         {shown}
       </Alert>
     </Snackbar>

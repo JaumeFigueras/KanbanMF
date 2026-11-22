@@ -4,6 +4,7 @@ import { HttpResponse } from 'msw'
 import type { DateFormat } from '../utils/locale'
 import { formatDateTime } from '../utils/locale'
 import { fakeEndpoint, heldAnswer } from '../test/endpoints'
+import i18n from '../i18n'
 import { renderWithProviders } from '../test/render'
 import LanguageLocalizationDialog from './LanguageLocalizationDialog'
 
@@ -171,6 +172,19 @@ describe('LanguageLocalizationDialog', () => {
     expect(select('Date display on cards')).toHaveTextContent('Numeric (e.g. 27/06/2026)')
     expect(timezoneField()).toHaveValue('Asia/Tokyo')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it("names the time zone field's buttons, and says nothing matches, in Catalan", async () => {
+    await i18n.changeLanguage('ca')
+    const { user } = renderDialog()
+    const field = screen.getByRole('combobox', { name: 'Fus horari' })
+    expect(button('Obre')).toBeInTheDocument()
+
+    await user.clear(field)
+    await user.type(field, 'Atlàntida')
+
+    expect(await screen.findByText('Cap opció')).toBeInTheDocument()
+    expect(button('Tanca')).toBeInTheDocument()
   })
 
   it('closes on Cancel without saving', async () => {

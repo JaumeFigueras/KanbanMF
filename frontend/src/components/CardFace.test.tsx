@@ -5,7 +5,7 @@ import type { CardRead, ChecklistRead } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import { makeCard, makeLabel, makePerson } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
-import { lightTheme } from '../theme'
+import { appTheme } from '../theme'
 import CardFace from './CardFace'
 
 interface FaceOptions {
@@ -107,7 +107,7 @@ describe('CardFace', () => {
 
     it("is drawn in the theme's divider colour when the card has none (the archive)", () => {
       renderFace(makeCard({ due_at: '2026-03-20T10:00:00Z' }))
-      expect(headerRow()).toHaveStyle({ borderBottomWidth: '1px', borderBottomColor: lightTheme.palette.divider })
+      expect(headerRow()).toHaveStyle({ borderBottomWidth: '1px', borderBottomColor: appTheme(false, 'en').palette.divider })
     })
   })
 

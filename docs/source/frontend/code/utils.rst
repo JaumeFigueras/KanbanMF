@@ -71,8 +71,16 @@ Small pure helpers, with no React in them:
 ``src/theme/``
 --------------
 
-``lightTheme`` and ``darkTheme``, the two MUI themes. The dark one uses
-purple as its primary colour.
+``index.ts``
+   ``appTheme(dark, language)``: the MUI theme, light or dark (the dark one
+   uses purple as its primary colour), with MUI's own texts in the given
+   language — the drop-downs', the alerts' and the date pickers' — and
+   two-letter weekdays in the calendar.
+
+``AppThemeProvider.tsx``
+   Hands that theme to MUI, building it again when the light/dark choice
+   or the language changes. ``App`` and the tests' ``renderWithProviders``
+   both use it.
 
 ``src/i18n/``
 -------------

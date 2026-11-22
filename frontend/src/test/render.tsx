@@ -1,11 +1,11 @@
 import type { ReactElement, ReactNode } from 'react'
-import { CssBaseline, ThemeProvider } from '@mui/material'
+import { CssBaseline } from '@mui/material'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { render, type RenderResult } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { AuthProvider } from '../context/AuthContext'
-import { darkTheme, lightTheme } from '../theme'
+import AppThemeProvider from '../theme/AppThemeProvider'
 import { makeUser, type TestUser } from './fixtures'
 import { server } from './server'
 
@@ -57,12 +57,12 @@ export function renderWithProviders(
       </Routes>
     ) : children
     return (
-      <ThemeProvider theme={theme === 'dark' ? darkTheme : lightTheme}>
+      <AppThemeProvider dark={theme === 'dark'}>
         <CssBaseline />
         <MemoryRouter initialEntries={[route]}>
           {auth ? <AuthProvider>{routed}</AuthProvider> : routed}
         </MemoryRouter>
-      </ThemeProvider>
+      </AppThemeProvider>
     )
   }
 

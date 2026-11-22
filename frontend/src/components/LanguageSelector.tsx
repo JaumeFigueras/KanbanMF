@@ -21,9 +21,6 @@ export default function LanguageSelector() {
       getOptionLabel={(o) => o.label}
       isOptionEqualToValue={(a, b) => a.code === b.code}
       disableClearable
-      // MUI's own names for the arrow button are English.
-      openText={t('common.open')}
-      closeText={t('common.close')}
       size="small"
       sx={{ width: 160 }}
       renderInput={(params) => <TextField {...params} label={t('common.language')} />}

@@ -93,20 +93,25 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
     }
   }
 
-  function visibilityAdornment(visible: boolean, toggle: () => void) {
+  // Each field's eye button, named after the field it shows or hides.
+  function visibilityAdornment(visible: boolean, toggle: () => void, showLabel: string, hideLabel: string) {
     return (
       <InputAdornment position="end">
-        <IconButton
-          onClick={toggle}
-          edge="end"
-          tabIndex={-1}
-          aria-label={visible ? t('common.hidePassword') : t('common.showPassword')}
-        >
+        <IconButton onClick={toggle} edge="end" aria-label={visible ? hideLabel : showLabel}>
           {visible ? <VisibilityOff /> : <Visibility />}
         </IconButton>
       </InputAdornment>
     )
   }
+  const oldEye = visibilityAdornment(
+    showOld, () => setShowOld((v) => !v), t('common.showCurrentPassword'), t('common.hideCurrentPassword'),
+  )
+  const newEye = visibilityAdornment(
+    showNew, () => setShowNew((v) => !v), t('common.showNewPassword'), t('common.hideNewPassword'),
+  )
+  const confirmEye = visibilityAdornment(
+    showConfirm, () => setShowConfirm((v) => !v), t('common.showRepeatedPassword'), t('common.hideRepeatedPassword'),
+  )
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
@@ -119,7 +124,7 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
             type={showOld ? 'text' : 'password'}
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
-            slotProps={{ input: { endAdornment: visibilityAdornment(showOld, () => setShowOld((v) => !v)) } }}
+            slotProps={{ input: { endAdornment: oldEye } }}
             fullWidth
             autoFocus
           />
@@ -128,7 +133,7 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
             type={showNew ? 'text' : 'password'}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            slotProps={{ input: { endAdornment: visibilityAdornment(showNew, () => setShowNew((v) => !v)) } }}
+            slotProps={{ input: { endAdornment: newEye } }}
             fullWidth
           />
           <TextField
@@ -136,7 +141,7 @@ export default function ChangePasswordDialog({ open, onClose }: Props) {
             type={showConfirm ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            slotProps={{ input: { endAdornment: visibilityAdornment(showConfirm, () => setShowConfirm((v) => !v)) } }}
+            slotProps={{ input: { endAdornment: confirmEye } }}
             fullWidth
           />
           <Typography variant="body2" color="text.secondary">
