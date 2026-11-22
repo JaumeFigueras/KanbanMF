@@ -17,7 +17,8 @@ import {
 } from '@mui/material'
 import { useTranslation } from 'react-i18next'
 import AuthControls from '../components/AuthControls'
-import { apiFetch } from '../api/client'
+import LoadFailure from '../components/LoadFailure'
+import { HttpError, apiFetch, loadJson } from '../api/client'
 
 // GET /api/v1/oauth/requests/{id} — see backend/src/schemas/oauth.py.
 interface AuthorizationRequest {
@@ -40,6 +41,15 @@ const ERROR_KEYS: Record<string, string> = {
   invalid_redirect_uri: 'oauthConsent.errorRedirect',
 }
 
+// The request is gone: answered, expired, or never was (404), or the address
+// doesn't name one at all (422). Trying again can't help.
+function isGone(error: unknown): boolean {
+  return error instanceof HttpError && (error.status === 404 || error.status === 422)
+}
+
+// Where the page's load stands: as LoadState, plus a request that's gone.
+type ConsentLoad = 'loading' | 'loaded' | 'failed' | 'gone'
+
 // Where an MCP client such as Claude asks to reach the user's boards: the
 // backend's /oauth/authorize sends the browser here with ?request=<id>. The
 // user picks which of their own boards to share, and whether read-only;
@@ -52,35 +62,44 @@ export default function OAuthConsent() {
 
   const [request, setRequest] = useState<AuthorizationRequest | null>(null)
   const [me, setMe] = useState<Me | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [load, setLoad] = useState<ConsentLoad>('loading')
+  // Try again's count, which loads the page once more.
+  const [attempt, setAttempt] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [readOnly, setReadOnly] = useState(false)
   const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
+  // A translation key, not its text, so a message follows a change of
+  // language made on this page (it has the language switch).
+  const [sendErrorKey, setSendErrorKey] = useState<string | null>(null)
+
+  const requestUrl = requestId ? `/api/v1/oauth/requests/${encodeURIComponent(requestId)}` : null
 
   useEffect(() => {
-    if (!requestId) return
+    if (!requestUrl) return
     let cancelled = false
-    ;(async () => {
-      try {
-        const [r, meRes] = await Promise.all([
-          apiFetch(`/api/v1/oauth/requests/${encodeURIComponent(requestId)}`),
-          apiFetch('/api/v1/users/me'),
-        ])
+    // Both answers are waited for, so a request that's gone is said as such
+    // whatever the other one did.
+    Promise.allSettled([loadJson<AuthorizationRequest>(requestUrl), loadJson<Me>('/api/v1/users/me')])
+      .then(([fetchedRequest, fetchedMe]) => {
         if (cancelled) return
-        if (r.status === 404 || r.status === 422) {
-          setLoadError(t('oauthConsent.errorExpired'))
-          return
+        if (fetchedRequest.status === 'rejected' && isGone(fetchedRequest.reason)) {
+          setLoad('gone')
+        } else if (fetchedRequest.status === 'fulfilled' && fetchedMe.status === 'fulfilled') {
+          setRequest(fetchedRequest.value)
+          setMe(fetchedMe.value)
+          setLoad('loaded')
+        } else {
+          setLoad('failed')
         }
-        if (!r.ok || !meRes.ok) throw new Error()
-        setRequest(await r.json())
-        setMe(await meRes.json())
-      } catch {
-        if (!cancelled) setLoadError(t('common.saveError'))
-      }
-    })()
+      })
     return () => { cancelled = true }
-  }, [requestId, t])
+  }, [requestUrl, attempt])
+
+  // Try again: the spinner shows while it loads.
+  function retryLoad() {
+    setLoad('loading')
+    setAttempt((n) => n + 1)
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -92,12 +111,12 @@ export default function OAuthConsent() {
   }
 
   async function answer(approve: boolean) {
-    if (!requestId) return
+    if (!requestUrl) return
     setSending(true)
-    setSendError(null)
+    setSendErrorKey(null)
     try {
       const r = await apiFetch(
-        `/api/v1/oauth/requests/${encodeURIComponent(requestId)}/${approve ? 'approve' : 'deny'}`,
+        `${requestUrl}/${approve ? 'approve' : 'deny'}`,
         approve
           ? {
               method: 'POST',
@@ -107,7 +126,18 @@ export default function OAuthConsent() {
           : { method: 'POST' },
       )
       if (r.status === 404) {
-        setSendError(t('oauthConsent.errorExpired'))
+        setSendErrorKey('oauthConsent.errorExpired')
+        setSending(false)
+        return
+      }
+      if (approve && r.status === 422) {
+        // A board ticked can no longer be shared: archived or deleted since
+        // the page loaded. The list is loaded again, keeping only the boards
+        // still offered, rather than send the same refused choice again.
+        const fresh = await loadJson<AuthorizationRequest>(requestUrl)
+        setRequest(fresh)
+        setSelected((prev) => new Set([...prev].filter((id) => fresh.boards.some((b) => b.id === id))))
+        setSendErrorKey('oauthConsent.boardsChanged')
         setSending(false)
         return
       }
@@ -116,8 +146,9 @@ export default function OAuthConsent() {
       // Back to the client (Claude, or a program on this computer), which
       // takes it from there. Stay "sending" so nothing can be clicked twice.
       window.location.assign(redirect_to)
-    } catch {
-      setSendError(t('common.saveError'))
+    } catch (error) {
+      // Loading the list again can find the request gone too.
+      setSendErrorKey(isGone(error) ? 'oauthConsent.errorExpired' : 'common.saveError')
       setSending(false)
     }
   }
@@ -129,9 +160,11 @@ export default function OAuthConsent() {
         {t(ERROR_KEYS[errorCode ?? ''] ?? 'oauthConsent.errorInvalid')}
       </Alert>
     )
-  } else if (loadError) {
-    body = <Alert severity="error">{loadError}</Alert>
-  } else if (!request || !me) {
+  } else if (load === 'gone') {
+    body = <Alert severity="error">{t('oauthConsent.errorExpired')}</Alert>
+  } else if (load === 'failed') {
+    body = <LoadFailure message={t('oauthConsent.loadFailed')} onRetry={retryLoad} />
+  } else if (load === 'loading' || !request || !me) {
     body = (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
         <CircularProgress />
@@ -199,7 +232,7 @@ export default function OAuthConsent() {
           {readOnly ? t('oauthConsent.readOnlyHelp') : t('oauthConsent.readWriteHelp')}
         </Typography>
 
-        {sendError && <Alert severity="error">{sendError}</Alert>}
+        {sendErrorKey && <Alert severity="error">{t(sendErrorKey)}</Alert>}
 
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', pt: 1 }}>
           <Button color="error" onClick={() => answer(false)} disabled={sending}>

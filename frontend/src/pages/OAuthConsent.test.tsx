@@ -1,5 +1,5 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
 import type { Answer } from '../test/endpoints'
@@ -262,7 +262,6 @@ describe('OAuthConsent', () => {
 
     it.each<[string, Answer]>([
       ['a server error', SERVER_ERROR],
-      ['a refused choice of boards (422)', () => HttpResponse.json({ detail: 'Board not available' }, { status: 422 })],
       ['a dropped connection', DROPPED],
     ])('says something went wrong after %s, and can be sent again', async (_case, answer) => {
       consentServer()
@@ -322,16 +321,171 @@ describe('OAuthConsent', () => {
       expect(screen.queryByRole('button', { name: 'Deny' })).not.toBeInTheDocument()
     })
 
+    it('says it has expired when it is gone, even if who you are failed too', async () => {
+      consentServer({}, () => HttpResponse.json({ detail: 'Not found' }, { status: 404 }), SERVER_ERROR)
+      renderConsent()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('This connection request has expired')
+      expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('a load that fails (6T)', () => {
     it.each<[string, 'request' | 'me', Answer]>([
       ['the request fails', 'request', SERVER_ERROR],
       ['who you are fails', 'me', SERVER_ERROR],
       ['the connection drops', 'request', DROPPED],
-    ])('says something went wrong when %s', async (_case, failing, answer) => {
-      consentServer({}, failing === 'request' ? answer : undefined, failing === 'me' ? answer : undefined)
+    ])("says the request couldn't be loaded when %s, and loads it with Try again", async (_case, failing, answer) => {
+      // Fails until `failure` is cleared, then answers as usual.
+      let failure: Answer | null = answer
+      const fails = (usual: Answer): Answer => (request) => (failure ?? usual)(request)
+      const REQUEST: Answer = () => HttpResponse.json({
+        client_name: 'Claude', redirect_host: 'claude.ai', redirect_is_local: false, boards: BOARDS, expires_at: '2026-11-22T12:10:00Z',
+      })
+      const ME: Answer = () => HttpResponse.json(makeUser())
+      consentServer({}, failing === 'request' ? fails(REQUEST) : undefined, failing === 'me' ? fails(ME) : undefined)
+      const { user } = renderConsent()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("The connection request couldn't be loaded.")
+      expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+      failure = null
+      await user.click(button('Try again'))
+
+      expect(await loaded()).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(button('Deny')).toBeEnabled()
+    })
+
+    it('shows the spinner while Try again loads, and the message again if it fails again', async () => {
+      const held = heldAnswer(SERVER_ERROR)
+      let answer: Answer = SERVER_ERROR
+      consentServer({}, (request) => answer(request))
+      const { user } = renderConsent()
+      await screen.findByText("The connection request couldn't be loaded.")
+      answer = held.answer
+
+      await user.click(button('Try again'))
+
+      expect(screen.getByRole('progressbar')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      held.release()
+      expect(await screen.findByRole('alert')).toHaveTextContent("The connection request couldn't be loaded.")
+    })
+
+    it('is said in Catalan for a user who reads Catalan', async () => {
+      await i18n.changeLanguage('ca')
+      consentServer({}, SERVER_ERROR)
       renderConsent()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.')
-      expect(within(document.body).queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent("No s'ha pogut carregar la sol·licitud de connexió.")
+      expect(button('Torna-ho a intentar')).toBeInTheDocument()
     })
   })
+
+  describe('a change of language on the page (6S)', () => {
+    // The page's own language field, as AuthControls shows it on a computer.
+    async function chooseCatalan(user: ReturnType<typeof renderConsent>['user']) {
+      await user.click(screen.getByRole('combobox', { name: 'Language' }))
+      await user.click(await screen.findByRole('option', { name: 'Català' }))
+    }
+
+    it('keeps the request and your choices, without loading them again', async () => {
+      const server = consentServer()
+      const { user } = renderConsent()
+      await loaded()
+      await user.click(box('Newsletter'))
+
+      await chooseCatalan(user)
+
+      expect(await screen.findByRole('heading', { name: 'Connecta Claude a KanbanMF' })).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: 'Newsletter' })).toBeChecked()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(server.read.requests).toHaveLength(1)
+    })
+
+    it('says a message already shown in the new language', async () => {
+      consentServer()
+      fakeEndpoint('post', `${REQUEST_URL}/approve`, SERVER_ERROR)
+      const { user } = renderConsent()
+      await loaded()
+      await user.click(box('Newsletter'))
+      await user.click(button('Allow'))
+      await screen.findByText('Something went wrong. Please try again.')
+
+      await chooseCatalan(user)
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Alguna cosa ha anat malament. Torna-ho a intentar.')
+    })
+  })
+
+  describe('a choice of boards refused because they changed (6U)', () => {
+    const REFUSED: Answer = () => HttpResponse.json({ detail: 'Only your own boards can be chosen.' }, { status: 422 })
+
+    it('loads the list again, keeps the boards still offered, says why, and allows them', async () => {
+      const server = consentServer()
+      const location = watchLocation()
+      const { user } = renderConsent()
+      await loaded()
+      await user.click(box(ALL))
+      // "Newsletter" has been archived meanwhile.
+      consentServer({ boards: [BOARDS[0]] })
+      let refuse = true
+      const approved = fakeEndpoint('post', `${REQUEST_URL}/approve`, (request) => {
+        const answer: Answer = refuse ? REFUSED : () => HttpResponse.json({ redirect_to: CALLBACK })
+        refuse = false
+        return answer(request)
+      })
+
+      await user.click(button('Allow'))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Some of the boards you chose can no longer be shared, so the list has been updated. Check it and try again.',
+      )
+      expect(screen.queryByRole('checkbox', { name: 'Newsletter' })).not.toBeInTheDocument()
+      expect(box('Website redesign')).toBeChecked()
+      expect(box(ALL)).toBeChecked()
+      expect(location.assign).not.toHaveBeenCalled()
+      await user.click(button('Allow'))
+      await waitFor(() => expect(location.assign).toHaveBeenCalledWith(CALLBACK))
+      expect(approved.requests.map((r) => r.body)).toEqual([
+        { board_ids: ['board-1', 'board-2'], read_only: false },
+        { board_ids: ['board-1'], read_only: false },
+      ])
+      expect(server.read.requests).toHaveLength(1)
+    })
+
+    it('asks for a new choice when none of the chosen boards is offered any more', async () => {
+      consentServer()
+      const { user } = renderConsent()
+      await loaded()
+      await user.click(box('Newsletter'))
+      consentServer({ boards: [BOARDS[0]] })
+      fakeEndpoint('post', `${REQUEST_URL}/approve`, REFUSED)
+
+      await user.click(button('Allow'))
+
+      await screen.findByText(/can no longer be shared/)
+      expect(box('Website redesign')).not.toBeChecked()
+      expect(button('Allow')).toBeDisabled()
+      expect(button('Deny')).toBeEnabled()
+    })
+
+    it.each<[string, Answer, string]>([
+      ['finds the request gone', () => HttpResponse.json({ detail: 'Not found' }, { status: 404 }), 'This connection request has expired'],
+      ['fails', SERVER_ERROR, 'Something went wrong. Please try again.'],
+    ])('says so when loading the list again %s', async (_case, reload, message) => {
+      consentServer()
+      const { user } = renderConsent()
+      await loaded()
+      await user.click(box('Newsletter'))
+      consentServer({}, reload)
+      fakeEndpoint('post', `${REQUEST_URL}/approve`, REFUSED)
+
+      await user.click(button('Allow'))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+      expect(button('Deny')).toBeEnabled()
+    })
+  })
+
 })

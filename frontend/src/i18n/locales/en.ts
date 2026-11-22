@@ -411,6 +411,8 @@ const en = {
     allow: 'Allow',
     deny: 'Deny',
     errorExpired: 'This connection request has expired or was already answered. Start the connection again from the app.',
+    loadFailed: "The connection request couldn't be loaded.",
+    boardsChanged: 'Some of the boards you chose can no longer be shared, so the list has been updated. Check it and try again.',
     errorInvalid: 'This connection request is not valid. Start the connection again from the app.',
     errorClient: "This app isn't known to KanbanMF, or its address isn't accepted. Start the connection again from the app.",
     errorRedirect: "The app asked to receive the answer at an address it didn't register, so the request was stopped.",

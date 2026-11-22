@@ -43,7 +43,13 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
    when that is a program on this computer), offers the user's own live boards
    (``/oauth/requests/<id>``) and a read-only switch, and sends the browser on
    to the ``redirect_to`` that ``approve`` or ``deny`` answers. With
-   ``?error=<code>`` it only explains why the request was stopped.
+   ``?error=<code>`` it only explains why the request was stopped. A request
+   that's gone (``404``, or ``422`` for an address that names none) says it
+   has expired; any other failed load says so with :guilabel:`Try again`.
+   An ``approve`` refused with ``422`` — a ticked board archived or deleted
+   since the page loaded — loads the boards again, keeps only those still
+   offered ticked, and says so. Messages are kept as translation keys, so
+   they follow the page's own language switch, which loads nothing again.
 
 ``TimeTracker`` — ``/time-tracker``
    The running task, the year/month filter, the table of entries grouped by

@@ -69,6 +69,12 @@ decide whether it is :guilabel:`Read-only`, and click :guilabel:`Allow`. Your
 browser goes back to Claude, and the connection is ready. :guilabel:`Deny`
 goes back without connecting.
 
+If a board you ticked was archived or deleted in the meantime, the page says
+it can no longer be shared and shows the list again, with that board gone:
+check it and click :guilabel:`Allow` again. A request lasts ten minutes; past
+that, the page says it has expired, and you start the connection again from
+Claude.
+
 Asking Claude
 -------------
 

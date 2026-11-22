@@ -410,6 +410,8 @@ const ca = {
     allow: 'Permet',
     deny: 'Denega',
     errorExpired: "Aquesta sol·licitud de connexió ha caducat o ja s'ha respost. Torna a iniciar la connexió des de l'aplicació.",
+    loadFailed: "No s'ha pogut carregar la sol·licitud de connexió.",
+    boardsChanged: "Alguns dels taulers que has triat ja no es poden compartir, i s'ha actualitzat la llista. Revisa-la i torna-ho a provar.",
     errorInvalid: "Aquesta sol·licitud de connexió no és vàlida. Torna a iniciar la connexió des de l'aplicació.",
     errorClient: "KanbanMF no coneix aquesta aplicació, o no n'accepta l'adreça. Torna a iniciar la connexió des de l'aplicació.",
     errorRedirect: "L'aplicació ha demanat rebre la resposta en una adreça que no havia registrat, i s'ha aturat la sol·licitud.",
