@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -878,7 +878,7 @@ export default function Boards() {
               {t('boards.showArchivedBoards')}
             </Button>
           )}
-          <Button variant="outlined" color="warning" size="small" onClick={() => navigate('/overdue')}>
+          <Button variant="outlined" color="warning" size="small" component={RouterLink} to="/overdue">
             {t('boards.showOverdueTasks')}
           </Button>
         </Box>

@@ -110,9 +110,14 @@ profile, its KanbanMF title and the cards on the overdue and search pages
 used to be. The profile is now a ``ButtonBase`` that says it opens a menu
 (``aria-haspopup``, ``aria-expanded``, ``aria-controls``). The title is a
 ``Link`` to ``/boards``, and each card a ``CardActionArea`` rendered as a
-router link, so both also open in a new tab. The cards on a board are the
-one exception: the card itself only takes a click, but its menu button has
-:guilabel:`Edit card`.
+router link, so both also open in a new tab. So were the buttons that led
+to another page by calling ``navigate()``: the board tiles,
+:guilabel:`Show Overdue Tasks`, the time tracker's button, the back buttons
+and the search page's matching boards. Each is now the same MUI component
+rendered as a router link (``component={RouterLink}``), so it looks as it
+did. A tile is dragged by its handle only, so its body can be a link. The
+cards on a board are the one exception: the card itself only takes a click,
+but its menu button has :guilabel:`Edit card`.
 
 Every button has a name, in the page's language. The buttons that every
 board, list or card repeats are named after it — "Menu for Website

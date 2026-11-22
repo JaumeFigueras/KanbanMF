@@ -231,4 +231,43 @@ describe('SearchResults', () => {
       expect(await screen.findByRole('link', { name: /Homepage layout/ })).toHaveAttribute('href', href)
     })
   })
+
+  // 6V: the back button and the matching boards were buttons, which can't
+  // open in a new tab.
+  describe('where the links lead', () => {
+    it.each([
+      ['every board', '', 'Back to Boards', '/boards'],
+      ['one board', '&board=board-1', 'Back to Website redesign', '/boards/board-1'],
+      ["one board's archive", '&board=board-1&archived=1', 'Back to the archive', '/boards/board-1?archive=1'],
+      ['the archived boards', '&archived=1', 'Back to Boards', '/boards?archived=1'],
+    ])('goes back from a link when searching %s', async (_scope, params, name, href) => {
+      searchServer()
+      fakeEndpoint('get', '/api/v1/boards/board-1', () => HttpResponse.json({ name: 'Website redesign' }))
+      const { user } = renderWithProviders(<><SearchResults /><Address /></>, { route: `/search?q=homepage${params}`, auth: true })
+      const back = await screen.findByRole('link', { name })
+      expect(back).toHaveAttribute('href', href)
+
+      await user.click(back)
+
+      expect(screen.getByTestId('address').textContent).toBe(href)
+    })
+
+    // An archived board can't be opened, so it leads to where it's kept.
+    it.each([
+      ['every board', '', '/boards/board-7'],
+      ['the archived boards', '&archived=1', '/boards?archived=1'],
+    ])('makes each matching board a link when searching %s', async (_scope, params, href) => {
+      searchServer(() => HttpResponse.json({
+        ...FOUND,
+        matching_boards: [{ board_id: 'board-7', board_name: 'Homepage ideas', color: null }],
+      }))
+      const { user } = renderWithProviders(<><SearchResults /><Address /></>, { route: `/search?q=homepage${params}`, auth: true })
+      const board = await screen.findByRole('link', { name: 'Homepage ideas' })
+      expect(board).toHaveAttribute('href', href)
+
+      await user.click(board)
+
+      expect(screen.getByTestId('address').textContent).toBe(href)
+    })
+  })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Accordion,
   AccordionDetails,
@@ -25,7 +25,6 @@ import type { OverdueBoardRead } from '../types/board'
 
 export default function OverdueTasks() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
 
   const [numberLocale, setNumberLocale] = useState('en')
   const [dateFormat, setDateFormat] = useState<DateFormat>('numeric')
@@ -78,7 +77,7 @@ export default function OverdueTasks() {
       <Toolbar />{/* spacer for the fixed AppBar */}
       <Box sx={{ mt: 4, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-          <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate('/boards')}>
+          <Button size="small" startIcon={<ArrowBack />} component={RouterLink} to="/boards">
             {t('overdue.backToBoards')}
           </Button>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom'
 import {
   AppBar,
   Box,
@@ -101,7 +101,6 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
 
 export default function Board() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { boardId } = useParams<{ boardId: string }>()
   // ?card=<id> deep link (the overdue-tasks page links here) — opens that
   // card's edit dialog once its list has loaded, exactly as clicking the
@@ -832,7 +831,7 @@ export default function Board() {
           <Typography variant="body1" color="text.secondary">
             {t('board.forbiddenMessage')}
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/boards')}>
+          <Button variant="contained" component={RouterLink} to="/boards">
             {t('board.backToBoards')}
           </Button>
         </Box>
@@ -886,7 +885,7 @@ export default function Board() {
           <Typography variant="body1" color="text.secondary">
             {t('board.archivedMessage')}
           </Typography>
-          <Button variant="contained" onClick={() => navigate('/boards')}>
+          <Button variant="contained" component={RouterLink} to="/boards">
             {t('board.backToBoards')}
           </Button>
         </Box>

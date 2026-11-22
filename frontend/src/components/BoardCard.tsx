@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import {
   Avatar,
   Box,
@@ -75,7 +75,6 @@ export default function BoardCard({
   onColorChanged,
   dragOverlay = false,
 }: Props) {
-  const navigate = useNavigate()
   const { t } = useTranslation()
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
   const [colorDialogOpen, setColorDialogOpen] = useState(false)
@@ -186,8 +185,9 @@ export default function BoardCard({
           </Box>
         </Box>
 
-        {/* Card body — clickable */}
-        <CardActionArea sx={{ flexGrow: 1 }} onClick={dragOverlay ? undefined : () => navigate(`/boards/${board.id}`)}>
+        {/* Card body — a link to the board, so it can also open in a new tab.
+            Dragging starts from the handle above only, never from here. */}
+        <CardActionArea sx={{ flexGrow: 1 }} component={RouterLink} to={`/boards/${board.id}`}>
           <CardContent sx={{ pt: 1, pb: '12px !important', px: 1.5 }}>
             <Typography
               variant="subtitle1"

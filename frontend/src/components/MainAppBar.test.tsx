@@ -391,9 +391,17 @@ describe('MainAppBar', () => {
       profileServer()
       const { user } = renderBar()
 
-      await user.click(screen.getByRole('button', { name: 'Time Tracker' }))
+      await user.click(screen.getByRole('link', { name: 'Time Tracker' }))
 
       expect(address()).toBe('/time-tracker')
+    })
+
+    // 6V: it was a button, which can't.
+    it('is a link, so the time tracker can also open in a new tab', () => {
+      profileServer()
+      renderBar()
+
+      expect(screen.getByRole('link', { name: 'Time Tracker' })).toHaveAttribute('href', '/time-tracker')
     })
   })
 
@@ -523,7 +531,7 @@ describe('MainAppBar', () => {
       await user.tab()
       expect(screen.getByRole('link', { name: 'KanbanMF' })).toHaveFocus()
       await user.tab()
-      expect(screen.getByRole('button', { name: 'Time Tracker' })).toHaveFocus()
+      expect(screen.getByRole('link', { name: 'Time Tracker' })).toHaveFocus()
       await user.tab()
       expect(profileButton()).toHaveFocus()
     }

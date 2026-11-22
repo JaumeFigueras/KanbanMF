@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import type { CardRead, LabelRead } from '../types/board'
 import { getClientId } from '../api/client'
 import { blockSiteData } from '../test/blockSiteData'
@@ -983,6 +984,39 @@ describe('Board', () => {
       expect(dialog).toHaveTextContent(message)
       expect(within(dialog).getByRole('button', { name: 'Arxiva' })).toBeInTheDocument()
       expect(within(dialog).getByRole('button', { name: 'Cancel·la' })).toBeInTheDocument()
+    })
+  })
+
+  // 6V: it was a button, which can't open the boards in a new tab.
+  describe('going back to the boards', () => {
+    function Address() {
+      const location = useLocation()
+      return <p data-testid="address">{location.pathname + location.search}</p>
+    }
+
+    it.each([
+      ['refused', 'Forbidden', () => HttpResponse.json({ detail: 'Forbidden' }, { status: 403 })],
+      ['archived', 'Board Archived', () => HttpResponse.json({ ...BOARD, is_archived: true })],
+    ])('goes back from a link when the board is %s', async (_case, title, answer: Answer) => {
+      boardServer()
+      fakeEndpoint('get', '/api/v1/boards/:boardId', answer)
+      const page = (
+        <>
+          <Routes>
+            <Route path="/boards/:boardId" element={<Board />} />
+            <Route path="*" element={null} />
+          </Routes>
+          <Address />
+        </>
+      )
+      const { user } = renderWithProviders(page, { route: '/boards/board-1', auth: true })
+      expect(await screen.findByText(title)).toBeInTheDocument()
+      const back = screen.getByRole('link', { name: 'Back to Boards' })
+      expect(back).toHaveAttribute('href', '/boards')
+
+      await user.click(back)
+
+      expect(screen.getByTestId('address').textContent).toBe('/boards')
     })
   })
 })

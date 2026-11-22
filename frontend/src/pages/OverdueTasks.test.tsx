@@ -163,4 +163,19 @@ describe('OverdueTasks', () => {
       expect(screen.getByRole('link', { name: /Homepage layout/ })).toHaveAttribute('href', '/boards/board-1?card=card-1')
     })
   })
+
+  // 6V: it was a button, which can't open in a new tab.
+  describe('going back', () => {
+    it('goes back to the boards from a link, which can also open them in a new tab', async () => {
+      overdueServer()
+      const { user } = renderWithProviders(<><OverdueTasks /><Address /></>, { route: '/overdue', auth: true })
+      await screen.findByRole('button', { name: 'Website redesign (1)' })
+      const back = screen.getByRole('link', { name: 'Back to Boards' })
+      expect(back).toHaveAttribute('href', '/boards')
+
+      await user.click(back)
+
+      expect(screen.getByTestId('address')).toHaveTextContent(/^\/boards$/)
+    })
+  })
 })

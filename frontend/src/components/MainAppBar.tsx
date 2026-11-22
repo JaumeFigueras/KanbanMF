@@ -238,7 +238,8 @@ export default function MainAppBar({ onLocaleChanged, onAvatarChanged, search }:
           <Tooltip title={t('timeTracker.title')}>
             <IconButton
               color="inherit"
-              onClick={() => navigate('/time-tracker')}
+              component={RouterLink}
+              to="/time-tracker"
               sx={{ mr: 1 }}
               aria-label={t('timeTracker.title')}
             >

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link as RouterLink, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowBack, ExpandMore, Search } from '@mui/icons-material'
 import {
@@ -37,7 +37,6 @@ const SEARCH_DEBOUNCE_MS = 300
 // every keystroke.
 export default function SearchResults() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim()
   const { boardId, archived } = scopeFromParams(searchParams)
@@ -145,8 +144,9 @@ export default function SearchResults() {
     return '/boards?archived=1'
   }
 
-  function openBoard(matchedBoardId: string) {
-    navigate(archived ? '/boards?archived=1' : `/boards/${matchedBoardId}`)
+  // Where a matching board leads: to it, or, if archived, to where it's kept.
+  function boardLink(matchedBoardId: string): string {
+    return archived ? '/boards?archived=1' : `/boards/${matchedBoardId}`
   }
 
   const cardCount = data?.boards.reduce((sum, b) => sum + b.match_count, 0) ?? 0
@@ -163,7 +163,7 @@ export default function SearchResults() {
       <Toolbar />{/* spacer for the fixed AppBar */}
       <Box sx={{ mt: 4, px: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-          <Button size="small" startIcon={<ArrowBack />} onClick={() => navigate(backTo)}>
+          <Button size="small" startIcon={<ArrowBack />} component={RouterLink} to={backTo}>
             {backLabel}
           </Button>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -214,7 +214,9 @@ export default function SearchResults() {
                     <Chip
                       key={board.board_id}
                       label={board.board_name}
-                      onClick={() => openBoard(board.board_id)}
+                      component={RouterLink}
+                      to={boardLink(board.board_id)}
+                      clickable
                       variant="outlined"
                       sx={{
                         borderColor: board.color ?? undefined,
