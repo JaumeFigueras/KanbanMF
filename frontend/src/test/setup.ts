@@ -20,9 +20,23 @@ configure({ asyncUtilTimeout: 10_000 })
 // jsdom brings its own FormData and File, which Node's fetch (and so MSW)
 // can't send: a file upload failed before reaching the fake backend. Node's
 // own classes go back in their place (fetch checks files against the global
-// File), so an upload goes through as it does in a browser.
+// File), so an upload goes through as it does in a browser. Unlike a
+// browser's, Node's FormData can't be built from a <form>, which React does
+// on a submit whose handler starts a transition (the search box's navigate):
+// that one reads the form's text fields with jsdom's.
+const JsdomFormData = FormData
+const NodeFormData = (await new Response(new URLSearchParams()).formData()).constructor as typeof FormData
+class FormDataFromForms extends NodeFormData {
+  constructor(form?: HTMLFormElement, submitter?: HTMLElement | null) {
+    super()
+    if (!form) return
+    for (const [name, value] of new JsdomFormData(form, submitter)) {
+      if (typeof value === 'string') this.append(name, value)
+    }
+  }
+}
 vi.stubGlobal('File', NodeFile)
-vi.stubGlobal('FormData', (await new Response(new URLSearchParams()).formData()).constructor)
+vi.stubGlobal('FormData', FormDataFromForms)
 
 // A request no handler matches fails the test instead of going to the
 // network (or hanging): every endpoint a test touches is one it declared.
