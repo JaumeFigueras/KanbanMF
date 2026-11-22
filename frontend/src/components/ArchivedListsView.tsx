@@ -54,7 +54,7 @@ interface ListColumn {
 }
 
 // How long a highlighted card stays outlined.
-const HIGHLIGHT_MS = 4000
+export const HIGHLIGHT_MS = 4000
 
 type ItemTarget =
   | { type: 'list'; id: string; listId: string; name: string }
@@ -185,7 +185,7 @@ export default function ArchivedListsView({
     }).catch(() => null)
     if (r?.status === 409) {
       const detail = (await r.json()).detail
-      setRestoreBlock(detail.code === 'card_replaced'
+      setRestoreBlock(detail.code !== 'card_replaced'
         ? { kind: 'replaced', replacedById: detail.replaced_by_id }
         : { kind: 'formerPeople', names: detail.names, card: target })
       return
