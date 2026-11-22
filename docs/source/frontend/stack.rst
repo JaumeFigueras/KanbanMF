@@ -302,6 +302,24 @@ server returns, per-user colours and order included. A message tagged with
 the tab's own client id (``isOwnNotification()``) is ignored: that tab made
 the change and already shows it.
 
+Several changes in a row send several messages, and so several requests for
+the same thing, whose answers can come back in any order: an older one
+arriving last would put back what the newer one replaced. Every page that
+fetches the same thing again sends those requests through a ``latestOnly()``
+tracker (``src/utils/latest.ts``), keyed by what they fetch, which drops any
+answer a newer request with the same key has replaced: the board's lists,
+each list's cards and the colours; the boards page's boards and archived
+boards; the overdue tasks; and the time tracker's entries, for a month
+changed quickly. The search page uses one key for every search, whatever its
+query: it keeps its answer with the query it belongs to, so an answer for an
+older query never showed, but arriving after the new query's it replaced
+those results, and the page said *Searching…* over results it had received.
+
+The board loads the cards of each list it hasn't shown yet in one effect,
+which runs again whenever another list's cards arrive; it skips the lists
+whose cards are already on their way, or each answer would ask again for
+every list still waiting.
+
 .. graphviz::
    :caption: One change, every other tab.
    :alt: A user action calls the REST API; the backend notifies all tabs; the

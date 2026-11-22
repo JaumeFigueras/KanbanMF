@@ -151,6 +151,57 @@ describe('SearchResults', () => {
     })
   })
 
+  describe('answers that come back out of order', () => {
+    // The search's answer with its one card renamed.
+    const foundCard = (name: string): SearchResultsData => ({
+      ...FOUND,
+      boards: [{ ...FOUND.boards[0], lists: [{ ...FOUND.boards[0].lists[0], cards: [makeCard({ id: 'card-1', list_id: 'list-1', name })] }] }],
+    })
+
+    it('keeps the newer results for the same query when an older answer comes last', async () => {
+      searchServer()
+      renderSearch()
+      await screen.findByText('Homepage layout')
+      await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
+      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+      socket.open()
+      const held = heldAnswer(() => HttpResponse.json(FOUND))
+      let first = true
+      fakeEndpoint('get', '/api/v1/search', (request) => {
+        const answer: Answer = first ? held.answer : () => HttpResponse.json(foundCard('Homepage layout, final'))
+        first = false
+        return answer(request)
+      })
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      expect(await screen.findByText('Homepage layout, final')).toBeInTheDocument()
+      held.release()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(screen.getByText('Homepage layout, final')).toBeInTheDocument()
+      expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
+    })
+
+    it("keeps the new query's results when the old query's answer comes after them", async () => {
+      const held = heldAnswer(() => HttpResponse.json(FOUND))
+      const server = searchServer((request) => (
+        new URL(request.url).searchParams.get('q') === 'homepage' ? held.answer(request) : HttpResponse.json(foundCard('Homepage hero'))
+      ))
+      const { user } = renderSearch()
+      await screen.findByText('Searching…')
+
+      await user.type(screen.getByRole('textbox', { name: 'Search all boards' }), ' hero')
+      expect(await screen.findByText('Homepage hero')).toBeInTheDocument()
+      held.release()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(server.queries()).toEqual(['homepage', 'homepage hero'])
+      expect(screen.getByText('Homepage hero')).toBeInTheDocument()
+      expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+    })
+  })
+
   describe('opening a result (6J)', () => {
     it('opens a card on its board with the keyboard, from its board\'s section', async () => {
       searchServer()

@@ -41,6 +41,7 @@ import type { LoadState } from '../components/LoadFailure'
 import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
 import { MIN_SEARCH_LENGTH, searchPlaceholderKey, searchUrl } from '../utils/search'
 import { readStored, writeStored } from '../utils/storage'
+import { latestOnly } from '../utils/latest'
 
 const ACCORDION_KEY = 'kanbanmf.boards.accordions'
 
@@ -156,30 +157,35 @@ export default function Boards() {
     setDateFormat(fmt)
   }, [])
 
+  // The boards and the archived boards are fetched again on every
+  // notification, and only the latest answer of each counts: an older one
+  // arriving last would put back what the newer one replaced.
+  const [track] = useState(latestOnly)
+
   // A promise chain rather than an async function: every setState then sits
   // in a callback, which lets the lint rule against setting state directly
   // inside an effect see that the effect calling this doesn't.
   const fetchBoards = useCallback(() => {
-    Promise.all([
+    track('boards', Promise.all([
       loadJson<BoardsResponse>('/api/v1/boards'),
       loadJson<BoardOrderRead>('/api/v1/boards/order'),
-    ])
+    ]))
       .then(([fetchedBoards, fetchedOrder]) => {
         setBoards(fetchedBoards)
         setOrder(fetchedOrder)
         setBoardsLoad('loaded')
       })
       .catch(() => setBoardsLoad('failed'))
-  }, [])
+  }, [track])
 
   const fetchArchivedBoards = useCallback(() => {
-    loadJson<BoardRead[]>('/api/v1/boards/archived')
+    track('archived', loadJson<BoardRead[]>('/api/v1/boards/archived'))
       .then(data => {
         setArchivedBoards(data)
         setArchivedLoad('loaded')
       })
       .catch(() => setArchivedLoad('failed'))
-  }, [])
+  }, [track])
 
   const fetchMe = useCallback(() => {
     loadJson<{ id: string }>('/api/v1/users/me')

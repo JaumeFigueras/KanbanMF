@@ -20,6 +20,7 @@ import LoadFailure from '../components/LoadFailure'
 import CardListColumn from '../components/CardListColumn'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { apiFetch, loadJson } from '../api/client'
+import { latestOnly } from '../utils/latest'
 import { subscribeToNotifications } from '../api/ws'
 import type { BoardRead, SearchResults as SearchResultsData } from '../types/board'
 import type { DateFormat } from '../utils/locale'
@@ -79,11 +80,16 @@ export default function SearchResults() {
     return () => clearTimeout(handle)
   }, [text, q, setSearchParams])
 
+  // Only the latest search's answer counts, whatever its query: an older
+  // one arriving last would replace the newer results, for the same query
+  // (on a notification) or a query no longer shown, which left the page
+  // saying "Searching…" over results it had received.
+  const [track] = useState(latestOnly)
   const key = searchApiParams(q, { boardId, archived })
   useEffect(() => {
     if (q.length < MIN_SEARCH_LENGTH) return
     const fetchResults = () => {
-      loadJson<SearchResultsData>(`/api/v1/search?${key}`)
+      track('search', loadJson<SearchResultsData>(`/api/v1/search?${key}`))
         .then((data) => {
           setResults({ key, data })
           setFailedKey((prev) => (prev === key ? null : prev))
@@ -94,7 +100,7 @@ export default function SearchResults() {
     // Any change anywhere can add or remove a match, so this page just
     // searches again on every notification, as the overdue page does.
     return subscribeToNotifications(() => fetchResults())
-  }, [key, q, attempt])
+  }, [key, q, attempt, track])
 
   // Try again: the failure goes, so "Searching…" shows until the answer.
   function retrySearch() {

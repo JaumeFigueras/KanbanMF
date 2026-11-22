@@ -353,6 +353,60 @@ describe('Boards', () => {
     })
   })
 
+  describe('answers that come back out of order', () => {
+    // From now on, the first request to an endpoint gets the older answer,
+    // held until released; the ones after it get the newer one at once.
+    function olderAnswerLast(url: string, older: Answer, newer: Answer) {
+      const held = heldAnswer(older)
+      let first = true
+      fakeEndpoint('get', url, (request) => {
+        const answer = first ? held.answer : newer
+        first = false
+        return answer(request)
+      })
+      return held
+    }
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
+    const change = { type: 'board_renamed', board_id: 'board-1', list_id: null, origin_client_id: null }
+
+    it('keeps the newer boards when an older answer comes last', async () => {
+      boardsServer()
+      await renderBoards()
+      const socket = await openSocket()
+      const boardsAnswer = (board: BoardRead): Answer => () => HttpResponse.json({ owned: [board], shared: [], templates: [] })
+      const held = olderAnswerLast('/api/v1/boards', boardsAnswer(WEBSITE), boardsAnswer({ ...WEBSITE, name: 'Website relaunch' }))
+
+      socket.receive(change)
+      socket.receive(change)
+      expect(await screen.findByText('Website relaunch')).toBeInTheDocument()
+      held.release()
+      await settle()
+
+      expect(screen.getByText('Website relaunch')).toBeInTheDocument()
+      expect(screen.queryByText('Website redesign')).not.toBeInTheDocument()
+    })
+
+    it('keeps the newer archived boards when an older answer comes last', async () => {
+      boardsServer()
+      await renderBoards({ archived: true })
+      const socket = await openSocket()
+      const held = olderAnswerLast(
+        '/api/v1/boards/archived',
+        () => HttpResponse.json([OLD_SITE]),
+        () => HttpResponse.json([{ ...OLD_SITE, name: 'Old site, 2019' }]),
+      )
+
+      socket.receive(change)
+      socket.receive(change)
+      expect(await screen.findByText('Old site, 2019')).toBeInTheDocument()
+      held.release()
+      await settle()
+
+      expect(screen.getByText('Old site, 2019')).toBeInTheDocument()
+      expect(screen.queryByText('Old site')).not.toBeInTheDocument()
+    })
+  })
+
   describe('who you are (6Q)', () => {
     // The page asks who you are itself, as does its top bar: signed out, the
     // test answers both.

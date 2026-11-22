@@ -98,6 +98,39 @@ describe('TimeTracker', () => {
     })
   })
 
+  describe('answers that come back out of order (6R)', () => {
+    it("keeps the month chosen last when an earlier month's answer comes after it", async () => {
+      const MARCH = makeTimeEntry({ id: 'entry-3', card_name: 'Contact form' })
+      const APRIL = makeTimeEntry({ id: 'entry-4', card_name: 'Search page' })
+      entriesServer()
+      const { user } = renderTracker()
+      await screen.findByText('Footer links')
+      // The first month chosen gets its answer last.
+      const held = heldAnswer(() => HttpResponse.json([MARCH]))
+      let first = true
+      const loads = fakeEndpoint('get', '/api/v1/time-entries', (request) => {
+        const answer: Answer = first ? held.answer : () => HttpResponse.json([APRIL])
+        first = false
+        return answer(request)
+      })
+      const chooseMonth = async (name: string) => {
+        await user.click(screen.getAllByRole('combobox')[1])
+        await user.click(within(screen.getByRole('listbox')).getByRole('option', { name }))
+      }
+
+      await chooseMonth('March')
+      await chooseMonth('April')
+      expect(await screen.findByText('Search page')).toBeInTheDocument()
+      held.release()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(loads.requests).toHaveLength(2)
+      expect(screen.getByText('Search page')).toBeInTheDocument()
+      expect(screen.queryByText('Contact form')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('combobox')[1]).toHaveTextContent('April')
+    })
+  })
+
   describe('the CSV export (6F)', () => {
     // jsdom has neither blob URLs nor downloads: the file the page makes is
     // kept, and the link's click only records the name it would be saved as.

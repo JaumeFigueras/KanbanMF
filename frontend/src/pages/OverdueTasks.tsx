@@ -12,6 +12,7 @@ import {
 import { ArrowBack, ExpandMore } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { loadJson } from '../api/client'
+import { latestOnly } from '../utils/latest'
 import { subscribeToNotifications } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CardListColumn from '../components/CardListColumn'
@@ -36,14 +37,17 @@ export default function OverdueTasks() {
   // set of boards with overdue cards changes on its own as due dates pass.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
+  // Fetched again on every notification: only the latest answer counts, as
+  // an older one arriving last would put back what the newer one replaced.
+  const [track] = useState(latestOnly)
   const fetchOverdue = useCallback(() => {
-    loadJson<OverdueBoardRead[]>('/api/v1/boards/overdue')
+    track('overdue', loadJson<OverdueBoardRead[]>('/api/v1/boards/overdue'))
       .then((data) => {
         setBoards(data)
         setLoad('loaded')
       })
       .catch(() => setLoad('failed'))
-  }, [])
+  }, [track])
 
   function retryOverdue() {
     setLoad('loading')

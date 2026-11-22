@@ -31,6 +31,7 @@ import {
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import { apiFetch, loadJson } from '../api/client'
+import { latestOnly } from '../utils/latest'
 import MainAppBar from '../components/MainAppBar'
 import StartTimeEntryDialog from '../components/StartTimeEntryDialog'
 import TimeEntryDialog from '../components/TimeEntryDialog'
@@ -83,9 +84,13 @@ export default function TimeTracker() {
   // API returns it whatever the filter says, so it's filtered out here.
   const recorded = useMemo(() => entries.filter((e) => e.ended_at !== null), [entries])
 
+  // Only the latest answer counts: changing the month quickly sends a request
+  // per month, and an older one arriving last would show the wrong month's
+  // entries under the new filter.
+  const [track] = useState(latestOnly)
   const fetchEntries = useCallback(() => {
     const { from, to } = filterRange(year, month)
-    loadJson<TimeEntryRead[]>(`/api/v1/time-entries?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+    track('entries', loadJson<TimeEntryRead[]>(`/api/v1/time-entries?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`))
       .then((data) => {
         setEntries(data)
         setLoad('loaded')
@@ -95,7 +100,7 @@ export default function TimeTracker() {
         setEntries([])
         setLoad('failed')
       })
-  }, [year, month])
+  }, [year, month, track])
 
   function retryEntries() {
     setLoad('loading')

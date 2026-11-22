@@ -709,6 +709,135 @@ describe('Board', () => {
     })
   })
 
+  describe('answers that come back out of order (6R)', () => {
+    // From now on, the first request to an endpoint gets the older answer,
+    // held until released; the ones after it get the newer one at once.
+    function olderAnswerLast(url: string, older: Answer, newer: Answer) {
+      const held = heldAnswer(older)
+      let first = true
+      fakeEndpoint('get', url, (request) => {
+        const answer = first ? held.answer : newer
+        first = false
+        return answer(request)
+      })
+      return held
+    }
+    const card = (name: string) => screen.getByText(name).closest<HTMLElement>('.MuiCard-root')!
+
+    it('keeps the newer lists when an older answer comes last', async () => {
+      boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      const held = olderAnswerLast(
+        '/api/v1/boards/:boardId/lists',
+        () => HttpResponse.json([TODO, DOING]),
+        () => HttpResponse.json([{ ...TODO, name: 'Backlog' }, DOING]),
+      )
+
+      socket.receive({ type: 'list_renamed', board_id: 'board-1', list_id: null, origin_client_id: null })
+      socket.receive({ type: 'list_renamed', board_id: 'board-1', list_id: null, origin_client_id: null })
+      expect(await screen.findByText('Backlog')).toBeInTheDocument()
+      held.release()
+      await settle()
+
+      expect(screen.getByText('Backlog')).toBeInTheDocument()
+      expect(screen.queryByText('To do')).not.toBeInTheDocument()
+    })
+
+    it("keeps a list's newer cards when an older answer comes last", async () => {
+      boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      const cardNamed = (name: string) => makeCard({ id: 'card-list-1', list_id: 'list-1', name })
+      const held = olderAnswerLast(
+        CARDS_URL,
+        () => HttpResponse.json([cardNamed('Homepage layout')]),
+        () => HttpResponse.json([cardNamed('Homepage layout, final')]),
+      )
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      expect(await screen.findByText('Homepage layout, final')).toBeInTheDocument()
+      held.release()
+      await settle()
+
+      expect(screen.getByText('Homepage layout, final')).toBeInTheDocument()
+      expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['', false],
+      [', in StrictMode as in development', true],
+    ])("asks once for each list's cards when they come back one at a time%s", async (_case, strictMode) => {
+      const server = boardServer()
+      const held = heldAnswer(() => HttpResponse.json([
+        makeCard({ id: 'card-list-2', list_id: 'list-2', name: 'Footer links', labels: [URGENT] }),
+      ]))
+      server.fail('cards:list-2', held.answer)
+      renderWithProviders(<Board />, { route: '/boards/board-1', path: '/boards/:boardId', auth: true, strictMode })
+
+      // "To do" has its cards; "Doing" is still waiting for its own.
+      await screen.findByText('Homepage layout')
+      await settle()
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
+      held.release()
+
+      expect(await screen.findByText('Footer links')).toBeInTheDocument()
+      await settle()
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
+    })
+
+    it("asks again for every list's cards on the way back from the archive", async () => {
+      const server = boardServer()
+      fakeEndpoint('get', '/api/v1/boards/:boardId/lists/archived', () => HttpResponse.json([]))
+      fakeEndpoint('get', '/api/v1/boards/:boardId/cards/archived', () => HttpResponse.json([]))
+      const { user } = await renderBoard()
+      await user.click(screen.getByRole('button', { name: 'Archive' }))
+      server.archived('card-list-1')
+
+      await user.click(await screen.findByRole('button', { name: 'Return to Board' }))
+
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 }))
+      expect(await screen.findByText('Footer links')).toBeInTheDocument()
+      expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
+    })
+
+    it("still takes each list's own answer when both lists are fetched again", async () => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      server.archived('card-list-1')
+      server.archived('card-list-2')
+
+      socket.receive({ type: 'card_moved', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_moved', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+
+      await waitFor(() => expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument())
+      await waitFor(() => expect(screen.queryByText('Footer links')).not.toBeInTheDocument())
+    })
+
+    it('keeps the newer colours when an older answer comes last', async () => {
+      boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      const uncoloured = getComputedStyle(card('Homepage layout')).backgroundColor
+      const held = olderAnswerLast(
+        '/api/v1/boards/:boardId/colors',
+        () => HttpResponse.json({ board: null, lists: {}, cards: {} }),
+        () => HttpResponse.json({ board: null, lists: {}, cards: { 'card-list-1': '#1976D2' } }),
+      )
+
+      socket.receive({ type: 'card_created', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_created', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      await waitFor(() => expect(getComputedStyle(card('Homepage layout')).backgroundColor).not.toBe(uncoloured))
+      const coloured = getComputedStyle(card('Homepage layout')).backgroundColor
+      held.release()
+      await settle()
+
+      expect(getComputedStyle(card('Homepage layout')).backgroundColor).toBe(coloured)
+    })
+  })
+
   describe('buttons named after their list (6K)', () => {
     it("names each list's handle, add-card button and menu after the list", async () => {
       boardServer()

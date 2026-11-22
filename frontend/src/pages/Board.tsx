@@ -47,6 +47,7 @@ import type { DateFormat } from '../utils/locale'
 import type { SortMode } from '../utils/cardSort'
 import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isSortMode, isUndated, sortCards } from '../utils/cardSort'
 import { readStored, writeStored } from '../utils/storage'
+import { latestOnly } from '../utils/latest'
 import { HttpError, apiFetch, loadJson } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
@@ -166,6 +167,10 @@ export default function Board() {
   // Delete without a word.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [meFailed, setMeFailed] = useState(false)
+  // The lists, each list's cards and the colours are fetched again on every
+  // notification, and only the latest answer of each counts: an older one
+  // arriving last would put back what the newer one replaced.
+  const [track] = useState(latestOnly)
 
   useEffect(() => {
     if (!boardId) return
@@ -247,14 +252,14 @@ export default function Board() {
 
   const fetchLists = useCallback(() => {
     if (!boardId) return
-    Promise.all([
+    track('lists', Promise.all([
       loadJson<BoardListRead[]>(`/api/v1/boards/${boardId}/lists`),
       loadJson<BoardListOrderRead>(`/api/v1/boards/${boardId}/lists/order`),
       // Fetched alongside the lists themselves (not on-demand per list/card)
       // so every list/card column can render with its final color on first
       // paint — no default-color flash while N per-entity requests resolve.
       loadJson<BoardColorsRead>(`/api/v1/boards/${boardId}/colors`),
-    ])
+    ]))
       .then(([fetchedLists, fetchedOrder, fetchedColors]) => {
         setLists(fetchedLists)
         setOrder(fetchedOrder.list_ids)
@@ -272,7 +277,7 @@ export default function Board() {
           setListsFailed(true)
         }
       })
-  }, [boardId, fetchBoard])
+  }, [boardId, fetchBoard, track])
 
   useEffect(() => {
     fetchLists()
@@ -283,26 +288,34 @@ export default function Board() {
   // the `colors` map fetched at load doesn't know about yet.
   const fetchColors = useCallback(() => {
     if (!boardId) return
-    apiFetch(`/api/v1/boards/${boardId}/colors`)
+    track('colors', apiFetch(`/api/v1/boards/${boardId}/colors`))
       .then(r => r.ok ? r.json() as Promise<BoardColorsRead> : null)
       .then(fetchedColors => { if (fetchedColors) setColors(fetchedColors) })
       .catch(() => {})
-  }, [boardId])
+  }, [boardId, track])
+
+  // The lists whose cards are on their way, so the effect below that loads
+  // the lists not shown yet doesn't ask for them again: it runs each time
+  // another list's cards arrive.
+  const cardsPendingRef = useRef(new Set<string>())
 
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's.
   const fetchCardsForList = useCallback((listId: string) => {
     if (!boardId) return
-    Promise.all([
+    cardsPendingRef.current.add(listId)
+    track(`cards:${listId}`, Promise.all([
       loadJson<CardRead[]>(`/api/v1/boards/${boardId}/lists/${listId}/cards`),
       loadJson<CardOrderRead>(`/api/v1/boards/${boardId}/lists/${listId}/cards/order`),
-    ])
+    ]))
       .then(([cards, order]) => {
+        cardsPendingRef.current.delete(listId)
         setCardsByList(prev => ({ ...prev, [listId]: cards }))
         setOrderByList(prev => ({ ...prev, [listId]: order.card_ids }))
         setCardsFailed(prev => withoutId(prev, listId))
       })
       .catch(() => {
+        cardsPendingRef.current.delete(listId)
         // Whatever the list showed may be out of date now, so it goes: the
         // column says its cards couldn't be loaded instead, and takes no
         // dropped card, whose order would leave out the cards not shown.
@@ -310,7 +323,7 @@ export default function Board() {
         setOrderByList(prev => omitKey(prev, listId))
         setCardsFailed(prev => new Set(prev).add(listId))
       })
-  }, [boardId])
+  }, [boardId, track])
 
   // List changes made elsewhere (owner's other session, or a shared member)
   // arrive as bare notifications scoped to this board; a notification we
@@ -329,11 +342,14 @@ export default function Board() {
   }, [boardId, fetchLists, fetchCardsForList])
 
   // Fetch only for lists we haven't loaded yet, leaving out those whose
-  // cards couldn't be loaded: they wait for Try again, which takes them off
-  // cardsFailed, and so brings them back here.
+  // cards are on their way, and those whose cards couldn't be loaded: they
+  // wait for Try again, which takes them off cardsFailed, and so brings them
+  // back here.
   useEffect(() => {
     if (!boardId) return
-    lists.filter(l => !(l.id in cardsByList) && !cardsFailed.has(l.id)).forEach(l => fetchCardsForList(l.id))
+    lists
+      .filter(l => !(l.id in cardsByList) && !cardsFailed.has(l.id) && !cardsPendingRef.current.has(l.id))
+      .forEach(l => fetchCardsForList(l.id))
   }, [boardId, lists, cardsByList, cardsFailed, fetchCardsForList])
 
   // Dropping the list's cards too (a card added meanwhile) makes the effect

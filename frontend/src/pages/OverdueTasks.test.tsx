@@ -110,6 +110,35 @@ describe('OverdueTasks', () => {
     })
   })
 
+  describe('answers that come back out of order', () => {
+    it('keeps the newer overdue tasks when an older answer comes last', async () => {
+      overdueServer()
+      renderOverdue()
+      await screen.findByText('Homepage layout')
+      await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
+      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+      socket.open()
+      // The first fetch on a change gets the older answer, last.
+      const held = heldAnswer(() => HttpResponse.json([WEBSITE]))
+      const renamed = makeCard({ id: 'card-1', list_id: 'list-1', name: 'Homepage layout, final', due_at: '2026-01-10T12:00:00Z' })
+      let first = true
+      fakeEndpoint('get', '/api/v1/boards/overdue', (request) => {
+        const answer: Answer = first ? held.answer : () => HttpResponse.json([{ ...WEBSITE, lists: [{ ...WEBSITE.lists[0], cards: [renamed] }] }])
+        first = false
+        return answer(request)
+      })
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      expect(await screen.findByText('Homepage layout, final')).toBeInTheDocument()
+      held.release()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(screen.getByText('Homepage layout, final')).toBeInTheDocument()
+      expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
+    })
+  })
+
   describe('opening a card (6J)', () => {
     it('opens a card on its board with the keyboard, from its board\'s section', async () => {
       overdueServer()

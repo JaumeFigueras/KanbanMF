@@ -45,6 +45,12 @@ Small pure helpers, with no React in them:
 ``labelColor.ts``
    Black or white text for a label's colour, whichever contrasts more.
 
+``latest.ts``
+   ``latestOnly()``: a tracker that passes each request's answer on only
+   while no newer request with the same key has been sent, and drops it
+   otherwise (its promise never settles). Made once per page, for the
+   refetches whose answers can come back out of order.
+
 ``locale.ts``
    The date and number locales (``en``, ``en_GB``, ``ca_ES``) with their
    ``Intl`` and dayjs equivalents, date formatting, and the browser's time
