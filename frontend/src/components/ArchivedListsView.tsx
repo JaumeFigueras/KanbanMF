@@ -88,6 +88,9 @@ export default function ArchivedListsView({
   const [menuTarget, setMenuTarget] = useState<ItemTarget | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ItemTarget | null>(null)
   const [deleteError, setDeleteError] = useState(false)
+  // While a deletion is on its way, the question can't be answered again or
+  // closed.
+  const [deleting, setDeleting] = useState(false)
   const [restoreBlock, setRestoreBlock] = useState<RestoreBlock | null>(null)
   const [copyTarget, setCopyTarget] = useState<ItemTarget | null>(null)
   // A restore that couldn't be saved, said at the foot of the page.
@@ -185,7 +188,7 @@ export default function ArchivedListsView({
     }).catch(() => null)
     if (r?.status === 409) {
       const detail = (await r.json()).detail
-      setRestoreBlock(detail.code !== 'card_replaced'
+      setRestoreBlock(detail.code === 'card_replaced'
         ? { kind: 'replaced', replacedById: detail.replaced_by_id }
         : { kind: 'formerPeople', names: detail.names, card: target })
       return
@@ -209,19 +212,29 @@ export default function ArchivedListsView({
   }
 
   function handleDeleteClick() {
-    if (menuTarget) setDeleteTarget(menuTarget)
+    if (menuTarget) {
+      // Each question starts clean: a failure belongs to the one it happened in.
+      setDeleteError(false)
+      setDeleteTarget(menuTarget)
+    }
     closeMenu()
+  }
+
+  function closeDelete() {
+    if (!deleting) setDeleteTarget(null)
   }
 
   async function handleDeleteConfirmed() {
     const target = deleteTarget
     if (!target) return
     setDeleteError(false)
+    setDeleting(true)
 
     const url = target.type === 'list'
       ? `/api/v1/boards/${boardId}/lists/${target.id}`
       : `/api/v1/boards/${boardId}/lists/${target.listId}/cards/${target.id}`
     const r = await apiFetch(url, { method: 'DELETE' }).catch(() => null)
+    setDeleting(false)
     if (!r?.ok) {
       setDeleteError(true)
       return
@@ -280,7 +293,7 @@ export default function ArchivedListsView({
         )}
       </Menu>
 
-      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+      <Dialog open={Boolean(deleteTarget)} onClose={closeDelete} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ color: 'error.main' }}>{t('board.deleteConfirmTitle')}</DialogTitle>
         <DialogContent>
           {deleteError && <Alert severity="error" sx={{ mb: 2 }}>{t('common.saveError')}</Alert>}
@@ -289,8 +302,8 @@ export default function ArchivedListsView({
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteTarget(null)}>{t('common.cancel')}</Button>
-          <Button onClick={handleDeleteConfirmed} color="error" variant="contained">
+          <Button onClick={closeDelete} disabled={deleting}>{t('common.cancel')}</Button>
+          <Button onClick={handleDeleteConfirmed} color="error" variant="contained" disabled={deleting}>
             {t('common.delete')}
           </Button>
         </DialogActions>

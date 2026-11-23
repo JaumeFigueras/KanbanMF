@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
@@ -221,13 +221,16 @@ describe('ArchivedListsView', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('sends a restore once, however quickly Restore is clicked twice', async () => {
+    it('sends a restore once, though Restore is clicked again while the menu goes', async () => {
       archiveServer()
       const restored = fakeEndpoint('patch', CARD_URL, () => HttpResponse.json({ ...FOOTER, is_archived: false }))
       const { user } = await renderView()
       await user.click(screen.getByRole('button', { name: 'Menu for Footer links' }))
+      const restore = await screen.findByRole('menuitem', { name: 'Restore' })
 
-      await user.dblClick(await screen.findByRole('menuitem', { name: 'Restore' }))
+      // Straight to the item: the menu, on its way out, is still there.
+      fireEvent.click(restore)
+      fireEvent.click(restore)
 
       await waitFor(() => expect(screen.queryByText('Footer links')).not.toBeInTheDocument())
       expect(restored.requests).toHaveLength(1)
@@ -361,6 +364,81 @@ describe('ArchivedListsView', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       expect(deleted.requests).toHaveLength(0)
       expect(screen.getByText('Footer links')).toBeInTheDocument()
+    })
+
+    it('holds the question while the deletion is on its way, and sends it once (6X)', async () => {
+      archiveServer()
+      const held = heldAnswer()
+      const deleted = fakeEndpoint('delete', CARD_URL, held.answer)
+      const { user } = await renderView()
+      await fromMenu(user, 'Menu for Footer links', 'Delete')
+      const dialog = await screen.findByRole('dialog', { name: 'Delete permanently?' })
+      const deleteButton = within(dialog).getByRole('button', { name: 'Delete' })
+
+      await user.click(deleteButton)
+
+      await waitFor(() => expect(deleted.requests).toHaveLength(1))
+      expect(deleteButton).toBeDisabled()
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+      // Straight to the button, and Escape: neither does anything meanwhile.
+      // (Disabling the button sends the focus to the page, and the dialog's
+      // focus trap takes it back a moment later, so that Escape reaches it. A
+      // closing dialog stays a while as it fades, but at once stops naming
+      // what it asked about.)
+      fireEvent.click(deleteButton)
+      await waitFor(() => expect(document.activeElement).not.toBe(document.body))
+      await user.keyboard('{Escape}')
+      expect(dialog).toHaveTextContent('"Footer links"')
+
+      held.release()
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(deleted.requests).toHaveLength(1)
+      expect(screen.queryByText('Footer links')).not.toBeInTheDocument()
+    })
+
+    it('tries again after a failure, without the failure while it does', async () => {
+      archiveServer()
+      fakeEndpoint('delete', CARD_URL, DROPPED)
+      const { user } = await renderView()
+      await fromMenu(user, 'Menu for Footer links', 'Delete')
+      const dialog = await screen.findByRole('dialog', { name: 'Delete permanently?' })
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+      await within(dialog).findByRole('alert')
+      const held = heldAnswer()
+      const deleted = fakeEndpoint('delete', CARD_URL, held.answer)
+
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      await waitFor(() => expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument())
+      held.release()
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(deleted.requests).toHaveLength(1)
+      expect(screen.queryByText('Footer links')).not.toBeInTheDocument()
+    })
+
+    it("asks the next question without the last one's failure (6W)", async () => {
+      archiveServer()
+      fakeEndpoint('delete', CARD_URL, DROPPED)
+      const deleted = fakeEndpoint('delete', LIST_URL)
+      const { user } = await renderView()
+      await fromMenu(user, 'Menu for Footer links', 'Delete')
+      let dialog = await screen.findByRole('dialog', { name: 'Delete permanently?' })
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Something went wrong. Please try again.')
+      // The question can be answered again after a failure: here, Cancel.
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      await fromMenu(user, 'Menu for the list Old ideas', 'Delete')
+
+      dialog = await screen.findByRole('dialog', { name: 'Delete permanently?' })
+      expect(dialog).toHaveTextContent('"Old ideas"')
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+      // And this one is answered as any other.
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(deleted.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1/lists/list-9'])
     })
   })
 
