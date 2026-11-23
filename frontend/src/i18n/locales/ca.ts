@@ -333,8 +333,12 @@ const ca = {
     scopeAll: 'a tots els vostres taulers',
     scopeBoard: 'a {{name}}',
     scopeBoardArchive: "a l'arxiu de {{name}}",
+    // Until the board's name is in, or if it can't be loaded.
+    scopeThisBoard: 'en aquest tauler',
+    scopeThisBoardArchive: "a l'arxiu d'aquest tauler",
     scopeArchivedBoards: 'als vostres taulers arxivats',
     backToBoard: 'Torna a {{name}}',
+    backToThisBoard: 'Torna al tauler',
     backToArchive: "Torna a l'arxiu",
     tooShort: 'Escriviu almenys {{count}} caràcters.',
     noResults: 'No hi ha res que coincideixi amb "{{q}}".',

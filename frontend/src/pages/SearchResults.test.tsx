@@ -528,25 +528,6 @@ describe('SearchResults', () => {
       expect(screen.getByTestId('address').textContent).toBe(href)
     })
 
-    it.each([
-      ['refused', SERVER_ERROR],
-      ['cut off', DROPPED],
-    ])("searches the board, and goes back to it, when its name can't be loaded (%s)", async (_case, answer: Answer) => {
-      const server = searchServer()
-      const board = fakeEndpoint('get', '/api/v1/boards/:boardId', answer)
-      const { user } = renderWithProviders(<><SearchResults /><Address /></>, { route: '/search?q=homepage&board=board-1', auth: true })
-
-      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
-      expect(board.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1'])
-      expect(server.params()).toEqual(['q=homepage&board_id=board-1'])
-      const back = screen.getByRole('link', { name: /^Back to/ })
-      expect(back).toHaveAttribute('href', '/boards/board-1')
-
-      await user.click(back)
-
-      expect(screen.getByTestId('address').textContent).toBe('/boards/board-1')
-    })
-
     // An archived board can't be opened, so it leads to where it's kept.
     it.each([
       ['every board', '', '/boards/board-7'],
@@ -563,6 +544,112 @@ describe('SearchResults', () => {
       await user.click(board)
 
       expect(screen.getByTestId('address').textContent).toBe(href)
+    })
+  })
+
+  // 6Y: until the name was in, and for good if it couldn't be loaded, the
+  // page said "Back to " and "in ", with nothing after them.
+  describe("the board's name (6Y)", () => {
+    // Each board's name as the server has it: board-1 is Website redesign,
+    // board-2 Mobile app, unless the test holds or refuses the answer.
+    function boardNames(answers: Record<string, Answer> = {}) {
+      const names: Record<string, string> = { 'board-1': 'Website redesign', 'board-2': 'Mobile app' }
+      return fakeEndpoint('get', '/api/v1/boards/:boardId', (request) => {
+        const id = new URL(request.url).pathname.split('/').pop()!
+        return (answers[id] ?? (() => HttpResponse.json({ name: names[id] })))(request)
+      })
+    }
+
+    it.each([
+      ['refused', SERVER_ERROR],
+      ['cut off', DROPPED],
+    ])("says \"this board\" when its name can't be loaded (%s), and still searches it and goes back to it", async (_case, answer: Answer) => {
+      const server = searchServer()
+      const board = boardNames({ 'board-1': answer })
+      const { user } = renderWithProviders(<><SearchResults /><Address /></>, { route: '/search?q=homepage&board=board-1', auth: true })
+
+      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
+      await waitFor(() => expect(board.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1']))
+      expect(server.params()).toEqual(['q=homepage&board_id=board-1'])
+      expect(screen.getByText('in this board')).toBeInTheDocument()
+      const back = screen.getByRole('link', { name: 'Back to the board' })
+      expect(back).toHaveAttribute('href', '/boards/board-1')
+
+      await user.click(back)
+
+      expect(screen.getByTestId('address').textContent).toBe('/boards/board-1')
+    })
+
+    it("says \"this board's archive\" when the name of the board whose archive is searched can't be loaded", async () => {
+      searchServer()
+      boardNames({ 'board-1': SERVER_ERROR })
+      renderSearch('homepage&board=board-1&archived=1')
+
+      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
+      expect(screen.getByText("in this board's archive")).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Back to the archive' })).toHaveAttribute('href', '/boards/board-1?archive=1')
+    })
+
+    it('says "this board" until its name is in, then its name', async () => {
+      searchServer()
+      const held = heldAnswer(() => HttpResponse.json({ name: 'Website redesign' }))
+      boardNames({ 'board-1': held.answer })
+      renderSearch('homepage&board=board-1')
+      await screen.findByText('Homepage layout')
+      expect(screen.getByText('in this board')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Back to the board' })).toBeInTheDocument()
+
+      held.release()
+
+      expect(await screen.findByText('in Website redesign')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Back to Website redesign' })).toBeInTheDocument()
+      expect(screen.queryByText('in this board')).not.toBeInTheDocument()
+    })
+
+    it("never shows one board's name for another, on going between two boards' searches", async () => {
+      searchServer()
+      const held = heldAnswer(() => HttpResponse.json({ name: 'Mobile app' }))
+      boardNames({ 'board-2': held.answer })
+      const { user } = renderWithProviders(
+        <>
+          <Routes><Route path="/search" element={<SearchResults />} /></Routes>
+          <History to="/search?q=homepage&board=board-2" />
+        </>,
+        { route: '/search?q=homepage&board=board-1', auth: true },
+      )
+      await screen.findByRole('link', { name: 'Back to Website redesign' })
+
+      await user.click(screen.getByRole('button', { name: 'Go' }))
+
+      expect(await screen.findByRole('link', { name: 'Back to the board' })).toHaveAttribute('href', '/boards/board-2')
+      expect(screen.getByText('in this board')).toBeInTheDocument()
+      held.release()
+      expect(await screen.findByRole('link', { name: 'Back to Mobile app' })).toBeInTheDocument()
+    })
+
+    it("keeps the board's name when another board's answer comes after it, on Back", async () => {
+      searchServer()
+      const held = heldAnswer(() => HttpResponse.json({ name: 'Mobile app' }))
+      const board = boardNames({ 'board-2': held.answer })
+      const { user } = renderWithProviders(
+        <>
+          <Routes><Route path="/search" element={<SearchResults />} /></Routes>
+          <History to="/search?q=homepage&board=board-2" />
+        </>,
+        { route: '/search?q=homepage&board=board-1', auth: true },
+      )
+      await screen.findByRole('link', { name: 'Back to Website redesign' })
+      await user.click(screen.getByRole('button', { name: 'Go' }))
+      await screen.findByRole('link', { name: 'Back to the board' })
+
+      await user.click(screen.getByRole('button', { name: 'Back' }))
+      expect(await screen.findByRole('link', { name: 'Back to Website redesign' })).toBeInTheDocument()
+      held.release()
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(board.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1', '/api/v1/boards/board-2', '/api/v1/boards/board-1'])
+      expect(screen.getByRole('link', { name: 'Back to Website redesign' })).toBeInTheDocument()
+      expect(screen.getByText('in Website redesign')).toBeInTheDocument()
     })
   })
 })

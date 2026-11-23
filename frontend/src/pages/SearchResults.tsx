@@ -52,7 +52,10 @@ export default function SearchResults() {
   // reason, and Try again's count, which runs the search once more.
   const [failedKey, setFailedKey] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
-  const [boardName, setBoardName] = useState('')
+  // The board's name, with the board it belongs to: Back between two
+  // boards' searches keeps the page, and one board's name mustn't show for
+  // the other.
+  const [namedBoard, setNamedBoard] = useState<{ id: string; name: string } | null>(null)
   // Board sections start open; this holds the ones the user folded.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -110,11 +113,13 @@ export default function SearchResults() {
   // The board's name, for the heading and the back button.
   useEffect(() => {
     if (!boardId) return
-    apiFetch(`/api/v1/boards/${boardId}`)
+    track('board', apiFetch(`/api/v1/boards/${boardId}`))
       .then((r) => (r.ok ? (r.json() as Promise<BoardRead>) : null))
-      .then((board) => { if (board) setBoardName(board.name) })
+      .then((board) => { if (board) setNamedBoard({ id: boardId, name: board.name }) })
       .catch(() => {})
-  }, [boardId])
+  }, [boardId, track])
+  // Until it's in, or if it can't be loaded, the texts say "this board".
+  const boardName = namedBoard && namedBoard.id === boardId ? namedBoard.name : null
 
   const failed = q.length >= MIN_SEARCH_LENGTH && failedKey === key
   const data = q.length >= MIN_SEARCH_LENGTH && results?.key === key ? results.data : null
@@ -123,12 +128,14 @@ export default function SearchResults() {
   let backLabel: string
   let backTo: string
   if (boardId && archived) {
-    scopeText = t('search.scopeBoardArchive', { name: boardName })
+    scopeText = boardName === null
+      ? t('search.scopeThisBoardArchive')
+      : t('search.scopeBoardArchive', { name: boardName })
     backLabel = t('search.backToArchive')
     backTo = `/boards/${boardId}?archive=1`
   } else if (boardId) {
-    scopeText = t('search.scopeBoard', { name: boardName })
-    backLabel = t('search.backToBoard', { name: boardName })
+    scopeText = boardName === null ? t('search.scopeThisBoard') : t('search.scopeBoard', { name: boardName })
+    backLabel = boardName === null ? t('search.backToThisBoard') : t('search.backToBoard', { name: boardName })
     backTo = `/boards/${boardId}`
   } else {
     scopeText = t(archived ? 'search.scopeArchivedBoards' : 'search.scopeAll')

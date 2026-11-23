@@ -334,8 +334,12 @@ const en = {
     scopeAll: 'in all your boards',
     scopeBoard: 'in {{name}}',
     scopeBoardArchive: 'in the archive of {{name}}',
+    // Until the board's name is in, or if it can't be loaded.
+    scopeThisBoard: 'in this board',
+    scopeThisBoardArchive: "in this board's archive",
     scopeArchivedBoards: 'in your archived boards',
     backToBoard: 'Back to {{name}}',
+    backToThisBoard: 'Back to the board',
     backToArchive: 'Back to the archive',
     tooShort: 'Type at least {{count}} characters.',
     noResults: 'Nothing matches "{{q}}".',
