@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { act, screen, waitFor } from '@testing-library/react'
 import { HttpResponse } from 'msw'
-import { useLocation } from 'react-router-dom'
-import type { SearchResults as SearchResultsData } from '../types/board'
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import type { SearchBoardRead, SearchResults as SearchResultsData } from '../types/board'
 import { DROPPED, SERVER_ERROR, fakeEndpoint, heldAnswer } from '../test/endpoints'
 import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
@@ -30,20 +30,52 @@ const FOUND: SearchResultsData = {
   truncated: false,
 }
 
-// The search as the server runs it: every query finds the one card.
-// `server.fail()` makes it fail from then on (a server error, unless told
-// otherwise), and `server.recover()` makes it work again.
+// A second board with a matching card.
+const MOBILE: SearchBoardRead = {
+  board_id: 'board-2',
+  board_name: 'Mobile app',
+  color: null,
+  card_colors: {},
+  match_count: 1,
+  matched_in: { 'card-2': ['description'] },
+  lists: [{
+    list_id: 'list-2',
+    list_name: 'Backlog',
+    color: null,
+    cards: [makeCard({ id: 'card-2', list_id: 'list-2', name: 'Homepage banner' })],
+  }],
+}
+
+const NOTHING: SearchResultsData = { boards: [], matching_boards: [], truncated: false }
+const MATCHING_BOARD = { board_id: 'board-7', board_name: 'Homepage ideas', color: null }
+
+// The search's answer with its one card renamed.
+const foundCard = (name: string): SearchResultsData => ({
+  ...FOUND,
+  boards: [{ ...FOUND.boards[0], lists: [{ ...FOUND.boards[0].lists[0], cards: [makeCard({ id: 'card-1', list_id: 'list-1', name })] }] }],
+})
+
+// The search as the server runs it: every query finds the one card, unless
+// told otherwise. `server.fail()` makes it fail from then on (a server
+// error, unless told otherwise), and `server.recover()` makes it work again.
 function searchServer(answer: Answer = () => HttpResponse.json(FOUND)) {
   let down: Answer | null = null
-  const search = fakeEndpoint('get', '/api/v1/search', (request) => (down ?? answer)(request))
+  let current = answer
+  const search = fakeEndpoint('get', '/api/v1/search', (request) => (down ?? current)(request))
   fakeEndpoint('get', '/api/v1/users/me/avatar', () => new HttpResponse(null, { status: 404 }))
   return {
     // The queries searched for, in order.
     queries: () => search.requests.map((r) => r.url.searchParams.get('q')),
+    // Each search's whole query string.
+    params: () => search.requests.map((r) => r.url.searchParams.toString()),
+    answer: (next: SearchResultsData) => { current = () => HttpResponse.json(next) },
     fail: (failure: Answer = SERVER_ERROR) => { down = failure },
     recover: () => { down = null },
   }
 }
+
+// Every query finds `results`.
+const answering = (results: SearchResultsData): Answer => () => HttpResponse.json(results)
 
 const renderSearch = (q = 'homepage') => renderWithProviders(<SearchResults />, { route: `/search?q=${q}`, auth: true })
 
@@ -53,7 +85,263 @@ function Address() {
   return <p data-testid="address">{location.pathname + location.search}</p>
 }
 
+// The router's history: Go opens an address, as a link would, and Back goes
+// back, as the browser's button does.
+function History({ to }: { to: string }) {
+  const navigate = useNavigate()
+  return (
+    <>
+      <button type="button" onClick={() => navigate(to)}>Go</button>
+      <button type="button" onClick={() => navigate(-1)}>Back</button>
+    </>
+  )
+}
+
+// The page's WebSocket, open, to deliver notifications.
+async function openSocket() {
+  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
+  const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
+  socket.open()
+  return socket
+}
+
+const changeElsewhere = { type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null }
+
+// A board's section, by its heading, and a matching card, by its name.
+const section = (name: string) => screen.getByRole('button', { name })
+const cardLink = (name: string) => screen.queryByRole('link', { name: new RegExp(`^${name}`) })
+
+const searchBox = () => screen.getByRole('textbox', { name: /^Search/ })
+
 describe('SearchResults', () => {
+  describe('what it shows', () => {
+    it('says how many letters to type when the query is too short, and searches once there are enough', async () => {
+      const server = searchServer()
+      const { user } = renderSearch('%20h%20')
+
+      expect(await screen.findByText('Type at least 2 characters.')).toBeInTheDocument()
+      expect(searchBox()).toHaveValue('h')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+      await user.type(searchBox(), 'o')
+
+      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
+      expect(screen.queryByText('Type at least 2 characters.')).not.toBeInTheDocument()
+      expect(server.queries()).toEqual(['ho'])
+    })
+
+    it('says nothing matches when no card or board does', async () => {
+      searchServer(answering(NOTHING))
+      renderSearch('zebra')
+
+      expect(await screen.findByText('Nothing matches "zebra".')).toBeInTheDocument()
+      expect(screen.queryByText('Boards')).not.toBeInTheDocument()
+      expect(screen.queryByText('Cards')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['only boards match', { ...NOTHING, matching_boards: [MATCHING_BOARD] }, ['Boards']],
+      ['boards and cards match', { ...FOUND, matching_boards: [MATCHING_BOARD] }, ['Boards', 'Cards']],
+      ['only cards match', FOUND, []],
+    ])('heads the boards and the cards only when both show, when %s', async (_case, results: SearchResultsData, headings) => {
+      searchServer(answering(results))
+      renderSearch()
+
+      await screen.findByRole('link', { name: results.matching_boards.length ? 'Homepage ideas' : /^Homepage layout/ })
+
+      expect(['Boards', 'Cards'].filter((heading) => screen.queryByText(heading))).toEqual(headings)
+      expect(screen.queryByText(/^Nothing matches/)).not.toBeInTheDocument()
+    })
+
+    it('paints each matching board in its own colour', async () => {
+      searchServer(answering({
+        ...NOTHING,
+        matching_boards: [{ ...MATCHING_BOARD, color: '#4CAF50' }, { board_id: 'board-8', board_name: 'Homepage copy', color: null }],
+      }))
+      renderSearch()
+
+      expect(await screen.findByRole('link', { name: 'Homepage ideas' })).toHaveStyle({ borderColor: '#4CAF50' })
+      expect(screen.getByRole('link', { name: 'Homepage copy' })).not.toHaveStyle({ borderColor: '#4CAF50' })
+    })
+
+    it('says when only the most recently changed cards are shown, counting those shown', async () => {
+      searchServer(answering({ boards: [{ ...FOUND.boards[0], match_count: 3 }, { ...MOBILE, match_count: 2 }], matching_boards: [], truncated: true }))
+      renderSearch()
+
+      expect(await screen.findByText(
+        'Only the 5 most recently changed cards that match are shown. Add words to narrow the search.',
+      )).toBeInTheDocument()
+    })
+
+    it('says nothing of the kind when every match is shown', async () => {
+      searchServer(answering({ ...FOUND, boards: [...FOUND.boards, MOBILE] }))
+      renderSearch()
+
+      await screen.findByText('Homepage banner')
+
+      expect(screen.queryByText(/most recently changed/)).not.toBeInTheDocument()
+    })
+
+    it('says under each card which of its fields matched', async () => {
+      const description = makeCard({ id: 'card-3', list_id: 'list-1', name: 'Homepage copy' })
+      searchServer(answering({
+        ...FOUND,
+        boards: [{
+          ...FOUND.boards[0],
+          match_count: 2,
+          matched_in: { 'card-1': ['name', 'checklist', 'label'], 'card-3': [] },
+          lists: [{ ...FOUND.boards[0].lists[0], cards: [...FOUND.boards[0].lists[0].cards, description] }],
+        }],
+      }))
+      renderSearch()
+
+      expect(await screen.findByRole('link', { name: /^Homepage layout/ })).toHaveTextContent('Found in: name, checklist, label')
+      expect(cardLink('Homepage copy')).not.toHaveTextContent('Found in')
+    })
+
+    it("names the matching fields in the viewer's language", async () => {
+      searchServer(answering({ ...FOUND, boards: [{ ...FOUND.boards[0], matched_in: { 'card-1': ['name', 'checklist'] } }] }))
+      renderWithProviders(<SearchResults />, { route: '/search?q=homepage', auth: { language_locale: 'ca_ES' } })
+
+      expect(await screen.findByText('Trobat a: nom, llista de verificació')).toBeInTheDocument()
+    })
+
+    it("paints the cards in the viewer's colours for them, and the rest in the default", async () => {
+      const copy = makeCard({ id: 'card-3', list_id: 'list-1', name: 'Homepage copy' })
+      searchServer(answering({
+        ...FOUND,
+        boards: [{
+          ...FOUND.boards[0],
+          card_colors: { 'card-1': '#4CAF50' },
+          lists: [{ ...FOUND.boards[0].lists[0], cards: [...FOUND.boards[0].lists[0].cards, copy] }],
+        }],
+      }))
+      renderSearch()
+
+      expect((await screen.findByText('Homepage layout')).closest('.MuiCard-root')).toHaveStyle({ borderColor: '#4CAF50' })
+      expect(screen.getByText('Homepage copy').closest('.MuiCard-root')).toHaveStyle({ borderColor: '#9C27B0' })
+    })
+
+    it("writes the cards' dates in the viewer's own format once their profile is in", async () => {
+      searchServer(answering({
+        ...FOUND,
+        boards: [{ ...FOUND.boards[0], lists: [{ ...FOUND.boards[0].lists[0], cards: [makeCard({ id: 'card-1', list_id: 'list-1', name: 'Homepage layout', due_at: '2026-03-05T10:00:00Z' })] }] }],
+      }))
+      renderWithProviders(<SearchResults />, { route: '/search?q=homepage', auth: { number_locale: 'en_GB', date_format: 'textual' } })
+
+      expect(await screen.findByText(/^Thursday.*5 March 2026\b.*\b11:00$/)).toBeInTheDocument()
+    })
+  })
+
+  describe("folding a board's results", () => {
+    it('shows every board open, and folds and unfolds each on its own', async () => {
+      searchServer(answering({ ...FOUND, boards: [...FOUND.boards, MOBILE] }))
+      const { user } = renderSearch()
+      expect(await screen.findByRole('button', { name: 'Website redesign (1)' })).toHaveAttribute('aria-expanded', 'true')
+      expect(section('Mobile app (1)')).toHaveAttribute('aria-expanded', 'true')
+      expect(cardLink('Homepage layout')).toBeInTheDocument()
+      expect(cardLink('Homepage banner')).toBeInTheDocument()
+
+      await user.click(section('Website redesign (1)'))
+
+      expect(section('Website redesign (1)')).toHaveAttribute('aria-expanded', 'false')
+      await waitFor(() => expect(cardLink('Homepage layout')).not.toBeInTheDocument())
+      expect(cardLink('Homepage banner')).toBeInTheDocument()
+
+      await user.click(section('Mobile app (1)'))
+      await user.click(section('Website redesign (1)'))
+
+      expect(section('Website redesign (1)')).toHaveAttribute('aria-expanded', 'true')
+      expect(cardLink('Homepage layout')).toBeInTheDocument()
+      expect(section('Mobile app (1)')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('keeps a folded board folded when it searches again on a change elsewhere', async () => {
+      const server = searchServer(answering({ ...FOUND, boards: [...FOUND.boards, MOBILE] }))
+      const { user } = renderSearch()
+      await user.click(await screen.findByRole('button', { name: 'Website redesign (1)' }))
+      const socket = await openSocket()
+      const copy = makeCard({ id: 'card-3', list_id: 'list-1', name: 'Homepage copy' })
+      server.answer({
+        ...FOUND,
+        boards: [{ ...FOUND.boards[0], match_count: 2, lists: [{ ...FOUND.boards[0].lists[0], cards: [...FOUND.boards[0].lists[0].cards, copy] }] }, MOBILE],
+      })
+
+      socket.receive(changeElsewhere)
+
+      expect(await screen.findByRole('button', { name: 'Website redesign (2)' })).toHaveAttribute('aria-expanded', 'false')
+      expect(cardLink('Homepage copy')).not.toBeInTheDocument()
+      expect(section('Mobile app (1)')).toHaveAttribute('aria-expanded', 'true')
+      expect(server.queries()).toEqual(['homepage', 'homepage'])
+    })
+  })
+
+  describe('the query and where it looks', () => {
+    it.each([
+      ['every board', '', 'q=homepage', 'in all your boards', 'Search all boards'],
+      ['one board', '&board=board-1', 'q=homepage&board_id=board-1', 'in Website redesign', 'Search this board'],
+      ["one board's archive", '&board=board-1&archived=1', 'q=homepage&board_id=board-1&archived=true', 'in the archive of Website redesign', "Search this board's archive"],
+      ['the archived boards', '&archived=1', 'q=homepage&archived=true', 'in your archived boards', 'Search archived boards'],
+    ])('searches %s for the query in the address, and says where', async (_scope, params, sent, where, box) => {
+      const server = searchServer()
+      fakeEndpoint('get', '/api/v1/boards/board-1', () => HttpResponse.json({ name: 'Website redesign' }))
+      renderSearch(`homepage${params}`)
+
+      expect(await screen.findByText(where)).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: box })).toHaveValue('homepage')
+      await screen.findByText('Homepage layout')
+      expect(server.params()).toEqual([sent])
+    })
+
+    it('puts what you type in the address in place, once you pause, so Back leaves the page', async () => {
+      const server = searchServer()
+      const { user } = renderWithProviders(
+        <>
+          <Routes><Route path="/search" element={<SearchResults />} /></Routes>
+          <Address />
+          <History to="/search?q=homepage" />
+        </>,
+        { route: '/boards', auth: true },
+      )
+      await user.click(screen.getByRole('button', { name: 'Go' }))
+      await screen.findByText('Homepage layout')
+
+      await user.type(searchBox(), ' layout')
+
+      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe('/search?q=homepage+layout'))
+      await waitFor(() => expect(server.queries()).toEqual(['homepage', 'homepage layout']))
+      await user.click(screen.getByRole('button', { name: 'Back' }))
+      expect(screen.getByTestId('address').textContent).toBe('/boards')
+    })
+
+    it('follows the address when it changes from elsewhere, as Back between two searches', async () => {
+      const server = searchServer((request) => HttpResponse.json(
+        new URL(request.url).searchParams.get('q') === 'hero' ? foundCard('Hero banner') : FOUND,
+      ))
+      const { user } = renderWithProviders(
+        <>
+          <Routes><Route path="/search" element={<SearchResults />} /></Routes>
+          <History to="/search?q=hero" />
+        </>,
+        { route: '/search?q=homepage', auth: true },
+      )
+      await screen.findByText('Homepage layout')
+
+      await user.click(screen.getByRole('button', { name: 'Go' }))
+
+      expect(await screen.findByText('Hero banner')).toBeInTheDocument()
+      expect(searchBox()).toHaveValue('hero')
+
+      await user.click(screen.getByRole('button', { name: 'Back' }))
+
+      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
+      expect(searchBox()).toHaveValue('homepage')
+      // Long enough for a box left behind to have put its own query back.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(server.queries()).toEqual(['homepage', 'hero', 'homepage'])
+    })
+  })
+
   describe('searching, and searches that fail', () => {
     it("shows that it's searching until the results are in", async () => {
       const held = heldAnswer(() => HttpResponse.json(FOUND))
@@ -124,12 +412,10 @@ describe('SearchResults', () => {
       server.fail()
       renderSearch()
       await screen.findByRole('alert')
-      await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
-      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
-      socket.open()
+      const socket = await openSocket()
       server.recover()
 
-      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive(changeElsewhere)
 
       expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -139,12 +425,10 @@ describe('SearchResults', () => {
       const server = searchServer()
       renderSearch()
       await screen.findByText('Homepage layout')
-      await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
-      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
-      socket.open()
+      const socket = await openSocket()
       server.fail()
 
-      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive(changeElsewhere)
 
       expect(await screen.findByRole('alert')).toHaveTextContent("The search couldn't be done.")
       expect(screen.queryByText('Homepage layout')).not.toBeInTheDocument()
@@ -152,19 +436,11 @@ describe('SearchResults', () => {
   })
 
   describe('answers that come back out of order', () => {
-    // The search's answer with its one card renamed.
-    const foundCard = (name: string): SearchResultsData => ({
-      ...FOUND,
-      boards: [{ ...FOUND.boards[0], lists: [{ ...FOUND.boards[0].lists[0], cards: [makeCard({ id: 'card-1', list_id: 'list-1', name })] }] }],
-    })
-
     it('keeps the newer results for the same query when an older answer comes last', async () => {
       searchServer()
       renderSearch()
       await screen.findByText('Homepage layout')
-      await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0))
-      const socket = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]
-      socket.open()
+      const socket = await openSocket()
       const held = heldAnswer(() => HttpResponse.json(FOUND))
       let first = true
       fakeEndpoint('get', '/api/v1/search', (request) => {
@@ -173,8 +449,8 @@ describe('SearchResults', () => {
         return answer(request)
       })
 
-      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
-      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-1', origin_client_id: null })
+      socket.receive(changeElsewhere)
+      socket.receive(changeElsewhere)
       expect(await screen.findByText('Homepage layout, final')).toBeInTheDocument()
       held.release()
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -250,6 +526,25 @@ describe('SearchResults', () => {
       await user.click(back)
 
       expect(screen.getByTestId('address').textContent).toBe(href)
+    })
+
+    it.each([
+      ['refused', SERVER_ERROR],
+      ['cut off', DROPPED],
+    ])("searches the board, and goes back to it, when its name can't be loaded (%s)", async (_case, answer: Answer) => {
+      const server = searchServer()
+      const board = fakeEndpoint('get', '/api/v1/boards/:boardId', answer)
+      const { user } = renderWithProviders(<><SearchResults /><Address /></>, { route: '/search?q=homepage&board=board-1', auth: true })
+
+      expect(await screen.findByText('Homepage layout')).toBeInTheDocument()
+      expect(board.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-1'])
+      expect(server.params()).toEqual(['q=homepage&board_id=board-1'])
+      const back = screen.getByRole('link', { name: /^Back to/ })
+      expect(back).toHaveAttribute('href', '/boards/board-1')
+
+      await user.click(back)
+
+      expect(screen.getByTestId('address').textContent).toBe('/boards/board-1')
     })
 
     // An archived board can't be opened, so it leads to where it's kept.
