@@ -62,8 +62,9 @@ Account
 
 Shared pieces
    ``ColorPicker`` (the fixed palette behind every colour dialog),
-   ``FailureMessage`` (the message at the foot of the boards page, the board
-   and its archive when a change made on the page itself — a star, a menu
-   entry, a drag — can't be saved), ``LoadFailure`` (what a page, or a list
+   ``FailureMessage`` (the message at the foot of the boards page, the board,
+   its archive and the time tracker when a change made on the page itself — a
+   star, a menu entry, a drag, ending the task being tracked — can't be
+   saved), ``LoadFailure`` (what a page, or a list
    column, shows in place of data it couldn't load, with :guilabel:`Try
    again`; also the ``LoadState`` type the pages keep their load in).

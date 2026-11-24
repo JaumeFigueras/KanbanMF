@@ -395,6 +395,7 @@ const ca = {
     overlapWarning: 'Aquest registre se superposa amb un altre.',
     noEntries: "No hi ha temps registrat en aquest període.",
     loadFailed: 'No s\'han pogut carregar els teus registres de temps.',
+    stopFailed: 'No s\'ha pogut acabar la tasca "{{name}}". Torna-ho a intentar.',
     total: '{{entries}} registres · {{duration}} en total',
   },
   oauthConsent: {

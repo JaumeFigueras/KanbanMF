@@ -94,6 +94,13 @@ const CONTACT = makeTimeEntry({ id: 'entry-3', card_name: 'Contact form', starte
 const STOP = '/api/v1/time-entries/:entryId/stop'
 const OVERLAP = 'This entry overlaps another one.'
 
+// The message at the foot of the page, and the one when ending fails.
+const failure = () => screen.findByRole('alert')
+const STOP_FAILED = 'The task "Homepage layout" couldn\'t be ended. Please try again.'
+
+// Whether each End button, the bar's then the strip's, is disabled.
+const endsDisabled = () => screen.getAllByRole('button', { name: 'End' }).map((b) => (b as HTMLButtonElement).disabled)
+
 describe('TimeTracker', () => {
   describe('the entry being tracked', () => {
     it('shows it above the table, with its board, start, comment and labels, its time ticking', async () => {
@@ -154,6 +161,28 @@ describe('TimeTracker', () => {
       expect(screen.getByRole('button', { name: 'End' })).toBeDisabled()
       await waitFor(() => expect(server.loads()).toBe(2))
       expect(server.yearLoads()).toBe(2)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('disables both End buttons while ending it is on its way, so a double click ends it once', async () => {
+      fixClock()
+      const server = entriesServer([TRACKING, FOOTER])
+      const held = heldAnswer(() => HttpResponse.json(ENDED))
+      const stopped = fakeEndpoint('post', STOP, held.answer)
+      const { user } = renderAs()
+      await screen.findByText('1:30:00')
+      server.update([ENDED, FOOTER])
+
+      await user.dblClick(screen.getAllByRole('button', { name: 'End' })[1])
+
+      await waitFor(() => expect(stopped.requests).toHaveLength(1))
+      expect(endsDisabled()).toEqual([true, true])
+      held.release()
+
+      expect(await within(strip()).findByText('No task is being tracked right now.')).toBeInTheDocument()
+      await waitFor(() => expect(server.loads()).toBe(2))
+      expect(stopped.requests).toHaveLength(1)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('shows the ended entry at once, while the month is fetched again', async () => {
@@ -191,23 +220,67 @@ describe('TimeTracker', () => {
       expect(within(table()).getByText('Footer links')).toBeInTheDocument()
     })
 
-    it.each([
-      ['refused', SERVER_ERROR],
-      ['cut off', DROPPED],
-    ])('keeps it running when ending it fails (%s)', async (_case, answer: Answer) => {
+    it("says it couldn't be ended when the connection drops, and keeps it running, End offered again", async () => {
       fixClock()
       const server = entriesServer([TRACKING, FOOTER])
-      const stopped = fakeEndpoint('post', STOP, answer)
+      const stopped = fakeEndpoint('post', STOP, DROPPED)
       const { user } = renderAs()
       await screen.findByText('1:30:00')
 
       await user.click(screen.getAllByRole('button', { name: 'End' })[0])
 
-      await waitFor(() => expect(stopped.requests).toHaveLength(1))
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(await failure()).toHaveTextContent(STOP_FAILED)
+      expect(stopped.requests).toHaveLength(1)
       expect(within(strip()).getByText('Currently tracking')).toBeInTheDocument()
       expect(within(table()).queryByText('Homepage layout')).not.toBeInTheDocument()
+      expect(endsDisabled()).toEqual([false, false])
       expect(server.loads()).toBe(1)
+    })
+
+    it("says it couldn't be ended when refused, and fetches the month again, where it still runs", async () => {
+      fixClock()
+      const server = entriesServer([TRACKING, FOOTER])
+      fakeEndpoint('post', STOP, SERVER_ERROR)
+      const { user } = renderAs()
+      await screen.findByText('1:30:00')
+
+      await user.click(screen.getAllByRole('button', { name: 'End' })[1])
+
+      expect(await failure()).toHaveTextContent(STOP_FAILED)
+      await waitFor(() => expect(server.loads()).toBe(2))
+      expect(within(strip()).getByText('Currently tracking')).toBeInTheDocument()
+      expect(within(table()).queryByText('Homepage layout')).not.toBeInTheDocument()
+      expect(endsDisabled()).toEqual([false, false])
+    })
+
+    it("says it couldn't be ended when it was ended elsewhere meanwhile, and shows it ended once the month is fetched again", async () => {
+      fixClock()
+      const server = entriesServer([TRACKING, FOOTER])
+      fakeEndpoint('post', STOP, () => HttpResponse.json({ detail: 'This time entry has already ended.' }, { status: 409 }))
+      const { user } = renderAs()
+      await screen.findByText('1:30:00')
+      // Ended at 11:00 in Madrid, from another tab.
+      server.update([{ ...TRACKING, ended_at: '2026-01-16T10:00:00Z' }, FOOTER])
+
+      await user.click(screen.getAllByRole('button', { name: 'End' })[0])
+
+      expect(await failure()).toHaveTextContent(STOP_FAILED)
+      expect(await within(strip()).findByText('No task is being tracked right now.')).toBeInTheDocument()
+      expect(entryRow('Homepage layout')).toHaveTextContent('1:00')
+      expect(screen.getByRole('button', { name: 'End' })).toBeDisabled()
+    })
+
+    it("closes the message that it couldn't be ended with the close button", async () => {
+      entriesServer([TRACKING, FOOTER])
+      fakeEndpoint('post', STOP, DROPPED)
+      const { user } = renderAs()
+      await screen.findByText('Currently tracking')
+      await user.click(screen.getAllByRole('button', { name: 'End' })[0])
+      const message = await failure()
+
+      await user.click(within(message).getByRole('button', { name: 'Close' }))
+
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     })
   })
 

@@ -38,6 +38,7 @@ import TimeEntryDialog from '../components/TimeEntryDialog'
 import DeleteTimeEntryDialog from '../components/DeleteTimeEntryDialog'
 import LabelChips from '../components/LabelChips'
 import LoadFailure from '../components/LoadFailure'
+import FailureMessage from '../components/FailureMessage'
 import type { LoadState } from '../components/LoadFailure'
 import type { TimeEntryRead } from '../types/timeTracker'
 import { decimalHours, durationSeconds, formatDuration, formatRunning } from '../utils/duration'
@@ -78,6 +79,10 @@ export default function TimeTracker() {
   const [entryDialogOpen, setEntryDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<TimeEntryRead | null>(null)
   const [deletingEntry, setDeletingEntry] = useState<TimeEntryRead | null>(null)
+  // While the entry being tracked is being ended, both End buttons wait: a
+  // second click would ask again for one already ended, and be refused.
+  const [stopping, setStopping] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
 
   const running = useMemo(() => entries.find((e) => e.ended_at === null) ?? null, [entries])
   // The running entry lives in the strip above the table, not in it — the
@@ -200,16 +205,28 @@ export default function TimeTracker() {
 
   async function handleStop() {
     if (!running) return
+    const entry = running
+    setStopping(true)
     try {
-      const r = await apiFetch(`/api/v1/time-entries/${running.id}/stop`, { method: 'POST' })
-      if (!r.ok) return
+      const r = await apiFetch(`/api/v1/time-entries/${entry.id}/stop`, { method: 'POST' })
+      if (!r.ok) {
+        // Refused: it may have been ended or deleted elsewhere meanwhile, and
+        // no notification would tell this page, so the month is fetched
+        // again rather than offering End on something gone.
+        setFailure(t('timeTracker.stopFailed', { name: entry.card_name }))
+        fetchEntries()
+        return
+      }
       const stopped = await r.json() as TimeEntryRead
       // A task started in a month the filter doesn't cover would vanish from
       // the table the moment it ends, so refetch rather than patch state.
       replaceEntry(stopped)
       fetchEntries()
     } catch {
-      // silently ignore — the entry is still running as far as the UI knows
+      // The connection dropped: as far as the page knows, it's still running.
+      setFailure(t('timeTracker.stopFailed', { name: entry.card_name }))
+    } finally {
+      setStopping(false)
     }
   }
 
@@ -278,7 +295,7 @@ export default function TimeTracker() {
             size="small"
             startIcon={<Stop />}
             onClick={handleStop}
-            disabled={running === null}
+            disabled={running === null || stopping}
           >
             {t('timeTracker.end')}
           </Button>
@@ -377,7 +394,13 @@ export default function TimeTracker() {
                   <Typography variant="h4" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                     {formatRunning(durationSeconds(running.started_at, null, now))}
                   </Typography>
-                  <Button variant="contained" color="error" startIcon={<Stop />} onClick={handleStop}>
+                  <Button
+                    variant="contained"
+                    color="error"
+                    startIcon={<Stop />}
+                    onClick={handleStop}
+                    disabled={stopping}
+                  >
                     {t('timeTracker.end')}
                   </Button>
                 </Box>
@@ -514,6 +537,8 @@ export default function TimeTracker() {
           fetchYears()
         }}
       />
+
+      <FailureMessage message={failure} onClose={() => setFailure(null)} />
     </>
   )
 }

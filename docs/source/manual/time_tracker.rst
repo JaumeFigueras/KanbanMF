@@ -28,6 +28,10 @@ The task appears under :guilabel:`Currently tracking`, with a running clock.
 Click :guilabel:`End` when you stop. Only one task can run at a time: end the
 current one before starting the next.
 
+If the task can't be ended, for instance because the connection dropped, a
+message at the bottom of the page says so and the clock keeps running: click
+:guilabel:`End` again.
+
 If you start a task within five minutes of ending the previous one, it is
 recorded as starting exactly when the previous one ended. The moment spent
 switching between tasks is not left as a gap.

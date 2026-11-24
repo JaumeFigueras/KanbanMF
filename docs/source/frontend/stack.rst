@@ -381,7 +381,11 @@ on these pages without a dialog — archiving a card or a list from its menu,
 *Archive All Cards*, a star, restoring a board, list or card — leave the page
 as it was when they fail (a star goes back) and say so the same way; the
 archives and restores also fetch again what they touched, in case it changed
-elsewhere meanwhile.
+elsewhere meanwhile. The time tracker says the same when the task being
+tracked can't be ended; a refused end fetches the month again, as the task
+may have been ended or deleted in another tab, which no notification would
+tell it (time entries are private, so they send none). Both its
+:guilabel:`End` buttons are disabled while an end is on its way.
 
 Theming and colours
 -------------------
