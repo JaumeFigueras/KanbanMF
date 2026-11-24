@@ -77,6 +77,7 @@ export default function CardItem({
     id: dragOverlay ? `overlay-${card.id}` : card.id,
     data: { type: 'card', listId },
     disabled: dragOverlay,
+    attributes: { roleDescription: t('drag.roleDescription') },
   })
   const dragStyle = dragOverlay
     ? undefined

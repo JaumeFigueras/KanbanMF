@@ -468,6 +468,25 @@ const en = {
     moveFailed: 'The move couldn\'t be saved, and has been undone. Please try again.',
     tryAgain: 'Try again',
   },
+  // What a screen reader is told about moving things, with the mouse or the
+  // keyboard (utils/dragAccessibility.ts). name is what's moved, target what
+  // it's over; as either can be "the list …", neither starts a sentence.
+  drag: {
+    instructions: 'Press Space or Enter to pick it up, the arrow keys to move it, and Space or Enter again to drop it, or Escape to cancel.',
+    // Said with each drag handle, in place of "button".
+    roleDescription: 'movable',
+    pickedUp: 'Picked up {{name}}.',
+    over: 'Moving {{name}}, over {{target}}.',
+    notOver: 'Moving {{name}}, not over anywhere it can be dropped.',
+    dropped: 'Dropped {{name}} over {{target}}.',
+    droppedNowhere: 'Dropped {{name}} where it can\'t go, so it is back in its place.',
+    cancelled: 'Move cancelled: {{name}} is back in its place.',
+    itsOwnPlace: 'its own place',
+    list: 'the list {{name}}',
+    cardInList: '{{name}}, in the list {{list}}',
+    checklist: 'the checklist {{name}}',
+    label: 'the label {{name}}',
+  },
   // MUI's own texts, given to it through the theme (src/theme/index.ts). The
   // English ones are MUI's own words, so English is as MUI ships it.
   mui: {

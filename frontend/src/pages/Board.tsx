@@ -19,15 +19,26 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import type { CollisionDetection, DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core'
+import type {
+  CollisionDetection,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  DroppableContainer,
+  DroppableContainers,
+  KeyboardCoordinateGetter,
+  UniqueIdentifier,
+} from '@dnd-kit/core'
 import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { useTranslation } from 'react-i18next'
 import MainAppBar from '../components/MainAppBar'
@@ -48,6 +59,7 @@ import type { SortMode } from '../utils/cardSort'
 import { SORT_OPTIONS, applyUndatedOrder, clampDueDateDropIndex, isSortMode, isUndated, sortCards } from '../utils/cardSort'
 import { readStored, writeStored } from '../utils/storage'
 import { latestOnly } from '../utils/latest'
+import { dragAccessibility } from '../utils/dragAccessibility'
 import { HttpError, apiFetch, loadJson } from '../api/client'
 import { isOwnNotification, subscribeToNotifications } from '../api/ws'
 
@@ -81,6 +93,36 @@ const listAwareCollisionDetection: CollisionDetection = (args) => {
     (container) => container.data.current?.type === 'list',
   )
   return closestCenter({ ...args, droppableContainers: listContainers })
+}
+
+// For the same reason, dnd-kit's own arrow-key moves would take a list onto
+// its own cards, a card past the next one into its list's drop area, or down
+// onto a lower card of the list next door. Here a list only moves left or
+// right, among the lists; a card up or down within its list, or left or
+// right to a card of another list, or into a list with no cards.
+const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+  const { active, droppableContainers } = args.context
+  const type = active?.data.current?.type
+  const listId = active?.data.current?.listId
+  const sideways = event.code === 'ArrowLeft' || event.code === 'ArrowRight'
+  const enabled = droppableContainers.getEnabled()
+  const listsWithCards = new Set(enabled
+    .filter(c => c.data.current?.type === 'card' && c.id !== active?.id)
+    .map(c => c.data.current?.listId))
+  const targets = enabled.filter(c => {
+    // dnd-kit measures the move from the item's own place.
+    if (c.id === active?.id) return true
+    if (type === 'list') return sideways && c.data.current?.type === 'list'
+    if (c.data.current?.type === 'card') return sideways === (c.data.current.listId !== listId)
+    const emptyListId = String(c.id).startsWith('list-dropzone:') ? String(c.id).slice('list-dropzone:'.length) : null
+    return sideways && emptyListId !== null && emptyListId !== listId && !listsWithCards.has(emptyListId)
+  })
+  // dnd-kit's own map type, which it doesn't export.
+  const Targets = droppableContainers.constructor as new (entries: [UniqueIdentifier, DroppableContainer][]) => DroppableContainers
+  return sortableKeyboardCoordinates(event, {
+    ...args,
+    context: { ...args.context, droppableContainers: new Targets(targets.map(c => [c.id, c])) },
+  })
 }
 
 // A set without one id, or the same set when it hasn't got it (so nothing
@@ -188,6 +230,7 @@ export default function Board() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: boardKeyboardCoordinates }),
   )
 
   // Resolves to whether the board opened: not when it's refused (the
@@ -585,6 +628,24 @@ export default function Board() {
     setOrderByList(prev => restore(prev, before.order))
     listIds.forEach(id => fetchCardsForList(id))
   }
+
+  // What a card is over names the list it would land in, and the card
+  // there if there is one; what a list is over, the list there.
+  const listName = (id: UniqueIdentifier | undefined) => lists.find(l => l.id === id)?.name ?? ''
+  const cardName = (id: UniqueIdentifier) => Object.values(cardsByList).flat().find(c => c.id === id)?.name ?? ''
+  const boardDragAccessibility = dragAccessibility(
+    t,
+    id => lists.some(l => l.id === id) ? t('drag.list', { name: listName(id) }) : cardName(id),
+    (over, active) => {
+      if (active.data.current?.type === 'list') {
+        return over.id === active.id ? t('drag.itsOwnPlace') : t('drag.list', { name: listName(over.id) })
+      }
+      const list = listName(resolveDestinationListId(over))
+      return over.data.current?.type === 'card' && over.id !== active.id
+        ? t('drag.cardInList', { name: cardName(over.id), list })
+        : t('drag.list', { name: list })
+    },
+  )
 
   function handleDragStart(event: DragStartEvent) {
     const { active } = event
@@ -1054,9 +1115,12 @@ export default function Board() {
       <DndContext
         sensors={sensors}
         collisionDetection={listAwareCollisionDetection}
+        accessibility={boardDragAccessibility}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        // Escape puts everything back, as a drop outside every list does.
+        onDragCancel={event => handleDragEnd({ ...event, over: null })}
       >
         <SortableContext items={sortedLists.map(l => l.id)} strategy={horizontalListSortingStrategy}>
           <Box

@@ -15,18 +15,20 @@ import {
 import { Delete, DragIndicator, Edit } from '@mui/icons-material'
 import {
   DndContext,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { LabelRead } from '../types/board'
 import { apiFetch } from '../api/client'
 import { contrastColor } from '../utils/labelColor'
+import { cancelDragOnEscape, dragAccessibility } from '../utils/dragAccessibility'
 import DeleteLabelDialog from './DeleteLabelDialog'
 import EditLabelDialog from './EditLabelDialog'
 
@@ -74,6 +76,7 @@ function SortableLabelRow({
   editLabel,
   removeLabel,
   dragLabel,
+  roleDescription,
 }: {
   label: LabelRead
   onEdit: () => void
@@ -81,8 +84,9 @@ function SortableLabelRow({
   editLabel: string
   removeLabel: string
   dragLabel: string
+  roleDescription: string
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: label.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: label.id, attributes: { roleDescription } })
 
   return (
     <Box
@@ -208,7 +212,14 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
     setDeleteOpen(true)
   }
 
-  const labelSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const labelSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const labelDragAccessibility = dragAccessibility(
+    t,
+    id => t('drag.label', { name: labels.find(l => l.id === id)?.name }),
+  )
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -255,9 +266,14 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
             </Typography>
           )}
 
-          <DndContext sensors={labelSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={labelSensors}
+            collisionDetection={closestCenter}
+            accessibility={labelDragAccessibility}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={labels.map(l => l.id)} strategy={verticalListSortingStrategy}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 1 }} onKeyDown={cancelDragOnEscape}>
                 {labels.map(label => (
                   <SortableLabelRow
                     key={label.id}
@@ -267,6 +283,7 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
                     editLabel={t('board.editLabel')}
                     removeLabel={t('board.deleteLabel')}
                     dragLabel={t('board.moveLabel')}
+                    roleDescription={t('drag.roleDescription')}
                   />
                 ))}
               </Box>

@@ -161,9 +161,10 @@ Moving cards
 ------------
 
 Drag a card by its four-arrow handle to a new position in the same list, or
-to another list. Under :ref:`some sort orders <manual-sorting>` the position
-inside a list follows from the order chosen, and dragging only moves the card
-to another list.
+to another list, or move it :ref:`with the keyboard <manual-keyboard-moves>`.
+Under :ref:`some sort orders <manual-sorting>` the position inside a list
+follows from the order chosen, and dragging only moves the card to another
+list.
 
 Cards can't be moved to another board; copy the card there and archive the
 original instead.

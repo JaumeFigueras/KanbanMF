@@ -128,6 +128,7 @@ export default function BoardListColumn({
     id: dragOverlay ? `overlay-${list.id}` : list.id,
     data: { type: 'list' },
     disabled: dragOverlay,
+    attributes: { roleDescription: t('drag.roleDescription') },
   })
 
   // Lets an empty list (or the space below its last card) still accept a

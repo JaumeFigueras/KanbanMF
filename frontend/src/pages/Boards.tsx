@@ -3,13 +3,14 @@ import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-d
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, rectSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import {
   Accordion,
   AccordionDetails,
@@ -42,6 +43,7 @@ import type { BoardOrderRead, BoardRead, BoardsResponse } from '../types/board'
 import { MIN_SEARCH_LENGTH, searchPlaceholderKey, searchUrl } from '../utils/search'
 import { readStored, writeStored } from '../utils/storage'
 import { latestOnly } from '../utils/latest'
+import { dragAccessibility } from '../utils/dragAccessibility'
 
 const ACCORDION_KEY = 'kanbanmf.boards.accordions'
 
@@ -89,7 +91,10 @@ export default function Boards() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   // Locale settings received from MainAppBar (used for card date formatting)
   const [numberLocale, setNumberLocale] = useState('en')
@@ -525,9 +530,11 @@ export default function Boards() {
     onColorChanged: handleColorChanged,
   }
 
+  const allBoards = [...boards.owned, ...boards.shared, ...boards.templates]
   const draggingBoard = draggingBoardId
-    ? [...boards.owned, ...boards.shared, ...boards.templates].find(b => b.id === draggingBoardId) ?? null
+    ? allBoards.find(b => b.id === draggingBoardId) ?? null
     : null
+  const boardDragAccessibility = dragAccessibility(t, id => allBoards.find(b => b.id === id)?.name ?? '')
 
   return (
     <>
@@ -622,6 +629,7 @@ export default function Boards() {
                   : <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
+                      accessibility={boardDragAccessibility}
                       onDragStart={handleBoardDragStart}
                       onDragEnd={e => handleSectionDragEnd(e, 'starred')}
                     >
@@ -669,6 +677,7 @@ export default function Boards() {
                   : <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
+                      accessibility={boardDragAccessibility}
                       onDragStart={handleBoardDragStart}
                       onDragEnd={e => handleSectionDragEnd(e, 'owned')}
                     >
@@ -716,6 +725,7 @@ export default function Boards() {
                   : <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
+                      accessibility={boardDragAccessibility}
                       onDragStart={handleBoardDragStart}
                       onDragEnd={e => handleSectionDragEnd(e, 'shared')}
                     >
@@ -768,6 +778,7 @@ export default function Boards() {
                   : <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
+                      accessibility={boardDragAccessibility}
                       onDragStart={handleBoardDragStart}
                       onDragEnd={e => handleSectionDragEnd(e, 'templates')}
                     >

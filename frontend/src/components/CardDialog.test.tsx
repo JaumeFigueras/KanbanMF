@@ -5,6 +5,7 @@ import type { CardRead, ChecklistRead } from '../types/board'
 import { fakeEndpoint, heldAnswer } from '../test/endpoints'
 import { makeBoard, makeCard, makeLabel, makeList, makePerson } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { heard, pickUp } from '../test/drag'
 import CardDialog from './CardDialog'
 
 const MEMBERS = '/api/v1/boards/:boardId/members'
@@ -875,6 +876,19 @@ describe('CardDialog', () => {
   describe('checklists', () => {
     // A checklist row, found by its name.
     const row = (name: string) => screen.getByRole('button', { name: `Edit the checklist ${name}` }).parentElement!.parentElement!
+
+    it('cancels moving a checklist with the keyboard on Escape, sending nothing (7A)', async () => {
+      const both = [LAUNCH, checklist('checklist-2', 'Follow-up', ['Call back'])]
+      const backend = fakeBackend(both)
+      const { user, onClose } = renderDialog({ ...CARD, checklists: both })
+      await pickUp(user, screen.getByRole('button', { name: 'Move the checklist Launch' }), 'the checklist Launch')
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: the checklist Launch is back in its place.')
+      expect(onClose).not.toHaveBeenCalled()
+      await user.click(saveButton())
+      await waitFor(() => expect(backend.saved.requests).toHaveLength(1))
+      expect(backend.checklistsOrdered.requests).toEqual([])
+    })
 
     describe('changed in the dialog, and sent only on Save', () => {
       it('adds a checklist through its dialog, shown with its items, none of them done', async () => {

@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import i18n from '../i18n'
 import { screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse } from 'msw'
 import type { LabelRead } from '../types/board'
 import { fakeEndpoint, heldAnswer } from '../test/endpoints'
 import { makeLabel } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { heard, pickUp } from '../test/drag'
 import ManageLabelsDialog from './ManageLabelsDialog'
 
 const BOARD_LABELS = '/api/v1/boards/:boardId/labels'
@@ -320,6 +322,47 @@ describe('ManageLabelsDialog', () => {
     // Gives a request, if any, time to arrive.
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(loaded.requests).toEqual([])
+  })
+
+  describe('moving a label with the keyboard (7A)', () => {
+    function firstHandle() {
+      return within(labelsDialog()).getAllByRole('button', { name: 'Move label' })[0]
+    }
+
+    it('tells a screen reader how, in the reader\'s language', async () => {
+      boardHas()
+      renderDialog()
+      await screen.findByText('Bug')
+      expect(firstHandle()).toHaveAttribute('aria-roledescription', 'movable')
+      expect(firstHandle()).toHaveAccessibleDescription(
+        'Press Space or Enter to pick it up, the arrow keys to move it, and Space or Enter again to drop it, or Escape to cancel.',
+      )
+    })
+
+    it('tells it in Catalan to a user who reads Catalan', async () => {
+      await i18n.changeLanguage('ca')
+      boardHas()
+      renderDialog()
+      const handle = (await screen.findAllByRole('button', { name: "Mou l'etiqueta" }))[0]
+      expect(handle).toHaveAttribute('aria-roledescription', 'movible')
+      expect(handle).toHaveAccessibleDescription(/^Prem la barra d'espai o la tecla de retorn per agafar-lo/)
+    })
+
+    it('cancels the move on Escape, and stays open', async () => {
+      boardHas()
+      const saved = fakeEndpoint('put', `${BOARD_LABELS}/order`)
+      const { user, onClose } = renderDialog()
+      await screen.findByText('Bug')
+      await pickUp(user, firstHandle(), 'the label Bug')
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: the label Bug is back in its place.')
+      expect(onClose).not.toHaveBeenCalled()
+      expect(labelsDialog()).toHaveTextContent(/Bug.*Feature/)
+      expect(saved.requests).toEqual([])
+      // With nothing moving, Escape closes it as before.
+      await user.keyboard('{Escape}')
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('closes on Close', async () => {

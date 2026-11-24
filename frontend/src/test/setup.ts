@@ -38,6 +38,10 @@ class FormDataFromForms extends NodeFormData {
 vi.stubGlobal('File', NodeFile)
 vi.stubGlobal('FormData', FormDataFromForms)
 
+// jsdom has no layout, so no scrolling either: dnd-kit scrolls a handle picked
+// up with the keyboard into view.
+Element.prototype.scrollIntoView = () => {}
+
 // A request no handler matches fails the test instead of going to the
 // network (or hanging): every endpoint a test touches is one it declared.
 // The WebSocket stub comes after listen(): MSW wraps the global WebSocket

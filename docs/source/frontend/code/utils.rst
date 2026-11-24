@@ -34,6 +34,13 @@ Small pure helpers, with no React in them:
    boards, and a spreadsheet would run them — and a byte-order mark first, or
    Excel reads the file in the computer's legacy encoding and garbles accents.
 
+``dragAccessibility.ts``
+   What a screen reader is told about moving things, in the page's language
+   and naming each item (dnd-kit's own texts are English and name items by
+   their ids): ``dragAccessibility()`` gives a ``DndContext`` its
+   instructions and announcements. ``cancelDragOnEscape()`` passes Escape on
+   to dnd-kit from inside a dialog, which would otherwise close on it.
+
 ``dueDateColor.ts``
    The due-date colour scale, green to dark red, with dark or white text on
    top, whichever contrasts more.

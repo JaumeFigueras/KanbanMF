@@ -387,6 +387,22 @@ may have been ended or deleted in another tab, which no notification would
 tell it (time entries are private, so they send none). Both its
 :guilabel:`End` buttons are disabled while an end is on its way.
 
+Every reorder also works from the keyboard: each ``DndContext`` has dnd-kit's
+``KeyboardSensor`` beside the pointer one, with ``sortableKeyboardCoordinates``
+for the arrow keys. The board needs a rule of its own: as its lists, cards and
+the lists' drop areas are all drop targets together, the stock one would take
+a list onto its own cards, or a card past the next one into its list's drop
+area. ``boardKeyboardCoordinates`` (in ``Board.tsx``) moves a list only among
+the lists, and a card up and down within its list, or sideways to a card of
+another list or into an empty one. Escape cancels a move, with the keyboard or
+the mouse; on a board, ``onDragCancel`` undoes a card's move into another list
+as a drop outside every list does. In a dialog, MUI keeps Escape for closing
+it and stops it before it reaches the document, where dnd-kit listens, so the
+dialogs pass it on themselves (``cancelDragOnEscape``). What a screen reader
+hears comes from ``src/utils/dragAccessibility.ts``: the instructions every
+handle points to, a role description in place of "button", and announcements
+that name the item and what it is over, in the page's language.
+
 Theming and colours
 -------------------
 

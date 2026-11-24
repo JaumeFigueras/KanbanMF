@@ -62,6 +62,17 @@ Click the star on a board's tile to star it, and again to unstar it. To
 change the order of the boards in a section, drag a tile by its four-arrow
 handle and drop it where you want it.
 
+.. _manual-keyboard-moves:
+
+Every handle you drag something by — a board's tile, a list, a card, a
+checklist, a checklist item, a label — works from the keyboard too:
+:kbd:`Tab` to the handle, press :kbd:`Space` or :kbd:`Enter` to pick the item
+up, move it with the arrow keys, and press :kbd:`Space` or :kbd:`Enter` again
+to drop it, or :kbd:`Escape` to put it back. On a board, the left and right
+arrows move a list, or a card to the list beside it, and the up and down
+arrows move a card within its list. A screen reader says what you picked up,
+what it is over as it moves, and where you dropped it.
+
 If a star or a new order can't be saved, for instance because the connection
 dropped, a message at the bottom of the page says so, and the board goes back
 to how it was. Restoring an archived board (see below) works the same way.

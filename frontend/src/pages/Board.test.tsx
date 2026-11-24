@@ -11,6 +11,7 @@ import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeBoard, makeCard, makeLabel, makeList, makeUser } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { heard, pickUp } from '../test/drag'
 import Board from './Board'
 
 const BOARD = makeBoard({ id: 'board-1', name: 'Website redesign', owner_id: 'user-1' })
@@ -901,6 +902,38 @@ describe('Board', () => {
       await settle()
 
       expect(getComputedStyle(card('Homepage layout')).backgroundColor).toBe(coloured)
+    })
+  })
+
+  describe('moving with the keyboard (7A)', () => {
+    it('puts a card back on Escape, saving nothing', async () => {
+      boardServer()
+      const moved = fakeEndpoint('patch', CARD_URL)
+      const ordered = fakeEndpoint('put', `${CARDS_URL}/order`)
+      const { user } = await renderBoard()
+      // jsdom has no layout, so every place is as near as any other: the
+      // card at once reads as over a list, which talks over "Picked up". The
+      // e2e tests check what is said in a browser; here, that the move began.
+      const handle = screen.getByRole('button', { name: 'Move Homepage layout' })
+      handle.focus()
+      await user.keyboard('[Space]')
+      await waitFor(() => expect(handle).toHaveAttribute('aria-pressed', 'true'))
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: Homepage layout is back in its place.')
+      expect(within(column('To do')).getByText('Homepage layout')).toBeInTheDocument()
+      await settle()
+      expect([...moved.requests, ...ordered.requests]).toEqual([])
+    })
+
+    it('names a list as a list', async () => {
+      boardServer()
+      const ordered = fakeEndpoint('put', '/api/v1/boards/:boardId/lists/order')
+      const { user } = await renderBoard()
+      await pickUp(user, screen.getByRole('button', { name: 'Move the list To do' }), 'the list To do')
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: the list To do is back in its place.')
+      await settle()
+      expect(ordered.requests).toEqual([])
     })
   })
 

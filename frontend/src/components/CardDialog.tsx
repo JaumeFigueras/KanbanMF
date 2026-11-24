@@ -34,8 +34,8 @@ import {
 } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -51,6 +51,7 @@ import { dayjsLocaleFor } from '../utils/locale'
 import { contrastColor } from '../utils/labelColor'
 import { apiFetch } from '../api/client'
 import { fullOrder, isServerOrder } from '../utils/checklistOrder'
+import { cancelDragOnEscape, dragAccessibility } from '../utils/dragAccessibility'
 
 function jsonInit(method: string, body: unknown): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -198,6 +199,7 @@ function SortableChecklistRow({
   copyLabel,
   removeLabel,
   dragLabel,
+  roleDescription,
   extractLabel,
   extractItemLabel,
 }: {
@@ -215,11 +217,12 @@ function SortableChecklistRow({
   copyLabel: string
   removeLabel: string
   dragLabel: string
+  roleDescription: string
   // The extract button's tooltip, and its name for one item.
   extractLabel: string
   extractItemLabel: (item: ChecklistItemData) => string
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: checklist.id, attributes: { roleDescription } })
   const doneCount = checklist.items.filter((i) => i.is_done).length
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
 
@@ -486,7 +489,14 @@ export default function CardDialog({
     }))
   }
 
-  const checklistSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const checklistSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const checklistDragAccessibility = dragAccessibility(
+    t,
+    (id) => t('drag.checklist', { name: checklists.find((c) => c.id === id)?.name }),
+  )
 
   function handleChecklistDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -824,9 +834,14 @@ export default function CardDialog({
           </Typography>
         )}
 
-        <DndContext sensors={checklistSensors} collisionDetection={closestCenter} onDragEnd={handleChecklistDragEnd}>
+        <DndContext
+          sensors={checklistSensors}
+          collisionDetection={closestCenter}
+          accessibility={checklistDragAccessibility}
+          onDragEnd={handleChecklistDragEnd}
+        >
           <SortableContext items={checklists.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            <Stack spacing={1.5}>
+            <Stack spacing={1.5} onKeyDown={cancelDragOnEscape}>
               {checklists.map((checklist) => (
                 <SortableChecklistRow
                   key={checklist.id}
@@ -843,6 +858,7 @@ export default function CardDialog({
                   copyLabel={t('board.copyChecklist')}
                   removeLabel={t('board.deleteChecklist')}
                   dragLabel={t('board.moveChecklistNamed', { name: checklist.name })}
+                  roleDescription={t('drag.roleDescription')}
                   extractLabel={t('board.extractToCard')}
                   extractItemLabel={(item) => t('board.extractItemNamed', { text: item.text })}
                 />

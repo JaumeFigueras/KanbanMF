@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import type { ChecklistData } from '../types/board'
 import i18n from '../i18n'
 import { renderWithProviders } from '../test/render'
+import { heard, pickUp } from '../test/drag'
 import ChecklistDialog from './ChecklistDialog'
 
 const LAUNCH: ChecklistData = {
@@ -194,6 +195,26 @@ describe('ChecklistDialog', () => {
     expect(itemTexts()).toEqual(['Sketch'])
     expect(addField()).toHaveValue('')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('moving an item with the keyboard (7A)', () => {
+    it('cancels the move on Escape, and stays open', async () => {
+      const { user, onClose } = renderDialog()
+      await pickUp(user, button('Move item 1'), 'Write the post')
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: Write the post is back in its place.')
+      expect(onClose).not.toHaveBeenCalled()
+      expect(itemTexts()).toEqual(['Write the post', 'Send the newsletter'])
+      // With nothing moving, Escape closes it as before.
+      await user.keyboard('{Escape}')
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('names an item with no text by its number', async () => {
+      const { user } = renderDialog()
+      await user.clear(item(1))
+      await pickUp(user, button('Move item 1'), 'Item 1')
+    })
   })
 
   it('closes on Cancel without handing anything over', async () => {

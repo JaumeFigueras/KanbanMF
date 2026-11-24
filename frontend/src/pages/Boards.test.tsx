@@ -9,6 +9,7 @@ import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeBoard, makeUser } from '../test/fixtures'
 import { renderWithProviders, type RenderOptions } from '../test/render'
+import { heard, pickUp } from '../test/drag'
 import type { UserEvent } from '@testing-library/user-event'
 import type { BoardRead } from '../types/board'
 import Boards from './Boards'
@@ -950,6 +951,19 @@ describe('Boards', () => {
       await screen.findByText('Sprint template')
 
       expect(await menuOf(user, 'Sprint template')).toEqual(['Change Color', 'Duplicate'])
+    })
+  })
+
+  describe('moving a board with the keyboard (7A)', () => {
+    it('puts it back on Escape, saving nothing', async () => {
+      boardsServer()
+      const saved = fakeEndpoint('put', '/api/v1/boards/order')
+      const { user } = await renderBoards()
+      await pickUp(user, screen.getByRole('button', { name: 'Move Website redesign' }), 'Website redesign')
+      await user.keyboard('{Escape}')
+      await heard('Move cancelled: Website redesign is back in its place.')
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(saved.requests).toEqual([])
     })
   })
 

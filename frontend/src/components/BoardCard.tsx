@@ -82,6 +82,7 @@ export default function BoardCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dragOverlay ? `overlay-${id}` : id,
     disabled: dragOverlay,
+    attributes: { roleDescription: t('drag.roleDescription') },
   })
 
   const locale = numberLocale.replace('_', '-')

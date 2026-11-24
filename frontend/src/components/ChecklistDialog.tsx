@@ -13,11 +13,12 @@ import {
   Typography,
 } from '@mui/material'
 import { Delete, DragIndicator } from '@mui/icons-material'
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useTranslation } from 'react-i18next'
 import type { ChecklistData, ChecklistItemData } from '../types/board'
+import { cancelDragOnEscape, dragAccessibility } from '../utils/dragAccessibility'
 
 interface Props {
   open: boolean
@@ -33,6 +34,7 @@ function SortableItemRow({
   fieldLabel,
   removeLabel,
   dragLabel,
+  roleDescription,
 }: {
   item: ChecklistItemData
   onEditText: (text: string) => void
@@ -40,8 +42,9 @@ function SortableItemRow({
   fieldLabel: string
   removeLabel: string
   dragLabel: string
+  roleDescription: string
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, attributes: { roleDescription } })
 
   return (
     <Box
@@ -107,7 +110,15 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
     setItems((prev) => prev.filter((i) => i.id !== id))
   }
 
-  const itemSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const itemSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  // An item is named by its text, or by its number while its text is empty.
+  const itemDragAccessibility = dragAccessibility(t, (id) => {
+    const index = items.findIndex((i) => i.id === id)
+    return items[index]?.text.trim() || t('board.checklistItemField', { number: index + 1 })
+  })
 
   function handleItemDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -168,9 +179,14 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
           </Typography>
         )}
 
-        <DndContext sensors={itemSensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
+        <DndContext
+          sensors={itemSensors}
+          collisionDetection={closestCenter}
+          accessibility={itemDragAccessibility}
+          onDragEnd={handleItemDragEnd}
+        >
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <Stack spacing={1}>
+            <Stack spacing={1} onKeyDown={cancelDragOnEscape}>
               {items.map((item, index) => (
                 <SortableItemRow
                   key={item.id}
@@ -180,6 +196,7 @@ export default function ChecklistDialog({ open, onClose, checklist, onSave }: Pr
                   fieldLabel={t('board.checklistItemField', { number: index + 1 })}
                   removeLabel={t('board.removeChecklistItem', { number: index + 1 })}
                   dragLabel={t('board.moveChecklistItem', { number: index + 1 })}
+                  roleDescription={t('drag.roleDescription')}
                 />
               ))}
             </Stack>
