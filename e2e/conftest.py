@@ -303,3 +303,34 @@ def api(backend_url):
     yield api
     for client in clients:
         client.close()
+
+
+@dataclass
+class BoardMade:
+    id: str
+    lists: dict[str, str]  # each list's id, by its name
+    cards: dict[str, str]  # each card's id, by its name
+
+
+@pytest.fixture
+def make_board(api):
+    """Builds a board through the API, as its owner would: its lists, left to
+    right, each with its cards, top to bottom, that order saved as the list's
+    own. A card is its name, or the fields a new card takes ("name",
+    "due_at", ...)."""
+    def make_board(user: Person, lists: dict[str, list], name: str = "Website redesign") -> BoardMade:
+        client = api(user)
+        board = BoardMade(client.post("/boards", json={"name": name}).raise_for_status().json()["id"], {}, {})
+        for list_name, cards in lists.items():
+            list_id = client.post(f"/boards/{board.id}/lists", json={"name": list_name}).raise_for_status().json()["id"]
+            board.lists[list_name] = list_id
+            card_ids = []
+            for card in cards:
+                fields = card if isinstance(card, dict) else {"name": card}
+                card_ids.append(client.post(f"/boards/{board.id}/lists/{list_id}/cards",
+                                            json=fields).raise_for_status().json()["id"])
+                board.cards[fields["name"]] = card_ids[-1]
+            client.put(f"/boards/{board.id}/lists/{list_id}/cards/order",
+                       json={"card_ids": card_ids}).raise_for_status()
+        return board
+    return make_board
