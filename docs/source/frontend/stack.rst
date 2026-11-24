@@ -387,6 +387,14 @@ may have been ended or deleted in another tab, which no notification would
 tell it (time entries are private, so they send none). Both its
 :guilabel:`End` buttons are disabled while an end is on its way.
 
+While a card is moved, and until its drop is saved or undone, the board
+fetches no list's cards, though notifications may ask for them: an answer
+would put a list back as the server has it, without the card the move put
+into it (which then showed nowhere, and was never saved) or with the card it
+took out (which then showed twice). The lists asked for meanwhile, and those
+whose answer arrives meanwhile, are fetched once the last move under way is
+over (``cardFetchHoldRef`` in ``Board.tsx``).
+
 Every reorder also works from the keyboard: each ``DndContext`` has dnd-kit's
 ``KeyboardSensor`` beside the pointer one, with ``sortableKeyboardCoordinates``
 for the arrow keys. The board needs a rule of its own: as its lists, cards and

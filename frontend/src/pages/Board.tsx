@@ -190,6 +190,14 @@ export default function Board() {
   // Every list's cards and their order as they were when that drag started,
   // to put back if the move can't be saved.
   const dragStartRef = useRef<{ cards: Record<string, CardRead[]>; order: Record<string, string[]> } | null>(null)
+  // While a card is moved, and until its drop is saved or undone, no list's
+  // cards are fetched: an answer would put a list back as the server has it,
+  // without the card the move put in it (which then showed nowhere, and was
+  // never saved) or with the card it took out (which then showed twice).
+  // `count` is the moves under way (one can start while the last one's drop
+  // is still being saved), `lists` the lists asked for meanwhile, fetched
+  // once the last move is over.
+  const cardFetchHoldRef = useRef({ count: 0, lists: new Set<string>() })
   // A change made on the page itself (a menu entry, a drag) that couldn't
   // be saved, said at the foot of the page.
   const [failure, setFailure] = useState<string | null>(null)
@@ -343,6 +351,14 @@ export default function Board() {
   // Cards live here (not in BoardListColumn) so a card can be dragged from
   // one list's array into another's.
   const fetchCardsForList = useCallback((listId: string) => {
+    const hold = cardFetchHoldRef.current
+    // Asked for, or answered, while a card is moved: fetched once it's over.
+    const heldBack = () => {
+      if (hold.count === 0) return false
+      hold.lists.add(listId)
+      return true
+    }
+    if (heldBack()) return
     cardsPendingRef.current.add(listId)
     track(`cards:${listId}`, Promise.all([
       loadJson<CardRead[]>(`/api/v1/boards/${boardId}/lists/${listId}/cards`),
@@ -350,12 +366,14 @@ export default function Board() {
     ]))
       .then(([cards, order]) => {
         cardsPendingRef.current.delete(listId)
+        if (heldBack()) return
         setCardsByList(prev => ({ ...prev, [listId]: cards }))
         setOrderByList(prev => ({ ...prev, [listId]: order.card_ids }))
         setCardsFailed(prev => withoutId(prev, listId))
       })
       .catch(() => {
         cardsPendingRef.current.delete(listId)
+        if (heldBack()) return
         // Whatever the list showed may be out of date now, so it goes: the
         // column says its cards couldn't be loaded instead, and takes no
         // dropped card, whose order would leave out the cards not shown.
@@ -611,10 +629,22 @@ export default function Board() {
     }).then(r => r.ok, () => false)
   }
 
+  // Ends a card move's hold on fetching cards (see cardFetchHoldRef), and
+  // fetches the lists asked for meanwhile, and those given: held again if
+  // another move is still under way.
+  function releaseCardFetches(listIds: string[] = []) {
+    const hold = cardFetchHoldRef.current
+    hold.count -= 1
+    const lists = new Set([...hold.lists, ...listIds])
+    hold.lists.clear()
+    lists.forEach(id => fetchCardsForList(id))
+  }
+
   // Puts the given lists' cards and order back as they were when the drag
   // started (a list that wasn't loaded then is dropped, so it's loaded
-  // afresh), and fetches them again: without a connection, the board shows
-  // what it showed before the drag, and with one, what's saved.
+  // afresh), ends the move's hold and fetches them again: without a
+  // connection, the board shows what it showed before the drag, and with
+  // one, what's saved.
   function undoCardDrag(before: NonNullable<typeof dragStartRef.current>, listIds: string[]) {
     const restore = <T,>(prev: Record<string, T>, saved: Record<string, T>) => {
       const next = { ...prev }
@@ -626,7 +656,7 @@ export default function Board() {
     }
     setCardsByList(prev => restore(prev, before.cards))
     setOrderByList(prev => restore(prev, before.order))
-    listIds.forEach(id => fetchCardsForList(id))
+    releaseCardFetches(listIds)
   }
 
   // What a card is over names the list it would land in, and the card
@@ -653,6 +683,7 @@ export default function Board() {
       const sourceListId = active.data.current.listId as string
       dragSourceListIdRef.current = sourceListId
       dragStartRef.current = { cards: cardsByList, order: orderByList }
+      cardFetchHoldRef.current.count += 1
       const card = (cardsByList[sourceListId] ?? []).find(c => c.id === active.id)
       if (card) setActiveCard(card)
       return
@@ -728,13 +759,19 @@ export default function Board() {
     // list's array while it was being dragged — find wherever it currently
     // lives to compute its final position.
     const currentListId = findCardListId(cardId)
-    if (!currentListId) return
+    if (!currentListId) {
+      releaseCardFetches()
+      return
+    }
 
     const overIsCard = over.data.current?.type === 'card'
     const currentCards = cardsByList[currentListId] ?? []
     const displayed = sortCards(currentCards, sortMode, orderByList[currentListId] ?? [])
     const oldIndex = displayed.findIndex(c => c.id === cardId)
-    if (oldIndex === -1) return
+    if (oldIndex === -1) {
+      releaseCardFetches()
+      return
+    }
     let newIndex = overIsCard ? displayed.findIndex(c => c.id === over.id) : displayed.length - 1
     if (newIndex === -1) newIndex = displayed.length - 1
 
@@ -806,7 +843,10 @@ export default function Board() {
     moveDone.then(async moved => {
       const saved = moved
         && (await Promise.all(orders.map(([listId, ids]) => persistCardOrder(listId, ids)))).every(Boolean)
-      if (saved) return
+      if (saved) {
+        releaseCardFetches()
+        return
+      }
       undoCardDrag(before, movedAcrossLists ? [originalListId, currentListId] : [currentListId])
       setFailure(t('common.moveFailed'))
     })

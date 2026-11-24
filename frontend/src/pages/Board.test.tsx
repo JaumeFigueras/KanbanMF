@@ -937,6 +937,95 @@ describe('Board', () => {
     })
   })
 
+  describe('changes made elsewhere while a card is moved (7B)', () => {
+    // Their answers would put a list back as the server has it: without the
+    // card the move put in it, which then showed nowhere and was never saved,
+    // or with the card it took out, which then showed twice.
+    async function pickUpHomepage(user: UserEvent) {
+      const handle = screen.getByRole('button', { name: 'Move Homepage layout' })
+      handle.focus()
+      await user.keyboard('[Space]')
+      await waitFor(() => expect(handle).toHaveAttribute('aria-pressed', 'true'))
+    }
+
+    it("fetches no list's cards while it is moved, then the lists asked for once it is put back", async () => {
+      const server = boardServer()
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      await pickUpHomepage(user)
+
+      socket.receive({ type: 'card_created', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+      await settle()
+      expect(server.cardLoads()).toEqual({ 'list-1': 1, 'list-2': 1 })
+
+      // Its own list too, which putting it back always fetches.
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 }))
+    })
+
+    it.each([
+      ['an answer', () => HttpResponse.json([makeCard({ id: 'card-new', list_id: 'list-2', name: 'Added elsewhere' })])],
+      ['a failure', SERVER_ERROR],
+    ])('holds back %s asked for before the move began, and asks again once it is over', async (_case, answer) => {
+      const server = boardServer()
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      const late = heldAnswer(answer)
+      server.fail('cards:list-2', late.answer)
+      socket.receive({ type: 'card_created', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+      await waitFor(() => expect(server.cardLoads()['list-2']).toBe(2))
+      await pickUpHomepage(user)
+
+      late.release()
+      await settle()
+      expect(within(column('Doing')).getByText('Footer links')).toBeInTheDocument()
+
+      server.recover('cards:list-2')
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(server.cardLoads()['list-2']).toBe(3))
+    })
+
+    it('waits for every move under way, when one starts before the last drop is saved', async () => {
+      const server = boardServer()
+      const save = heldAnswer()
+      fakeEndpoint('patch', CARD_URL, save.answer)
+      const ordered = fakeEndpoint('put', `${CARDS_URL}/order`, save.answer)
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      await pickUpHomepage(user)
+      await user.keyboard('[Space]')
+      await waitFor(() => expect(ordered.requests.length).toBeGreaterThan(0))
+      await pickUpHomepage(user)
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+      save.release()
+      await settle()
+      expect(server.cardLoads()['list-2']).toBe(1)
+
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(server.cardLoads()['list-2']).toBe(2))
+    })
+
+    it('fetches them once the drop is saved, not before', async () => {
+      const server = boardServer()
+      const save = heldAnswer()
+      const moved = fakeEndpoint('patch', CARD_URL, save.answer)
+      const ordered = fakeEndpoint('put', `${CARDS_URL}/order`, save.answer)
+      const { user } = await renderBoard()
+      const socket = await openSocket()
+      await pickUpHomepage(user)
+      await user.keyboard('[Space]')
+      await waitFor(() => expect(moved.requests.length + ordered.requests.length).toBeGreaterThan(0))
+
+      socket.receive({ type: 'card_updated', board_id: 'board-1', list_id: 'list-2', origin_client_id: null })
+      await settle()
+      expect(server.cardLoads()['list-2']).toBe(1)
+
+      save.release()
+      await waitFor(() => expect(server.cardLoads()['list-2']).toBe(2))
+    })
+  })
+
   describe('buttons named after their list (6K)', () => {
     it("names each list's handle, add-card button and menu after the list", async () => {
       boardServer()
