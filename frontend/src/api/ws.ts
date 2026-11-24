@@ -57,6 +57,13 @@ let socket: WebSocket | null = null
 let currentToken: string | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const listeners = new Set<Listener>()
+// Told when a socket opens again after the last one closed (a dropped
+// connection, a restarted backend, a refused token replaced): the
+// notifications sent meanwhile are lost, so each page fetches again what it
+// shows. Not on the first socket since signing in, as the pages fetched what
+// they show when they opened.
+const reconnectListeners = new Set<() => void>()
+let connectedBefore = false
 
 function clearReconnectTimer() {
   if (reconnectTimer) {
@@ -92,6 +99,8 @@ function openSocket(token: string) {
 
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'auth', token }))
+    if (connectedBefore) reconnectListeners.forEach((listener) => listener())
+    connectedBefore = true
   }
 
   ws.onmessage = (event) => {
@@ -133,6 +142,7 @@ export function setWebSocketToken(token: string | null) {
     clearReconnectTimer()
     socket?.close()
     socket = null
+    connectedBefore = false
     return
   }
 
@@ -145,6 +155,11 @@ export function setWebSocketToken(token: string | null) {
 export function subscribeToNotifications(listener: Listener): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+export function subscribeToReconnects(listener: () => void): () => void {
+  reconnectListeners.add(listener)
+  return () => reconnectListeners.delete(listener)
 }
 
 export function isOwnNotification(notification: BoardNotification): boolean {

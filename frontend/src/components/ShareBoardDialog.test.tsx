@@ -11,6 +11,7 @@ import { fakeEndpoint, heldAnswer, type Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeBoard, makePerson } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { dropAndReconnect } from '../test/reconnect'
 import ShareBoardDialog from './ShareBoardDialog'
 
 // The server's config is fetched once per page load and kept in the module,
@@ -982,6 +983,19 @@ describe('ShareBoardDialog', () => {
         expect(await screen.findByText('No pending invitations.')).toBeInTheDocument()
       },
     )
+
+    it('loads people and invitations again once the connection comes back (7C)', async () => {
+      fakeShares()
+      const socket = openSocket()
+      renderDialog()
+      await loaded()
+      fakeShares({ members: [EMMA, LIAM, NOAH, OLIVIA], invitations: [] })
+
+      dropAndReconnect(socket, 'socket-token')
+
+      expect(await screen.findByRole('button', { name: 'Remove Olivia Martin from this board' })).toBeInTheDocument()
+      expect(await screen.findByText('No pending invitations.')).toBeInTheDocument()
+    })
 
     it("ignores its own changes, other boards', and other kinds", async () => {
       const loads = fakeShares()

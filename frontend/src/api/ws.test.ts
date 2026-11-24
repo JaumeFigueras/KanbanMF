@@ -3,7 +3,13 @@ import { http, HttpResponse } from 'msw'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { server } from '../test/server'
 import { getClientId, onAccessTokenChange, setAccessToken } from './client'
-import { isOwnNotification, setWebSocketToken, subscribeToNotifications, type BoardNotification } from './ws'
+import {
+  isOwnNotification,
+  setWebSocketToken,
+  subscribeToNotifications,
+  subscribeToReconnects,
+  type BoardNotification,
+} from './ws'
 
 // Vitest's jsdom environment exposes the JSDOM instance as a global.
 declare const jsdom: { reconfigure(options: { url: string }): void }
@@ -323,6 +329,61 @@ describe('a close event that arrives late', () => {
     // And signing out closes the socket that is actually open.
     setWebSocketToken(null)
     expect(current.readyState).toBe(FakeWebSocket.CLOSING)
+  })
+})
+
+describe('reconnecting (7C)', () => {
+  // The notifications sent while there was no socket are lost: the pages are
+  // told, to fetch again what they show.
+  it('tells every subscriber once the new socket opens, until they unsubscribe', async () => {
+    const reconnected = vi.fn()
+    const unsubscribe = subscribeToReconnects(reconnected)
+    setWebSocketToken('tok-1')
+    // The first connection: the pages fetched what they show as they opened.
+    lastSocket().open()
+    expect(reconnected).not.toHaveBeenCalled()
+
+    lastSocket().serverClose()
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    expect(sockets()).toHaveLength(2)
+    expect(reconnected).not.toHaveBeenCalled()
+    lastSocket().open()
+    expect(reconnected).toHaveBeenCalledTimes(1)
+
+    unsubscribe()
+    lastSocket().serverClose()
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    lastSocket().open()
+    expect(reconnected).toHaveBeenCalledTimes(1)
+  })
+
+  it('tells them when a refused token has been replaced', async () => {
+    fakeRefresh()
+    const reconnected = vi.fn()
+    const unsubscribe = subscribeToReconnects(reconnected)
+    const stopFollowing = onAccessTokenChange(setWebSocketToken)
+    setAccessToken('tok-1')
+    lastSocket().open()
+    lastSocket().serverClose(1008)
+
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS)
+    await vi.waitFor(() => expect(sockets()).toHaveLength(2))
+    lastSocket().open()
+    stopFollowing()
+    unsubscribe()
+    expect(reconnected).toHaveBeenCalledTimes(1)
+  })
+
+  it('tells them nothing on the first connection after signing in again', () => {
+    const reconnected = vi.fn()
+    const unsubscribe = subscribeToReconnects(reconnected)
+    setWebSocketToken('tok-1')
+    lastSocket().open()
+    setWebSocketToken(null)
+    setWebSocketToken('tok-2')
+    lastSocket().open()
+    unsubscribe()
+    expect(reconnected).not.toHaveBeenCalled()
   })
 })
 

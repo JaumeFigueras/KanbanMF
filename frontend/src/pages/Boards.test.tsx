@@ -10,6 +10,7 @@ import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeBoard, makeUser } from '../test/fixtures'
 import { renderWithProviders, type RenderOptions } from '../test/render'
 import { heard, pickUp } from '../test/drag'
+import { dropAndReconnect } from '../test/reconnect'
 import type { UserEvent } from '@testing-library/user-event'
 import type { BoardRead } from '../types/board'
 import Boards from './Boards'
@@ -951,6 +952,22 @@ describe('Boards', () => {
       await screen.findByText('Sprint template')
 
       expect(await menuOf(user, 'Sprint template')).toEqual(['Change Color', 'Duplicate'])
+    })
+  })
+
+  describe('after the connection comes back (7C)', () => {
+    it('fetches the boards, and the archived boards when shown, again, showing what changed meanwhile', async () => {
+      const server = boardsServer()
+      await renderBoards({ archived: true })
+      const socket = await openSocket()
+      server.restored()
+
+      dropAndReconnect(socket)
+
+      await waitFor(() => expect(sectionTitle('Archived Boards')).toBe('Archived Boards (0)'))
+      await waitFor(() => expect(sectionTitle('My Boards')).toBe('My Boards (2)'))
+      expect(server.boardLoads()).toBe(2)
+      expect(server.archivedLoads()).toBe(2)
     })
   })
 

@@ -8,6 +8,7 @@ import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeCard } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { dropAndReconnect } from '../test/reconnect'
 import SearchResults from './SearchResults'
 
 // One matching card on one board.
@@ -254,6 +255,17 @@ describe('SearchResults', () => {
       expect(section('Website redesign (1)')).toHaveAttribute('aria-expanded', 'true')
       expect(cardLink('Homepage layout')).toBeInTheDocument()
       expect(section('Mobile app (1)')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('searches again once the connection comes back (7C)', async () => {
+      const server = searchServer()
+      renderSearch()
+      await screen.findByRole('button', { name: 'Website redesign (1)' })
+      const socket = await openSocket()
+
+      dropAndReconnect(socket)
+
+      await waitFor(() => expect(server.queries()).toEqual(['homepage', 'homepage']))
     })
 
     it('keeps a folded board folded when it searches again on a change elsewhere', async () => {

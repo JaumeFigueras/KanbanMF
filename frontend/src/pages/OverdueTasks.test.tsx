@@ -8,6 +8,7 @@ import type { Answer } from '../test/endpoints'
 import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeCard } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
+import { dropAndReconnect } from '../test/reconnect'
 import OverdueTasks from './OverdueTasks'
 
 const WEBSITE: OverdueBoardRead = {
@@ -114,6 +115,19 @@ describe('OverdueTasks', () => {
       expect(section('Mobile app (2)')).toHaveAttribute('aria-expanded', 'false')
       await waitFor(() => expect(cardLink('Push notifications')).not.toBeInTheDocument())
       expect(cardLink('Homepage layout')).toBeInTheDocument()
+    })
+
+    it('fetches the overdue tasks again once the connection comes back (7C)', async () => {
+      const server = overdueServer([WEBSITE, MOBILE])
+      renderOverdue()
+      await screen.findByRole('button', { name: 'Website redesign (1)' })
+      const socket = await openSocket()
+      server.update([MOBILE])
+
+      dropAndReconnect(socket)
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Website redesign (1)' })).not.toBeInTheDocument())
+      expect(server.loads()).toBe(2)
     })
 
     it('fetches the overdue tasks again on a change elsewhere, keeping the boards you unfolded open', async () => {

@@ -12,6 +12,7 @@ import { FakeWebSocket } from '../test/fakeWebSocket'
 import { makeBoard, makeCard, makeLabel, makeList, makeUser } from '../test/fixtures'
 import { renderWithProviders } from '../test/render'
 import { heard, pickUp } from '../test/drag'
+import { dropAndReconnect } from '../test/reconnect'
 import Board from './Board'
 
 const BOARD = makeBoard({ id: 'board-1', name: 'Website redesign', owner_id: 'user-1' })
@@ -1023,6 +1024,23 @@ describe('Board', () => {
 
       save.release()
       await waitFor(() => expect(server.cardLoads()['list-2']).toBe(2))
+    })
+  })
+
+  describe('after the connection comes back (7C)', () => {
+    it('fetches the board, its lists and their cards again, showing what changed meanwhile', async () => {
+      const server = boardServer()
+      await renderBoard()
+      const socket = await openSocket()
+      const [boardLoads, listLoads] = [server.boardLoads(), server.listLoads()]
+      server.archived('card-list-2')
+
+      dropAndReconnect(socket)
+
+      await waitFor(() => expect(screen.queryByText('Footer links')).not.toBeInTheDocument())
+      expect(server.cardLoads()).toEqual({ 'list-1': 2, 'list-2': 2 })
+      expect(server.boardLoads()).toBe(boardLoads + 1)
+      expect(server.listLoads()).toBe(listLoads + 1)
     })
   })
 

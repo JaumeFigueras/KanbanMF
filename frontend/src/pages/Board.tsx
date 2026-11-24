@@ -61,7 +61,7 @@ import { readStored, writeStored } from '../utils/storage'
 import { latestOnly } from '../utils/latest'
 import { dragAccessibility } from '../utils/dragAccessibility'
 import { HttpError, apiFetch, loadJson } from '../api/client'
-import { isOwnNotification, subscribeToNotifications } from '../api/ws'
+import { isOwnNotification, subscribeToNotifications, subscribeToReconnects } from '../api/ws'
 
 const BOARD_ACCESS_EVENT_TYPES = new Set(['board_archived', 'board_unshared', 'board_deleted'])
 const LIST_EVENT_TYPES = new Set([
@@ -458,6 +458,14 @@ export default function Board() {
       lists.forEach(l => fetchCardsForList(l.id))
     })
   }, [boardId, lists, fetchCardsForList])
+
+  // Back after the connection dropped: whatever changed meanwhile sent
+  // notifications that never arrived, so the whole board is fetched again.
+  useEffect(() => subscribeToReconnects(() => {
+    fetchBoard()
+    fetchLists()
+    lists.forEach(l => fetchCardsForList(l.id))
+  }), [fetchBoard, fetchLists, lists, fetchCardsForList])
 
   function closeManageLabels() {
     setManageLabelsOpen(false)

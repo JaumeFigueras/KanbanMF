@@ -21,7 +21,7 @@ import CardListColumn from '../components/CardListColumn'
 import { DEFAULT_COLOR } from '../components/ChangeBoardColorDialog'
 import { apiFetch, loadJson } from '../api/client'
 import { latestOnly } from '../utils/latest'
-import { subscribeToNotifications } from '../api/ws'
+import { subscribeToNotifications, subscribeToReconnects } from '../api/ws'
 import type { BoardRead, SearchResults as SearchResultsData } from '../types/board'
 import type { DateFormat } from '../utils/locale'
 import { LIGHT_TINT_WEIGHT, tintColor } from '../utils/colorTint'
@@ -100,8 +100,14 @@ export default function SearchResults() {
     }
     fetchResults()
     // Any change anywhere can add or remove a match, so this page just
-    // searches again on every notification, as the overdue page does.
-    return subscribeToNotifications(() => fetchResults())
+    // searches again on every notification, as the overdue page does, and
+    // once the connection is back after a drop, as notifications were lost.
+    const stopNotifications = subscribeToNotifications(() => fetchResults())
+    const stopReconnects = subscribeToReconnects(fetchResults)
+    return () => {
+      stopNotifications()
+      stopReconnects()
+    }
   }, [key, q, attempt, track])
 
   // Try again: the failure goes, so "Searching…" shows until the answer.

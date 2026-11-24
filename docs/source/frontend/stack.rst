@@ -307,6 +307,19 @@ server returns, per-user colours and order included. A message tagged with
 the tab's own client id (``isOwnNotification()``) is ignored: that tab made
 the change and already shows it.
 
+The messages sent while a tab has no socket are lost. So when a socket opens
+again after a drop, or after a refused token was replaced, ``ws.ts`` tells
+every page that subscribed with ``subscribeToReconnects()``, and each fetches
+again everything it shows: the board page its board, lists and every list's
+cards (an open card dialog gets its card from them), the boards page its
+boards (and the archived boards when shown), the overdue tasks, the search
+results, and an open share dialog its people and invitations. Not on a tab's
+first socket since signing in: the pages fetched what they show as they
+opened. The backend doesn't say when it has read the token, so the pages
+fetch as soon as the socket opens; a change made in the instant before the
+backend has read it reaches neither. The archive view has no live updates at
+all: it shows what it fetched when it opened.
+
 Several changes in a row send several messages, and so several requests for
 the same thing, whose answers can come back in any order: an older one
 arriving last would put back what the newer one replaced. Every page that

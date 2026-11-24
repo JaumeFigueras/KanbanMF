@@ -93,4 +93,5 @@ moves from one to the next, and :kbd:`Enter` opens it.
 
 Whatever you change appears straight away for anyone else who has the same
 board open, and their changes appear for you — there is no need to reload the
-page.
+page. If your connection drops, the page catches up with whatever changed as
+soon as it's back.

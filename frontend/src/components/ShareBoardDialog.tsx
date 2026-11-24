@@ -25,7 +25,7 @@ import type { BoardRead, PersonSummary } from '../types/board'
 import type { BoardInvitationRead, InvitationConflict } from '../types/invitation'
 import { apiFetch } from '../api/client'
 import { fetchAppConfig } from '../api/config'
-import { isOwnNotification, subscribeToNotifications } from '../api/ws'
+import { isOwnNotification, subscribeToNotifications, subscribeToReconnects } from '../api/ws'
 import { LANGUAGES } from '../i18n'
 import PersonAvatar from './PersonAvatar'
 
@@ -155,6 +155,13 @@ export default function ShareBoardDialog({ open, onClose, board, numberLocale, d
         loadShares()
       }
     })
+  }, [open, board, loadShares])
+
+  // Back after the connection dropped: the notifications sent meanwhile
+  // never arrived.
+  useEffect(() => {
+    if (!open || !board) return
+    return subscribeToReconnects(loadShares)
   }, [open, board, loadShares])
 
   useEffect(() => {

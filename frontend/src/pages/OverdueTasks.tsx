@@ -13,7 +13,7 @@ import { ArrowBack, ExpandMore } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { loadJson } from '../api/client'
 import { latestOnly } from '../utils/latest'
-import { subscribeToNotifications } from '../api/ws'
+import { subscribeToNotifications, subscribeToReconnects } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CardListColumn from '../components/CardListColumn'
 import LoadFailure from '../components/LoadFailure'
@@ -60,6 +60,9 @@ export default function OverdueTasks() {
   // Any card change anywhere can add or remove an overdue card, so this page
   // just refetches on every notification rather than inspecting the payload.
   useEffect(() => subscribeToNotifications(() => fetchOverdue()), [fetchOverdue])
+  // And once the connection is back after a drop: the notifications sent
+  // meanwhile never arrived.
+  useEffect(() => subscribeToReconnects(() => fetchOverdue()), [fetchOverdue])
 
   // A card opens on its own board, with its edit dialog already up — see
   // the `card` search param Board.tsx reads.

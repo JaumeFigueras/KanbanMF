@@ -25,7 +25,7 @@ import {
 import { Add, ExpandMore, Search } from '@mui/icons-material'
 import { useTranslation } from 'react-i18next'
 import { apiFetch, loadJson } from '../api/client'
-import { isOwnNotification, subscribeToNotifications } from '../api/ws'
+import { isOwnNotification, subscribeToNotifications, subscribeToReconnects } from '../api/ws'
 import MainAppBar from '../components/MainAppBar'
 import CreateBoardDialog from '../components/CreateBoardDialog'
 import ChangeBoardNameDialog from '../components/ChangeBoardNameDialog'
@@ -298,6 +298,13 @@ export default function Boards() {
       if (showArchived) fetchArchivedBoards()
     })
   }, [fetchBoards, fetchArchivedBoards, showArchived])
+
+  // Back after the connection dropped: the notifications sent meanwhile
+  // never arrived.
+  useEffect(() => subscribeToReconnects(() => {
+    fetchBoards()
+    if (showArchived) fetchArchivedBoards()
+  }), [fetchBoards, fetchArchivedBoards, showArchived])
 
   // ── Board handlers ────────────────────────────────────────────────────────
 
