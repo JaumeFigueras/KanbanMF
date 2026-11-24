@@ -490,6 +490,32 @@ describe('Boards', () => {
     })
   })
 
+  describe('what a tile shows', () => {
+    // A board's tile, around the link that opens it.
+    const tile = (board: string) => screen.getByRole('link', { name: new RegExp(board) }).closest<HTMLElement>('.MuiCard-root')!
+
+    it.each([
+      ['numeric', '15/01/2026'],
+      ['textual', '15 Jan 2026'],
+    ])("the day the board was created, in the viewer's format (%s)", async (date_format, shown) => {
+      boardsServer()
+      renderWithProviders(<Boards />, { route: '/boards', auth: { number_locale: 'en_GB', date_format } })
+
+      await waitFor(() => expect(within(tile('Website redesign')).getByText(shown)).toBeInTheDocument())
+    })
+
+    it("its owner's initials, or their photo when they have one", async () => {
+      const BRAND = makeBoard({ id: 'board-6', name: 'Brand book', owner_id: 'user-3', owner_display_name: 'Sofia Rossi', owner_has_avatar: true })
+      boardsServer({ shared: [ROADMAP, BRAND] })
+      await renderBoards()
+
+      expect(within(tile('Website redesign')).getByText('EW')).toBeInTheDocument()
+      expect(within(tile('Roadmap')).getByText('LC')).toBeInTheDocument()
+      expect(within(tile('Roadmap')).queryByRole('img')).not.toBeInTheDocument()
+      expect(within(tile('Brand book')).getByRole('img')).toHaveAttribute('src', '/api/v1/users/user-3/avatar')
+    })
+  })
+
   describe('notifications', () => {
     it('fetches the boards, and the archived ones while they show, again when your avatar changes', async () => {
       const server = boardsServer()

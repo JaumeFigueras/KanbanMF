@@ -117,7 +117,7 @@ and the search page's matching boards. Each is now the same MUI component
 rendered as a router link (``component={RouterLink}``), so it looks as it
 did. A tile is dragged by its handle only, so its body can be a link. The
 cards on a board are the one exception: the card itself only takes a click,
-but its menu button has :guilabel:`Edit card`.
+but its menu has :guilabel:`Edit Card`.
 
 Every button has a name, in the page's language. The buttons that every
 board, list or card repeats are named after it — "Menu for Website

@@ -95,6 +95,11 @@ class Shooter:
     def button(self, key: str, within: Locator | Page | None = None) -> Locator:
         return (within or self.page).get_by_role("button", name=self.t(key), exact=True)
 
+    def link(self, key: str, within: Locator | Page | None = None) -> Locator:
+        """Like button(), for a control that leads to another page: the app
+        draws those as links, even when they look like buttons."""
+        return (within or self.page).get_by_role("link", name=self.t(key), exact=True)
+
     def labelled(self, key: str, within: Locator | Page | None = None) -> Locator:
         """An element by its aria-label. Unlike get_by_role, this still finds a
         menu's anchor once the open menu has hidden the page from assistive
@@ -315,7 +320,7 @@ def notifications(s: Shooter) -> None:
 @shot
 def overdue(s: Shooter) -> None:
     s.goto("/boards")
-    s.button("boards.showOverdueTasks").click()
+    s.link("boards.showOverdueTasks").click()
     s.page.wait_for_url("**/overdue")
     s.settle()
     # Open every board's section; each click shrinks the set of closed ones.
