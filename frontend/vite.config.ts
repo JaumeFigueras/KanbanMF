@@ -2,6 +2,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Where the proxy below sends the API. The end-to-end tests (e2e/) run a
+// backend of their own, on a port of its own, and say so here.
+const backend = process.env.KANBANMF_BACKEND ?? 'http://localhost:8000'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -33,20 +37,26 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: backend,
         changeOrigin: true,
         ws: true,
       },
       // The MCP server and its OAuth discovery documents (see
       // backend/src/api/mcp_server and backend/src/api/well_known.py).
       '/mcp': {
-        target: 'http://localhost:8000',
+        target: backend,
         changeOrigin: true,
       },
       '/.well-known/oauth-': {
-        target: 'http://localhost:8000',
+        target: backend,
         changeOrigin: true,
       },
     },
+  },
+  // vite preview serves the build through the same proxy. The end-to-end
+  // tests give it production's Content-Security-Policy (from
+  // deploy/apache-kanbanmf.conf), so what it would block fails them.
+  preview: {
+    headers: process.env.KANBANMF_CSP ? { 'Content-Security-Policy': process.env.KANBANMF_CSP } : {},
   },
 })

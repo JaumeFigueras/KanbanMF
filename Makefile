@@ -7,6 +7,7 @@
 #   make test-cov        the same, with a coverage report in backend/test/coverage-reports
 #   make test-frontend   run the frontend test suite (TEST_ARGS="src/utils" to narrow it)
 #   make test-frontend-cov  the same, with a coverage report in frontend/coverage-reports
+#   make test-e2e        run the end-to-end tests in Chromium (HEADED=1 to watch them)
 #   make run backend     run the API dev server (auto-reloads)
 #   make run frontend    run the Vite dev server (HMR)
 #   make deploy          update a production checkout: pull, migrate, restart, build
@@ -20,10 +21,10 @@ VENV := $(CURDIR)/.venv/bin
 # one here and let the no-op rule below swallow it.
 TARGET := $(word 2,$(MAKECMDGOALS))
 
-.PHONY: help docs docs-po screenshots test test-cov test-frontend test-frontend-cov run backend frontend deploy
+.PHONY: help docs docs-po screenshots test test-cov test-frontend test-frontend-cov test-e2e run backend frontend deploy
 
 help:
-	@sed -n '3,12p' $(MAKEFILE_LIST) | sed 's/^# \?//'
+	@sed -n '3,13p' $(MAKEFILE_LIST) | sed 's/^# \?//'
 
 docs:
 	$(MAKE) -C docs site SPHINXBUILD="$(VENV)/sphinx-build"
@@ -66,6 +67,14 @@ test-frontend:
 # browsable HTML in frontend/coverage-reports/index.html (gitignored).
 test-frontend-cov:
 	cd frontend && npm run test:cov -- $(TEST_ARGS)
+
+# The end-to-end tests (e2e/): the production build in Chromium, against a
+# backend and a PostgreSQL that each run starts on free ports and throws away
+# (see e2e/conftest.py), so nothing needs to be running first. TEST_ARGS goes
+# to pytest, e.g. make test-e2e TEST_ARGS="-x -k sign"; HEADED=1 shows the
+# browser. A failed test leaves a trace in e2e/test-results/ (gitignored).
+test-e2e:
+	cd e2e && $(VENV)/python -m pytest -q $(TEST_ARGS) .
 
 run:
 ifeq ($(TARGET),backend)
