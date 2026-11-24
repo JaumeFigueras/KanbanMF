@@ -502,7 +502,7 @@ export default function TimeTracker() {
 
             {recorded.length > 0 && (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'right' }}>
-                {t('timeTracker.total', { entries: recorded.length, duration: formatDuration(totalSeconds) })}
+                {t('timeTracker.total', { count: recorded.length, duration: formatDuration(totalSeconds) })}
               </Typography>
             )}
           </>

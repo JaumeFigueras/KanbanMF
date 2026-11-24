@@ -44,7 +44,7 @@ const renderTracker = () => renderWithProviders(<TimeTracker />, { route: '/time
 
 // As the viewer who reads dates day first ("English (UK / Europe)"), unless
 // told otherwise.
-const renderAs = (formats: { number_locale?: string; date_format?: string } = {}) => (
+const renderAs = (formats: { number_locale?: string; date_format?: string; language_locale?: string } = {}) => (
   renderWithProviders(<TimeTracker />, { route: '/time-tracker', auth: { number_locale: 'en_GB', ...formats } })
 )
 
@@ -566,6 +566,17 @@ describe('TimeTracker', () => {
       renderAs()
 
       expect(await screen.findByText('2 entries · 2:00 total')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['one entry', 'en', [FOOTER], '1 entry · 1:00 total'],
+      ['one entry, in Catalan', 'ca_ES', [FOOTER], '1 registre · 1:00 en total'],
+      ['two entries, in Catalan', 'ca_ES', [FOOTER, CONTACT], '2 registres · 2:00 en total'],
+    ])('counts %s in the right form', async (_case, language_locale, entries, total) => {
+      entriesServer(entries)
+      renderAs({ language_locale })
+
+      expect(await screen.findByText(total)).toBeInTheDocument()
     })
 
     it('says no time is recorded when only the entry being tracked is in, and offers nothing to export', async () => {

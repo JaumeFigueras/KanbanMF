@@ -397,7 +397,8 @@ const en = {
     noEntries: 'No time recorded for this period.',
     loadFailed: 'Your time entries couldn\'t be loaded.',
     stopFailed: 'The task "{{name}}" couldn\'t be ended. Please try again.',
-    total: '{{entries}} entries · {{duration}} total',
+    total_one: '{{count}} entry · {{duration}} total',
+    total_other: '{{count}} entries · {{duration}} total',
   },
   oauthConsent: {
     titleGeneric: 'Connect an app to KanbanMF',

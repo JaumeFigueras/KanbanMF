@@ -396,7 +396,8 @@ const ca = {
     noEntries: "No hi ha temps registrat en aquest període.",
     loadFailed: 'No s\'han pogut carregar els teus registres de temps.',
     stopFailed: 'No s\'ha pogut acabar la tasca "{{name}}". Torna-ho a intentar.',
-    total: '{{entries}} registres · {{duration}} en total',
+    total_one: '{{count}} registre · {{duration}} en total',
+    total_other: '{{count}} registres · {{duration}} en total',
   },
   oauthConsent: {
     titleGeneric: 'Connecta una aplicació a KanbanMF',
