@@ -227,8 +227,10 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
     const oldIndex = labels.findIndex(l => l.id === active.id)
     const newIndex = labels.findIndex(l => l.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
+    const before = labels
     const reordered = arrayMove(labels, oldIndex, newIndex)
     setLabels(reordered)
+    setError(null)
 
     apiFetch(`${API}/order`, {
       method: 'PUT',
@@ -240,11 +242,16 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
         onChanged?.()
       })
       .catch(() => {
-        // Rejected (e.g. stale state) — resync from the server.
+        // Refused (a label added or deleted elsewhere meanwhile) or not sent:
+        // the labels go back to their order before the drag, and the dialog
+        // says so. Then they're fetched again, so that trying again can
+        // work; if that fails too, the order before the drag stays.
+        setLabels(before)
+        setError(t('common.moveFailed'))
         apiFetch(API)
           .then(r => r.ok ? r.json() : Promise.reject())
           .then(setLabels)
-          .catch(() => setError(t('common.saveError')))
+          .catch(() => {})
       })
   }
 

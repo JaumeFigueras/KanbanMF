@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import i18n from '../i18n'
 import { screen, waitFor, within } from '@testing-library/react'
+import type { UserEvent } from '@testing-library/user-event'
 import { HttpResponse } from 'msw'
 import type { LabelRead } from '../types/board'
 import { fakeEndpoint, heldAnswer } from '../test/endpoints'
@@ -362,6 +363,90 @@ describe('ManageLabelsDialog', () => {
       // With nothing moving, Escape closes it as before.
       await user.keyboard('{Escape}')
       expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('a label moved to another place (7D)', () => {
+    const URGENT = makeLabel({ id: 'label-3', board_id: 'board-7', name: 'Urgent', color: '#F57C00', position: 2 })
+    const MOVE_FAILED = "The move couldn't be saved, and has been undone. Please try again."
+
+    // jsdom lays nothing out, so every row would be in the same place, and
+    // the arrow keys would find nowhere to go: each row gets one of its own,
+    // one under the other.
+    function layOutRows() {
+      const tops: Record<string, number> = { Bug: 0, Feature: 50, Urgent: 100 }
+      const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        const top = tops[this.textContent ?? '']
+        return top === undefined ? new DOMRect() : new DOMRect(0, top, 300, 40)
+      })
+      onTestFinished(() => spy.mockRestore())
+    }
+
+    // The labels, in the order the rows show them.
+    function shownOrder() {
+      return within(labelsDialog()).getAllByRole('button', { name: 'Move label' }).map((handle) => handle.parentElement!.textContent)
+    }
+
+    async function moveBugDown(user: UserEvent) {
+      layOutRows()
+      await pickUp(user, within(labelsDialog()).getAllByRole('button', { name: 'Move label' })[0], 'the label Bug')
+      await user.keyboard('{ArrowDown}')
+      await heard('Moving the label Bug, over the label Feature.')
+      await user.keyboard('[Space]')
+    }
+
+    it('saves the new order, and tells the board, as the cards show their labels in it', async () => {
+      boardHas()
+      const saved = fakeEndpoint('put', `${BOARD_LABELS}/order`, () => HttpResponse.json([FEATURE, BUG]))
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+
+      await moveBugDown(user)
+
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
+      expect(saved.requests.map((request) => request.body)).toEqual([{ label_ids: ['label-2', 'label-1'] }])
+      expect(shownOrder()).toEqual(['Feature', 'Bug'])
+      expect(within(labelsDialog()).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('puts it back and says so when the order is refused, then shows the labels as they are now, so trying again works', async () => {
+      boardHas()
+      const refused = () => HttpResponse.json({ detail: 'label_ids must list every label on this board exactly once.' }, { status: 422 })
+      fakeEndpoint('put', `${BOARD_LABELS}/order`, refused)
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+      // Added in another tab, which the order sent leaves out.
+      boardHas([BUG, FEATURE, URGENT])
+
+      await moveBugDown(user)
+
+      expect(await within(labelsDialog()).findByRole('alert')).toHaveTextContent(MOVE_FAILED)
+      await screen.findByText('Urgent')
+      expect(shownOrder()).toEqual(['Bug', 'Feature', 'Urgent'])
+      expect(onChanged).not.toHaveBeenCalled()
+
+      const saved = fakeEndpoint('put', `${BOARD_LABELS}/order`, () => HttpResponse.json([FEATURE, BUG, URGENT]))
+      await moveBugDown(user)
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
+      expect(saved.requests.map((request) => request.body)).toEqual([{ label_ids: ['label-2', 'label-1', 'label-3'] }])
+      expect(within(labelsDialog()).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it("puts it back and says so when the order can't be sent, even if the labels can't be loaded again", async () => {
+      boardHas()
+      fakeEndpoint('put', `${BOARD_LABELS}/order`, () => HttpResponse.error())
+      const { user, onChanged } = renderDialog()
+      await screen.findByText('Bug')
+      const reloaded = fakeEndpoint('get', BOARD_LABELS, () => HttpResponse.error())
+
+      await moveBugDown(user)
+
+      await waitFor(() => expect(reloaded.requests).toHaveLength(1))
+      // Gives the failed load time to arrive.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(within(labelsDialog()).getByRole('alert')).toHaveTextContent(MOVE_FAILED)
+      expect(shownOrder()).toEqual(['Bug', 'Feature'])
+      expect(onChanged).not.toHaveBeenCalled()
     })
   })
 

@@ -389,7 +389,11 @@ fetches them again, and says so in a ``FailureMessage`` at the foot of the
 page. With a connection, the fetch shows whatever the server has; without
 one, it fails too, and those lists say their cards couldn't be loaded (see
 `When a load fails`_). A list reorder,
-and a tile on the boards page, go back the same way. The other changes made
+and a tile on the boards page, go back the same way. So does a label moved in
+the Labels dialog, which says so in the dialog, then fetches the labels again:
+the backend refuses an order that doesn't name every label, so a refusal most
+likely means one was added or deleted elsewhere, and trying again with the
+labels as they are now can work. The other changes made
 on these pages without a dialog — archiving a card or a list from its menu,
 *Archive All Cards*, a star, restoring a board, list or card — leave the page
 as it was when they fail (a star goes back) and say so the same way; the
