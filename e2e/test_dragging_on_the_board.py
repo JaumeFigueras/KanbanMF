@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Dragging lists and cards on a board with the mouse, as jsdom can't: what
-is saved, what each sort mode keeps, a move cancelled, and a move that
-can't be saved."""
+"""Dragging lists and cards on a board with the mouse, and moving them with
+the keyboard, as jsdom can't: what is saved, what each sort mode keeps, a
+move cancelled, a move that can't be saved, and what a screen reader is
+told."""
 
-import time
-from contextlib import ExitStack
+import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect
 
-MOVE_FAILED = "The move couldn't be saved, and has been undone. Please try again."
+from dragging import (MOVE_FAILED, centre, changes, drag, eventually, heard, let_go, names, nothing_sent, pick_up,
+                      press)
+
 CARDS_FAILED = "This list's cards couldn't be loaded."
 
 # Every card's drag handle is named "Move <card>", every list's "Move the
@@ -31,22 +33,6 @@ def card(page, name):
     return page.locator(".MuiCard-root").filter(has=page.locator(f"button[aria-label='Move {name}']"))
 
 
-def eventually(read, expected, timeout=5):
-    deadline = time.monotonic() + timeout
-    while (got := read()) != expected and time.monotonic() < deadline:
-        time.sleep(0.1)
-    assert got == expected
-
-
-def names(handles, prefix: str, axis: str | None = None) -> list[str]:
-    """The names on the handles, in the page's order, or along the axis as
-    they're seen: during a drag, the two differ."""
-    # Read in one go, as the page may change them meanwhile.
-    found = handles.evaluate_all("(handles, axis) => handles.map(h => "
-                                 "[axis ? h.getBoundingClientRect()[axis] : 0, h.getAttribute('aria-label')])", axis)
-    return [label.removeprefix(prefix) for _, label in sorted(found, key=lambda f: f[0])]
-
-
 def expect_cards(page, list_name, cards):
     """The list's cards, once nothing is being dragged."""
     eventually(lambda: names(column(page, list_name).locator(CARD_HANDLES), "Move "), cards)
@@ -62,61 +48,8 @@ def expect_lists(page, lists):
     eventually(lambda: names(page.locator(LIST_HANDLES), "Move the list "), lists)
 
 
-def centre(locator):
-    box = locator.bounding_box()
-    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
-
-
-def drag(page, handle, dragged, onto):
-    """Picks the handle up and moves it until the middle of what's dragged
-    is over the middle of `onto` (or over the point `onto`), without
-    letting go. Where it would land follows from the dragged thing's
-    middle, not the pointer's."""
-    # Measured first: once it's picked up, a floating copy follows the
-    # pointer, and its place is kept by a hidden one.
-    dx, dy = centre(dragged)
-    tx, ty = onto if isinstance(onto, tuple) else centre(onto)
-    x, y = centre(handle)
-    page.mouse.move(x, y)
-    page.mouse.down()
-    # Past the few pixels that start a drag.
-    page.mouse.move(x + 6, y + 6, steps=3)
-    page.mouse.move(x + tx - dx, y + ty - dy, steps=20)
-    # The list makes room with an animation, which moves what's beneath.
-    page.wait_for_timeout(400)
-
-
 def drag_card(page, name, onto):
     drag(page, page.get_by_role("button", name=f"Move {name}", exact=True), card(page, name), onto)
-
-
-def changes(page) -> list[str]:
-    """Every change the page sends, as "METHOD /path", as it sends it."""
-    sent = []
-    page.on("request", lambda r: sent.append(f"{r.method} {urlparse(r.url).path}") if r.method != "GET" else None)
-    return sent
-
-
-def let_go(page, *saves):
-    """Lets go, and waits until each of the changes the drop should send
-    ("METHOD /path") has been saved, and the floating copy is gone."""
-    with ExitStack() as stack:
-        answers = [stack.enter_context(page.expect_response(
-            lambda r, save=save: f"{r.request.method} {urlparse(r.url).path}" == save)) for save in saves]
-        page.mouse.up()
-    for answer in answers:
-        assert answer.value.ok, f"{answer.value.request.method} {answer.value.url}: {answer.value.status}"
-    # Until then, what's dragged has two handles.
-    page.wait_for_function("""() => {
-        const labels = [...document.querySelectorAll("button[aria-label^='Move ']")].map(b => b.ariaLabel)
-        return new Set(labels).size === labels.length
-    }""")
-
-
-def nothing_sent(page, sent):
-    # Time for a change to go out, which would be counted.
-    page.wait_for_timeout(500)
-    assert sent == []
 
 
 def order_put(board, list_name):
@@ -468,3 +401,121 @@ def test_a_list_whose_cards_could_not_be_loaded_takes_no_card(page, make_user, s
     page.unroute(f"**/api/v1/boards/{board.id}/lists/{board.lists['Doing']}/cards")
     column(page, "Doing").get_by_role("button", name="Try again").click()
     expect_cards(page, "Doing", ["Logo"])
+
+
+# With the keyboard (7A): the board's own rule for the arrow keys, and what a
+# screen reader is told, in the user's language.
+
+def handle(page, name):
+    return page.get_by_role("button", name=f"Move {name}", exact=True)
+
+
+def stays(page, key, said):
+    """Presses a key that should move nothing: a screen reader is still told
+    `said`, once a move would have been told."""
+    page.keyboard.press(key)
+    page.wait_for_timeout(300)
+    heard(page, said)
+
+
+# Which card it's said to be over, in a list it has just moved into, is
+# still to be decided (7F): it names the card above its place.
+INTO_DOING = re.compile(r"Moving Contact form, over .+, in the list Doing\.")
+
+
+def test_a_card_moved_down_its_list_with_the_keyboard_stays_there(page, make_user, sign_in, make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form", "Footer links"]})
+    sign_in(user)
+    open_board(page, board)
+
+    pick_up(page, handle(page, "Homepage layout"), "Picked up Homepage layout.")
+    press(page, "ArrowDown", "Moving Homepage layout, over Contact form, in the list To do.")
+    press(page, "ArrowDown", "Moving Homepage layout, over Footer links, in the list To do.")
+    let_go(page, order_put(board, "To do"), key="Space")
+    heard(page, "Dropped Homepage layout over Footer links, in the list To do.")
+
+    expect_cards(page, "To do", ["Contact form", "Footer links", "Homepage layout"])
+    page.reload()
+    expect_cards(page, "To do", ["Contact form", "Footer links", "Homepage layout"])
+
+
+def test_the_arrows_take_a_card_to_a_card_of_the_next_list_then_into_an_empty_one(page, make_user, sign_in,
+                                                                                   make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form"],
+                              "Doing": ["Logo", "Colour palette", "Fonts"], "Done": []})
+    sign_in(user)
+    open_board(page, board)
+
+    pick_up(page, handle(page, "Contact form"), "Picked up Contact form.")
+    # The last of its list, it goes no further down: not to a lower card of
+    # the list next door.
+    stays(page, "ArrowDown", "Picked up Contact form.")
+    # Beside where it was, not into the list's drop area or down to the next
+    # card.
+    press(page, "ArrowRight", INTO_DOING)
+    expect_shown(page, "Doing", ["Logo", "Contact form", "Colour palette", "Fonts"])
+    press(page, "ArrowRight", "Moving Contact form, over the list Done.")
+    let_go(page, move_patch(board, "To do", "Contact form"), order_put(board, "Done"), order_put(board, "To do"),
+           key="Space")
+
+    page.reload()
+    expect_cards(page, "Done", ["Contact form"])
+    expect_cards(page, "Doing", ["Logo", "Colour palette", "Fonts"])
+    expect_cards(page, "To do", ["Homepage layout"])
+
+
+def test_a_list_moved_with_the_keyboard_stays_there(page, make_user, sign_in, make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout"], "Doing": ["Logo"], "Done": []})
+    sign_in(user)
+    open_board(page, board)
+
+    pick_up(page, handle(page, "the list To do"), "Picked up the list To do.")
+    # A list moves only among the lists. Down onto its own cards, it would
+    # still be over its own place, so nothing would be said, but Right would
+    # then find no list.
+    stays(page, "ArrowDown", "Picked up the list To do.")
+    press(page, "ArrowRight", "Moving the list To do, over the list Doing.")
+    let_go(page, f"PUT /api/v1/boards/{board.id}/lists/order", key="Space")
+    heard(page, "Dropped the list To do over the list Doing.")
+
+    expect_lists(page, ["Doing", "To do", "Done"])
+    page.reload()
+    expect_lists(page, ["Doing", "To do", "Done"])
+
+
+def test_escape_puts_a_card_moved_with_the_keyboard_back(page, make_user, sign_in, make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form"], "Doing": ["Logo", "Colour palette"]})
+    sign_in(user)
+    open_board(page, board)
+    sent = changes(page)
+
+    pick_up(page, handle(page, "Contact form"), "Picked up Contact form.")
+    press(page, "ArrowRight", INTO_DOING)
+    expect_shown(page, "Doing", ["Logo", "Contact form", "Colour palette"])
+    let_go(page, key="Escape")
+    heard(page, "Move cancelled: Contact form is back in its place.")
+
+    expect_cards(page, "To do", ["Homepage layout", "Contact form"])
+    expect_cards(page, "Doing", ["Logo", "Colour palette"])
+    nothing_sent(page, sent)
+
+
+def test_a_screen_reader_is_told_in_catalan_to_a_user_who_reads_catalan(page, make_user, sign_in, make_board, api):
+    user = make_user()
+    api(user).put("/users/me/preferences", json={"language_locale": "ca_ES"}).raise_for_status()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form"]})
+    sign_in(user)
+    page.goto(f"/boards/{board.id}")
+
+    pick_up(page, page.get_by_role("button", name="Mou Homepage layout", exact=True), "Has agafat Homepage layout.")
+    press(page, "ArrowDown", "Movent Homepage layout, sobre Contact form, a la llista To do.")
+    let_go(page, order_put(board, "To do"), key="Space")
+    heard(page, "Has deixat Homepage layout sobre Contact form, a la llista To do.")
+
+    pick_up(page, page.get_by_role("button", name="Mou la llista To do", exact=True), "Has agafat la llista To do.")
+    let_go(page, key="Escape")
+    heard(page, "Moviment cancel·lat: la llista To do torna a ser al seu lloc.")

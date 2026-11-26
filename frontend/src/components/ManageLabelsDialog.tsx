@@ -75,14 +75,20 @@ function SortableLabelRow({
   onRemove,
   editLabel,
   removeLabel,
+  editName,
+  removeName,
   dragLabel,
   roleDescription,
 }: {
   label: LabelRead
   onEdit: () => void
   onRemove: () => void
+  // The tooltips; the buttons' own names (outranking the tooltips') name
+  // the label, as every row has the same buttons.
   editLabel: string
   removeLabel: string
+  editName: string
+  removeName: string
   dragLabel: string
   roleDescription: string
 }) {
@@ -105,12 +111,12 @@ function SortableLabelRow({
       </IconButton>
       <LabelChip label={label} />
       <Tooltip title={editLabel}>
-        <IconButton size="small" onClick={onEdit}>
+        <IconButton size="small" aria-label={editName} onClick={onEdit}>
           <Edit fontSize="small" />
         </IconButton>
       </Tooltip>
       <Tooltip title={removeLabel}>
-        <IconButton size="small" color="error" onClick={onRemove}>
+        <IconButton size="small" color="error" aria-label={removeName} onClick={onRemove}>
           <Delete fontSize="small" />
         </IconButton>
       </Tooltip>
@@ -289,7 +295,9 @@ export default function ManageLabelsDialog({ open, onClose, boardId, onChanged }
                     onRemove={() => askToDelete(label)}
                     editLabel={t('board.editLabel')}
                     removeLabel={t('board.deleteLabel')}
-                    dragLabel={t('board.moveLabel')}
+                    editName={t('board.editLabelNamed', { name: label.name })}
+                    removeName={t('board.deleteLabelNamed', { name: label.name })}
+                    dragLabel={t('board.moveLabelNamed', { name: label.name })}
                     roleDescription={t('drag.roleDescription')}
                   />
                 ))}

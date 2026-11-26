@@ -51,9 +51,9 @@ async function formClosed(name: 'Create New Label' | 'Edit label') {
   await waitFor(() => expect(screen.queryByRole('dialog', { name })).not.toBeInTheDocument())
 }
 
-// A label row's Edit or Delete button; the rows are in the board's order.
-function rowButton(name: 'Edit label' | 'Delete label', row: number) {
-  return screen.getAllByRole('button', { name })[row]
+// A label row's Edit or Delete button, named after its label.
+function rowButton(action: 'Edit' | 'Delete', label: string) {
+  return screen.getByRole('button', { name: `${action} the label ${label}` })
 }
 
 function button(name: string) {
@@ -67,6 +67,27 @@ describe('ManageLabelsDialog', () => {
     await screen.findByText('Bug')
     expect(labelsDialog()).toHaveTextContent(/Bug.*Feature/)
     expect(loaded.requests.map((r) => r.url.pathname)).toEqual(['/api/v1/boards/board-7/labels'])
+  })
+
+  it("names each row's buttons after its label (7E)", async () => {
+    boardHas()
+    renderDialog()
+    await screen.findByText('Bug')
+    for (const label of ['Bug', 'Feature']) {
+      for (const action of ['Move', 'Edit', 'Delete']) {
+        expect(within(labelsDialog()).getByRole('button', { name: `${action} the label ${label}` })).toBeInTheDocument()
+      }
+    }
+    for (const button of within(labelsDialog()).getAllByRole('button')) expect(button).toHaveAccessibleName()
+  })
+
+  it('names them in Catalan for a user who reads Catalan', async () => {
+    await i18n.changeLanguage('ca')
+    boardHas()
+    renderDialog()
+    expect(await screen.findByRole('button', { name: "Mou l'etiqueta Bug" })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "Edita l'etiqueta Bug" })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "Elimina l'etiqueta Feature" })).toBeInTheDocument()
   })
 
   it('says so when the board has no labels', async () => {
@@ -130,7 +151,7 @@ describe('ManageLabelsDialog', () => {
     boardHas()
     const { user } = renderDialog()
     await screen.findByText('Bug')
-    await user.click(rowButton('Edit label', 0))
+    await user.click(rowButton('Edit', 'Bug'))
     await user.click(within(form('Edit label')).getByRole('button', { name: 'Cancel' }))
     await formClosed('Edit label')
 
@@ -170,7 +191,7 @@ describe('ManageLabelsDialog', () => {
     const { user } = renderDialog()
     await screen.findByText('Feature')
 
-    await user.click(rowButton('Edit label', 1))
+    await user.click(rowButton('Edit', 'Feature'))
     const name = within(form('Edit label')).getByRole('textbox', { name: 'Label name' })
     expect(name).toHaveValue('Feature')
     await user.type(name, ' request{Enter}')
@@ -188,7 +209,7 @@ describe('ManageLabelsDialog', () => {
     const { user } = renderDialog()
     await screen.findByText('Bug')
 
-    await user.click(rowButton('Edit label', 0))
+    await user.click(rowButton('Edit', 'Bug'))
     await user.type(within(form('Edit label')).getByRole('textbox', { name: 'Label name' }), '{Enter}')
 
     expect(await within(form('Edit label')).findByRole('alert')).toHaveTextContent(
@@ -202,7 +223,7 @@ describe('ManageLabelsDialog', () => {
     const { user } = renderDialog()
     await screen.findByText('Bug')
 
-    await user.click(rowButton('Delete label', 0))
+    await user.click(rowButton('Delete', 'Bug'))
     const confirm = screen.getByRole('dialog', { name: 'Delete label?' })
     expect(confirm).toHaveTextContent('Delete the label "Bug"?')
     expect(deleted.requests).toEqual([])
@@ -220,7 +241,7 @@ describe('ManageLabelsDialog', () => {
     const { user } = renderDialog()
     await screen.findByText('Bug')
 
-    await user.click(rowButton('Delete label', 0))
+    await user.click(rowButton('Delete', 'Bug'))
     await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Cancel' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label?' })).not.toBeInTheDocument())
@@ -235,7 +256,7 @@ describe('ManageLabelsDialog', () => {
       const { user, onChanged } = renderDialog()
       await screen.findByText('Feature')
 
-      await user.click(rowButton('Edit label', 1))
+      await user.click(rowButton('Edit', 'Feature'))
       await user.type(within(form('Edit label')).getByRole('textbox', { name: 'Label name' }), ' request{Enter}')
 
       await formClosed('Edit label')
@@ -248,7 +269,7 @@ describe('ManageLabelsDialog', () => {
       const { user, onChanged } = renderDialog()
       await screen.findByText('Bug')
 
-      await user.click(rowButton('Delete label', 0))
+      await user.click(rowButton('Delete', 'Bug'))
       await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Delete' }))
 
       await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
@@ -273,13 +294,13 @@ describe('ManageLabelsDialog', () => {
       const deleted = fakeEndpoint('delete', ONE_LABEL)
       const { user, onChanged } = renderDialog()
       await screen.findByText('Bug')
-      await user.click(rowButton('Edit label', 0))
+      await user.click(rowButton('Edit', 'Bug'))
       await user.type(within(form('Edit label')).getByRole('textbox', { name: 'Label name' }), '{Enter}')
       await within(form('Edit label')).findByRole('alert')
       await user.click(within(form('Edit label')).getByRole('button', { name: 'Cancel' }))
       await formClosed('Edit label')
 
-      await user.click(rowButton('Delete label', 0))
+      await user.click(rowButton('Delete', 'Bug'))
       await user.click(within(screen.getByRole('dialog', { name: 'Delete label?' })).getByRole('button', { name: 'Cancel' }))
 
       await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete label?' })).not.toBeInTheDocument())
@@ -327,7 +348,7 @@ describe('ManageLabelsDialog', () => {
 
   describe('moving a label with the keyboard (7A)', () => {
     function firstHandle() {
-      return within(labelsDialog()).getAllByRole('button', { name: 'Move label' })[0]
+      return within(labelsDialog()).getByRole('button', { name: 'Move the label Bug' })
     }
 
     it('tells a screen reader how, in the reader\'s language', async () => {
@@ -344,7 +365,7 @@ describe('ManageLabelsDialog', () => {
       await i18n.changeLanguage('ca')
       boardHas()
       renderDialog()
-      const handle = (await screen.findAllByRole('button', { name: "Mou l'etiqueta" }))[0]
+      const handle = await screen.findByRole('button', { name: "Mou l'etiqueta Bug" })
       expect(handle).toHaveAttribute('aria-roledescription', 'movible')
       expect(handle).toHaveAccessibleDescription(/^Prem la barra d'espai o la tecla de retorn per agafar-lo/)
     })
@@ -384,12 +405,12 @@ describe('ManageLabelsDialog', () => {
 
     // The labels, in the order the rows show them.
     function shownOrder() {
-      return within(labelsDialog()).getAllByRole('button', { name: 'Move label' }).map((handle) => handle.parentElement!.textContent)
+      return within(labelsDialog()).getAllByRole('button', { name: /^Move the label / }).map((handle) => handle.parentElement!.textContent)
     }
 
     async function moveBugDown(user: UserEvent) {
       layOutRows()
-      await pickUp(user, within(labelsDialog()).getAllByRole('button', { name: 'Move label' })[0], 'the label Bug')
+      await pickUp(user, within(labelsDialog()).getByRole('button', { name: 'Move the label Bug' }), 'the label Bug')
       await user.keyboard('{ArrowDown}')
       await heard('Moving the label Bug, over the label Feature.')
       await user.keyboard('[Space]')
