@@ -8,7 +8,31 @@ docs in step with it.
 Running the tests
 -----------------
 
-From the repository root (no virtualenv activation needed):
+There are three test suites. Each one runs from the repository root with
+``make`` (no virtualenv activation needed), and none of them needs the
+development servers or your database:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 26 58
+
+   * - Suite
+     - Command
+     - What it runs
+   * - Backend
+     - ``make test``
+     - pytest, calling the FastAPI app, on throw-away PostgreSQL databases
+   * - Frontend
+     - ``make test-frontend``
+     - Vitest: the components, pages and helpers in jsdom, with the backend
+       faked
+   * - End to end
+     - ``make test-e2e``
+     - pytest and Playwright: the production build in Chromium, against a
+       backend and a database that each run starts and throws away
+
+The backend
+~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -40,6 +64,84 @@ manager has to be left by the task that started it, and pytest-asyncio tears
 fixtures down in another task, so the ``mcp`` fixture runs it in a task of
 its own — copy that fixture rather than wrapping the manager in ``async
 with`` inside a fixture.
+
+The frontend
+~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   make test-frontend                                     # the whole suite
+   make test-frontend TEST_ARGS="src/utils -t sortCards"  # extra Vitest arguments: only these files, only tests whose names match
+   make test-frontend-cov                                 # the same, with a coverage report
+
+or, from ``frontend/``:
+
+.. code-block:: bash
+
+   npm test             # the whole suite, once
+   npm run test:watch   # keeps running, and reruns the tests a saved change affects
+   npm run test:cov     # with a coverage report
+
+The tests run in Node, with jsdom standing in for the browser and MSW
+answering the API's requests, so nothing else has to be running. Each test
+file sits next to the file it tests, as ``<name>.test.ts`` or
+``<name>.test.tsx``; the shared set-up and helpers are in ``src/test/``.
+Every test runs in the ``Europe/Madrid`` time zone, whatever the machine's,
+because due dates and the time tracker depend on it.
+
+``make test-frontend-cov`` prints the files that aren't fully covered and
+writes a browsable report to ``frontend/coverage-reports/index.html``; the
+directory is gitignored.
+
+End to end
+~~~~~~~~~~
+
+.. code-block:: bash
+
+   make test-e2e                          # the whole suite, in Chromium, out of sight
+   make test-e2e TEST_ARGS="-x -k sign"   # extra pytest arguments
+   make test-e2e HEADED=1                 # shows the browser, slowed down to follow
+   make test-e2e-cov                      # the same, then the lines of frontend/src the browser ran
+
+These tests use the real application, in Chromium. Each run starts
+everything it needs, from this working copy and on free ports, and throws it
+all away at the end:
+
+- a throw-away PostgreSQL, with the schema built by ``alembic upgrade head``;
+- the backend, with e-mail and Google sign-in off, whatever ``backend/.env``
+  says;
+- the frontend, built as for production and served by ``vite preview`` with
+  production's Content-Security-Policy.
+
+So nothing has to be running first, and the development servers and
+database are never touched. A whole run takes about three minutes. It
+needs, once per machine, the Chromium that Playwright drives (see
+:doc:`development`), besides what the other two suites already need: the
+PostgreSQL server binaries and the frontend's ``npm install``.
+
+The tests are in ``e2e/``, one file per area: signing in, dragging (on the
+board, on the boards page, labels, checklists), two people on a board at
+once, and Claude's connection. Every test makes its own users and boards.
+Besides what it checks, a test fails on any error in the browser's console
+(a CSP violation is one) and on any exception the page doesn't catch.
+
+When a test fails, ``e2e/test-results/`` (emptied at the start of each run,
+and gitignored) holds what you need to see why:
+
+- ``<test name>.zip``, a Playwright trace of the test: every step, with a
+  screenshot, the page's DOM, its console and its network requests. Open it
+  with ``.venv/bin/playwright show-trace e2e/test-results/<test name>.zip``.
+  A test with a second browser leaves that one's trace as
+  ``<test name>-2.zip``.
+- ``backend.log`` and ``frontend.log``, the two servers' output.
+
+``make test-e2e-cov`` builds the frontend with source maps and unminified,
+has Chromium record the code each page runs, and maps that back to
+``frontend/src``. It prints each file below 100 % with the lines no test
+reached, then the total; the merged data, in Istanbul's format, stays in
+``e2e/test-results/coverage/coverage-final.json``. It counts only what the
+end-to-end tests reach in the browser, not the frontend suite's coverage:
+it shows what they leave untried.
 
 Changing the data model
 -----------------------
@@ -94,8 +196,9 @@ From ``frontend/``:
 
    npm run build    # type-checks (tsc -b), then builds
    npm run lint     # ESLint
+   npm test         # the frontend's tests (see Running the tests, above)
 
-Both must pass before a change goes in; ``npm run build`` is also what
+All three must pass before a change goes in; ``npm run build`` is also what
 production runs, so a type error there would stop a deploy.
 
 New UI follows the existing layout: one component per file in

@@ -60,7 +60,7 @@ test-cov:
 
 # The frontend's tests (Vitest, in jsdom, with the backend faked by MSW; see
 # frontend/src/test/): no dev server or database needed. TEST_ARGS goes to
-# Vitest, e.g. make test-frontend TEST_ARGS="src/utils -t cardSort".
+# Vitest, e.g. make test-frontend TEST_ARGS="src/utils -t sortCards".
 test-frontend:
 	cd frontend && npm run test -- $(TEST_ARGS)
 

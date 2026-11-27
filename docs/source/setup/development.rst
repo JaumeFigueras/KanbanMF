@@ -245,8 +245,18 @@ virtualenv is often old enough to miss wheels that the current one would find,
 which turns a download into a from-source build.
 
 ``backend/requirements.txt`` is the single requirements file for the project. It
-covers the application, the test suite and the documentation toolchain, so there
-is nothing else to install for those.
+covers the application, the backend's and the end-to-end tests, and the
+documentation toolchain, so there is nothing else to install for those except
+the browser that Playwright drives, for the end-to-end tests and the manual's
+screenshots. Install it once per machine:
+
+.. code-block:: bash
+
+   .venv/bin/playwright install chromium
+
+It goes into ``~/.cache/ms-playwright/``, outside the virtualenv. A newer
+Playwright needs a newer browser, and says so when it can't find it: run the
+same command again after upgrading.
 
 Configure the backend
 ---------------------
