@@ -16,12 +16,16 @@ Everything is under ``frontend/src/``:
    built from.
 
 :doc:`state`
-   ``context/`` and ``api/`` — the session, the theme, and the REST and
-   WebSocket clients.
+   ``context/``, ``api/`` and ``types/`` — the session, the theme, the REST
+   and WebSocket clients, and the shapes of the API's data.
 
 :doc:`utils`
    ``utils/``, ``theme/`` and ``i18n/`` — small pure helpers, the themes and
    the translations.
+
+:doc:`tests`
+   ``test/`` — the Vitest tests' set-up and helpers — and, outside
+   ``frontend/``, the end-to-end tests in ``e2e/``.
 
 When a new area appears in the frontend, describe it on the page whose
 folder it lives in; a new top-level folder gets a page of its own here.
@@ -33,3 +37,4 @@ folder it lives in; a new top-level folder gets a page of its own here.
    components
    state
    utils
+   tests

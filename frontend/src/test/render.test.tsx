@@ -12,7 +12,7 @@ import { apiFetch } from '../api/client'
 import { useAuth } from '../context/useAuth'
 import { FakeWebSocket } from './fakeWebSocket'
 import { renderWithProviders, TEST_ACCESS_TOKEN } from './render'
-import { server } from './server'
+import { server, takeUnansweredRequests } from './server'
 
 // Shows a translated text, the :boardId route param and the theme mode.
 function WhereAmI() {
@@ -124,7 +124,9 @@ describe('the fake WebSocket', () => {
 })
 
 describe('the fake backend', () => {
-  it('fails a request that no test declared', async () => {
+  it('fails a request that no test declared, and keeps it for setup.ts to fail the test', async () => {
     await expect(fetch('/api/v1/nobody-declared-this')).rejects.toThrow()
+    // Taken here, so this test passes; left there, setup.ts would fail it.
+    expect(takeUnansweredRequests()).toEqual(['GET /api/v1/nobody-declared-this'])
   })
 })

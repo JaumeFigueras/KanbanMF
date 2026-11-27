@@ -52,6 +52,13 @@ Small pure helpers, with no React in them:
 ``labelColor.ts``
    Black or white text for a label's colour, whichever contrasts more.
 
+``labelList.ts``
+   A card's labels for the time tracker's card picker, where cards with the
+   same name are told apart by their labels: sorted by name, ignoring case
+   and accents (``sortLabels()``), the first few and how many are left over
+   (``capLabels()``), and the text form the closed picker shows,
+   ``(Bug, Client, Urgent +2)`` (``labelSummary()``).
+
 ``latest.ts``
    ``latestOnly()``: a tracker that passes each request's answer on only
    while no newer request with the same key has been sent, and drops it
@@ -66,6 +73,14 @@ Small pure helpers, with no React in them:
 ``overlap.ts``
    Which time entries overlap, compared to the minute — the resolution the
    table shows.
+
+``password.ts``
+   The password rule as the backend checks it, for the sign-up form and the
+   change-password dialog: at least 8 characters, counted as Python counts
+   them (an emoji is one, where JavaScript's ``length`` says two), and at
+   most 72 bytes in UTF-8, bcrypt's limit (an accented letter is two).
+   ``passwordProblem()`` gives the translation key of what's wrong, or
+   ``null``.
 
 ``returnTo.ts``
    The page to come back to after signing in, kept in ``sessionStorage``;

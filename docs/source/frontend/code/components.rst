@@ -62,6 +62,9 @@ Account
 
 Shared pieces
    ``ColorPicker`` (the fixed palette behind every colour dialog),
+   ``LabelChips`` (a wrapping row of labels as small coloured chips, for the
+   time tracker and its card picker; given a ``max``, sorted and cut short,
+   with a *+N* chip for the rest),
    ``FailureMessage`` (the message at the foot of the boards page, the board,
    its archive and the time tracker when a change made on the page itself — a
    star, a menu entry, a drag, ending the task being tracked — can't be

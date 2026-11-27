@@ -40,11 +40,37 @@ component state. What is shared lives in two contexts and two API modules.
 ``ws.ts``
    The notification WebSocket: ``setWebSocketToken()`` opens or closes it as
    the user signs in and out, it reconnects after three seconds when it
-   drops, ``subscribeToNotifications()`` registers a listener, and
-   ``isOwnNotification()`` tells a tab's own changes apart. The
+   drops, ``subscribeToNotifications()`` registers a listener,
+   ``subscribeToReconnects()`` one told when a socket opens again, so the
+   page can fetch what it missed, and ``isOwnNotification()`` tells a tab's
+   own changes apart. The
    ``BoardNotificationType`` union lists every event the backend sends.
 
 ``config.ts``
    ``fetchAppConfig()``: the public server configuration (whether e-mail
    sending is available), fetched once per page load; after a failure, the
    next caller asks again.
+
+``src/types/``
+--------------
+
+The shapes of what the API sends, as TypeScript types. They are written by
+hand to match the backend's Pydantic schemas (``backend/src/schemas/``):
+nothing generates them, so a change to a schema needs the same change here.
+
+``board.ts``
+   Boards, lists, cards, labels, checklists and people as the API returns
+   them (the ``…Read`` types), the boards page's three sections, the overdue
+   tasks and search results grouped by board, and the viewer's colours and
+   orders. Also ``ChecklistData``, the card dialog's own copy of a card's
+   checklists, with ids of its own for those the server hasn't seen yet.
+
+``invitation.ts``
+   A pending invitation, what the sign-up page shows for an invitation link,
+   and the share dialog's two refusals of an invitation: the address has an
+   account, or is invited already.
+
+``timeTracker.ts``
+   A time entry, whose board name, card name and labels are copies taken
+   when it was recorded, and the time tracker's board and list choices, with
+   how often each was used.

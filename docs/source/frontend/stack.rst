@@ -315,10 +315,18 @@ cards (an open card dialog gets its card from them), the boards page its
 boards (and the archived boards when shown), the overdue tasks, the search
 results, and an open share dialog its people and invitations. Not on a tab's
 first socket since signing in: the pages fetched what they show as they
-opened. The backend doesn't say when it has read the token, so the pages
-fetch as soon as the socket opens; a change made in the instant before the
-backend has read it reaches neither. The archive view has no live updates at
-all: it shows what it fetched when it opened.
+opened. The archive view has no live updates at all: it shows what it
+fetched when it opened.
+
+That leaves one gap, known and not yet closed. A tab is told of changes only
+once the backend has read its socket's token, and the backend doesn't say
+when that is, so a page can't wait for it before fetching. A change made
+between a page's fetch and that moment is never shown, until something else
+changes there or the page is reloaded. When a tab loads, the page's first
+fetch and the socket's token go out side by side; on a reconnect, the fetch
+starts as the token is sent. Closing it needs the backend to answer the
+token, so the pages can fetch after the answer. The end-to-end tests wait
+for that moment their own way (see `The end-to-end harness`_).
 
 Several changes in a row send several messages, and so several requests for
 the same thing, whose answers can come back in any order: an older one
@@ -428,6 +436,14 @@ hears comes from ``src/utils/dragAccessibility.ts``: the instructions every
 handle points to, a role description in place of "button", and announcements
 that name the item and what it is over, in the page's language.
 
+In the custom order, a card dragged into another list also goes into that
+list's order, at the place where it's shown. ``sortCards`` draws a card
+missing from its list's order at the top, while dnd-kit shows it lower, where
+the pointer or the arrow keys took it; dnd-kit then reported the card above
+that place as the one it was over, which is what a screen reader was told.
+With the card in the order, the two agree. The list's order comes again with
+its cards, and an undone move puts it back.
+
 Theming and colours
 -------------------
 
@@ -501,6 +517,154 @@ The theme also writes the calendar's weekdays in two letters, where MUI
 writes one: one letter repeats (T and S in English), and in Catalan every
 weekday is a D. Those names, like the months, come from the dayjs locale, so
 they follow the dates & times format, not the language.
+
+.. _frontend-testing:
+
+Testing
+-------
+
+Two suites test the frontend: Vitest runs the components, pages and helpers
+in Node, and the end-to-end suite runs the production build in Chromium,
+against a real backend. How to run them is in :doc:`../setup/workflow`, and
+:doc:`code/tests` describes each helper; this part is about why they work
+the way they do.
+
+Vitest, with the backend faked at the network
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The tests run in jsdom, a browser's DOM written in JavaScript, with React
+Testing Library: they find what's on screen by its role and name, as a
+screen reader would, and click and type with ``user-event``. Each test checks
+one behaviour, and its name says which. A test sits next to the file it
+tests.
+
+The backend is faked by MSW (Mock Service Worker), which answers the app's
+requests at the network rather than replacing the app's own functions. So
+``apiFetch``, the refresh and retry of an expired token, and every path for
+an error status, a refusal or no answer run as they do in a browser. A test
+says what the server answers, and can hold an answer back to see what the
+page shows meanwhile (``heldAnswer``). The fake server starts with no
+endpoints at all (``src/test/server.ts``): each test declares the ones it
+touches, usually with ``fakeEndpoint()`` (``src/test/endpoints.ts``), which
+also records what each received, as the backend would read it. A request no
+test declared never reaches the network: it fails, as one without a
+connection would, and so does the test, whatever the page made of the
+failure. Every endpoint a test touches is one it declared. A test must also
+wait until its page has finished loading: a request sent just before it ends
+can reach MSW only once its endpoints are gone, and fails the next test.
+
+``renderWithProviders()`` (``src/test/render.tsx``) draws a component the way
+the app does: the MUI theme, a router at the address the test gives, and, if
+asked, a signed-in session, whose start-up refresh and ``/users/me`` it
+answers. ``src/test/fixtures.ts`` builds complete API objects with plain
+defaults, so a test names only what it's about.
+
+The WebSocket is replaced by ``FakeWebSocket`` (``src/test/fakeWebSocket.ts``),
+installed after MSW starts, as MSW wraps the browser's WebSocket and the app
+must get the fake. It records what the app sends, and a test plays the
+server with it: it opens the socket, sends a notification, drops the
+connection. ``src/test/setup.ts``, which runs before every test file, also
+puts back after each test what outlives it: the access token and the socket,
+both kept in module state, the storage, and a clock the test fixed.
+
+Every test starts in English and runs in the ``Europe/Madrid`` time zone,
+whatever the machine's, as due dates, overdue cards and the time tracker
+depend on it. A test gets 15 seconds, and each ``waitFor`` or ``findBy…``
+10, where the defaults are 5 and 1: with every file running in parallel,
+and more so with coverage, the heaviest dialogs took several seconds on a
+development machine. A wait still ends as soon as what it waits for is
+there, so the longer limits only slow down a test that fails.
+
+Where jsdom stops
+~~~~~~~~~~~~~~~~~
+
+jsdom isn't a browser, and some of what the app does needs one:
+
+- **Layout.** jsdom places nothing: every element is at the top left, with
+  no size. dnd-kit works out what a dragged item is over from where things
+  are, so a mouse drag can't be tested there, nor where the arrow keys take
+  an item. Vitest still picks items up with the keyboard, and checks what a
+  screen reader is told and what is sent (``src/test/drag.ts``).
+- **Web Locks.** jsdom has no ``navigator.locks``. A Vitest test fakes one,
+  to check that the refresh asks for it, but not that two tabs really take
+  turns.
+- **The refresh cookie.** It is HTTP-only, and set and replaced by the
+  backend, which Vitest doesn't run: whether a reload or a second tab stays
+  signed in can't be seen there.
+- **The Content-Security-Policy.** Only production sends it, from the Apache
+  vhost, and jsdom wouldn't enforce it.
+
+These are what the end-to-end suite is for, beside the paths that cross the
+frontend and the backend, such as live updates and Claude's connection.
+
+The end-to-end harness
+~~~~~~~~~~~~~~~~~~~~~~
+
+The tests are in ``e2e/``, in Python, with pytest and Playwright, as the
+screenshot script is, so they use the backend's virtualenv and can make what
+they need with the backend's own models.
+
+Each run starts everything and throws it away afterwards
+(``e2e/conftest.py``), on free ports, so it needs nothing running first and
+never touches the development servers or database:
+
+- a PostgreSQL of its own (``pytest-postgresql``, as the backend's tests),
+  with the schema built by ``alembic upgrade head``, as in production — the
+  backend's tests build theirs from the SQL files instead;
+- the backend from the working copy, with e-mail and Google sign-in off
+  through environment variables, which outrank ``backend/.env``;
+- the frontend's production build, served by ``vite preview`` with the
+  Content-Security-Policy read from ``deploy/apache-kanbanmf.conf`` (the
+  WebSocket's host replaced by the run's address), so what production would
+  block fails the tests.
+
+Users are made straight in the database (``make_user``), as the API would
+send a verification e-mail, and a test signs in the same way (``sign_in``): a
+session in the database, and its refresh cookie in the browser, as the
+sign-in form would leave them. The form allows 30 sign-ins per 15 minutes
+from one address, and every test comes from the same one, so only the tests
+of signing in, and of Claude's connection when signed out, use it. Boards and
+cards are made through the API, as their owner would make them
+(``make_board``, ``api``).
+
+Each test gets a browser context of its own (cookies, storage) and makes its
+own users, with addresses no other test uses, and boards, so no test depends
+on another or on their order. Any error in the browser's console, a CSP
+violation among them, and any exception the page doesn't catch fails the
+test, whatever it checks; a test that causes one on purpose takes it out. The
+browser's own note of a request that got an error status isn't counted: the
+app deals with those, and the tests check what it shows. Tests wait for what
+the page shows, never for a fixed time: Playwright's ``expect`` waits until
+it holds, and the helpers in ``e2e/dragging.py`` read the page again until
+it does (``eventually``).
+
+Live updates need two people, so ``another_browser`` opens a second browser
+context, signed in as someone else; its errors fail the test too. A page is
+told of changes only once the backend has read its socket's token, which the
+backend doesn't say (see `Real-time updates`_). So ``listening()``
+(``e2e/live_updates.py``) makes a change that changes nothing — the board's
+list order, sent again as it is — until every page has been told of it, and
+only then does the test make its own. The tests also check that the page
+that made a change fetches nothing again for it. A dropped connection is
+made by the test, between the page and the backend
+(``page.route_web_socket``), as Chromium's offline mode leaves an open
+WebSocket alone.
+
+For Claude's connection, the test plays Claude
+(``e2e/test_claude_connection.py``): it finds the authorization server from
+the MCP server's 401, registers, and sends the browser to the consent page,
+all through the app's own address, as in production. The callback is a
+``.example`` address, never a real host; the browser's request for it is
+answered by the test (``page.route``), which reads the code from it, so
+nothing leaves the computer.
+
+``make test-e2e-cov`` takes its coverage from the browser: Chromium records
+the code each page runs (V8 coverage, taken before each ``goto`` or reload
+too, which would throw it away), and ``e2e/coverage.mjs`` maps it back to
+``frontend/src`` through the build's source maps, with the tools Vitest's
+coverage uses. It isn't added to Vitest's: it shows what the end-to-end
+tests leave untried, which is how three drag paths that no test ran were
+found.
 
 Conventions for new UI
 ----------------------

@@ -8,7 +8,7 @@ import { setAccessToken } from '../api/client'
 import { setWebSocketToken } from '../api/ws'
 import { restoreSiteData } from './blockSiteData'
 import { FakeWebSocket } from './fakeWebSocket'
-import { server } from './server'
+import { server, takeUnansweredRequests } from './server'
 
 // How long waitFor and findBy… wait before failing: Testing Library's default
 // of 1 s is tight for the heaviest dialogs (the time entry's date fields, the
@@ -42,8 +42,10 @@ vi.stubGlobal('FormData', FormDataFromForms)
 // up with the keyboard into view.
 Element.prototype.scrollIntoView = () => {}
 
-// A request no handler matches fails the test instead of going to the
-// network (or hanging): every endpoint a test touches is one it declared.
+// A request no handler matches never goes to the network (or hangs): it
+// fails, as one without a connection would, and MSW prints an error naming
+// it. The test that sent it fails too (see afterEach), whatever the page made
+// of the failure: every endpoint a test touches is one it declared.
 // The WebSocket stub comes after listen(): MSW wraps the global WebSocket
 // when it starts, and the app must get the fake, not MSW's wrapper.
 beforeAll(() => {
@@ -72,4 +74,13 @@ afterEach(() => {
   restoreSiteData()
   localStorage.clear()
   sessionStorage.clear()
+  // Last, so the rest is reset even when it fails the test. A request sent
+  // just before a test ends can reach MSW only once its endpoints are gone,
+  // and fail the next test: the one before should wait until its page has
+  // loaded.
+  const unanswered = takeUnansweredRequests()
+  if (unanswered.length > 0) {
+    throw new Error(`No fake endpoint answered ${unanswered.join(', ')}: declare it in the test (fakeEndpoint, ` +
+      "server.use), or, if this test doesn't send it, make the test before it wait until its page has loaded")
+  }
 })

@@ -1704,6 +1704,8 @@ describe('Board', () => {
   describe('without a board in the address', () => {
     it('asks the server for nothing about a board', async () => {
       const fetched = vi.spyOn(globalThis, 'fetch')
+      // The bar's own avatar: none.
+      fakeEndpoint('get', '/api/v1/users/me/avatar', () => new HttpResponse(null, { status: 404 }))
       renderWithProviders(<Board />, { route: '/boards', path: '/boards', auth: true })
       await screen.findByRole('button', { name: 'User profile' })
       await settle()

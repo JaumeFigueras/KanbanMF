@@ -389,6 +389,9 @@ describe('TimeTracker', () => {
       const dialog = await screen.findByRole('dialog', { name: 'Add Time Entry' })
       expect(within(dialog).queryByRole('textbox', { name: 'Card' })).not.toBeInTheDocument()
       expect(within(dialog).getByRole('textbox', { name: 'Comment' })).toHaveValue('')
+      // Its card picker offers the first card once loaded; the test ends only
+      // then, or the picker's last request would reach the next test.
+      await waitFor(() => expect(within(dialog).getByRole('combobox', { name: 'Card' })).toHaveTextContent('Homepage layout'))
     })
 
     it('deletes the entry of the row once asked', async () => {
