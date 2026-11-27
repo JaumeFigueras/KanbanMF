@@ -5,65 +5,23 @@ the keyboard, as jsdom can't: what is saved, what each sort mode keeps, a
 move cancelled, a move that can't be saved, and what a screen reader is
 told."""
 
-import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from playwright.sync_api import expect
 
+from board_page import (CARD_HANDLES, card, column, drag_card, expect_cards, expect_lists, move_patch, open_board,
+                        order_put)
 from dragging import (MOVE_FAILED, centre, changes, drag, eventually, heard, let_go, names, nothing_sent, pick_up,
                       press)
 
 CARDS_FAILED = "This list's cards couldn't be loaded."
-
-# Every card's drag handle is named "Move <card>", every list's "Move the
-# list <list>". Found by CSS, not by role: while a card is dragged, its place
-# in the list is kept by a hidden copy, which the accessibility tree leaves
-# out.
-CARD_HANDLES = "button[aria-label^='Move ']:not([aria-label^='Move the list '])"
-LIST_HANDLES = "button[aria-label^='Move the list ']"
-
-
-def column(page, list_name):
-    return page.locator(".MuiPaper-root").filter(
-        has=page.get_by_role("button", name=f"Move the list {list_name}", exact=True))
-
-
-def card(page, name):
-    return page.locator(".MuiCard-root").filter(has=page.locator(f"button[aria-label='Move {name}']"))
-
-
-def expect_cards(page, list_name, cards):
-    """The list's cards, once nothing is being dragged."""
-    eventually(lambda: names(column(page, list_name).locator(CARD_HANDLES), "Move "), cards)
 
 
 def expect_shown(page, list_name, cards):
     """The list's cards as they're seen during a drag, where the one dragged
     would land."""
     eventually(lambda: names(column(page, list_name).locator(CARD_HANDLES), "Move ", "y"), cards)
-
-
-def expect_lists(page, lists):
-    eventually(lambda: names(page.locator(LIST_HANDLES), "Move the list "), lists)
-
-
-def drag_card(page, name, onto):
-    drag(page, page.get_by_role("button", name=f"Move {name}", exact=True), card(page, name), onto)
-
-
-def order_put(board, list_name):
-    return f"PUT /api/v1/boards/{board.id}/lists/{board.lists[list_name]}/cards/order"
-
-
-def move_patch(board, list_name, card_name):
-    return f"PATCH /api/v1/boards/{board.id}/lists/{board.lists[list_name]}/cards/{board.cards[card_name]}"
-
-
-def open_board(page, board):
-    page.goto(f"/boards/{board.id}")
-    for list_name in board.lists:
-        expect(column(page, list_name)).to_be_visible()
 
 
 def sort_by(page, mode):
@@ -173,6 +131,19 @@ def test_a_card_moved_to_an_empty_list_stays_there(page, make_user, sign_in, mak
     expect_cards(page, "To do", ["Homepage layout"])
 
 
+def test_a_click_on_a_cards_move_button_opens_nothing(page, make_user, sign_in, make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout"]})
+    sign_in(user)
+    open_board(page, board)
+    sent = changes(page)
+
+    # A click anywhere else on the card opens it.
+    page.get_by_role("button", name="Move Homepage layout", exact=True).click()
+    nothing_sent(page, sent)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+
+
 # The other sort modes.
 
 def test_by_due_date_the_undated_cards_at_the_top_can_be_rearranged(page, make_user, sign_in, make_board):
@@ -214,6 +185,27 @@ def test_by_due_date_a_dated_card_goes_back_to_its_place(page, make_user, sign_i
 
     expect_cards(page, "To do", ["Write copy", "Publish", "Launch"])
     nothing_sent(page, sent)
+
+
+def test_by_due_date_a_card_moved_to_another_list_stays_there(page, make_user, sign_in, make_board, api):
+    user = make_user()
+    board = make_board(user, {"To do": ["Write copy", "Review copy", {"name": "Launch", "due_at": due_in(3)}],
+                              "Doing": ["Logo", {"name": "Publish", "due_at": due_in(1)}]})
+    sign_in(user)
+    open_board(page, board)
+    sort_by(page, "Due date")
+
+    drag_card(page, "Write copy", card(page, "Logo"))
+    # The order of the list it left goes without it, or the server would
+    # refuse it.
+    let_go(page, move_patch(board, "To do", "Write copy"), order_put(board, "Doing"), order_put(board, "To do"))
+
+    expect_cards(page, "Doing", ["Write copy", "Logo", "Publish"])
+    page.reload()
+    expect_cards(page, "Doing", ["Write copy", "Logo", "Publish"])
+    expect_cards(page, "To do", ["Review copy", "Launch"])
+    order = api(user).get(f"/boards/{board.id}/lists/{board.lists['To do']}/cards/order").json()["card_ids"]
+    assert order == [board.cards["Review copy"], board.cards["Launch"]]
 
 
 def test_alphabetically_a_card_goes_back_to_its_place_in_its_list(page, make_user, sign_in, make_board):
@@ -365,17 +357,52 @@ def test_a_list_move_refused_goes_back(page, make_user, sign_in, make_board):
     sign_in(user)
     open_board(page, board)
     # As the server answers when a list was added or deleted elsewhere and
-    # the page hasn't heard yet.
-    page.route(f"**/api/v1/boards/{board.id}/lists/order",
-               lambda route: route.fulfill(status=422, json={"detail": "List does not belong to this board"})
-               if route.request.method == "PUT" else route.fallback())
+    # the page hasn't heard yet. The order saved, which the page then
+    # fetches again, doesn't come until the test lets it.
+    held = []
+    order = f"**/api/v1/boards/{board.id}/lists/order"
+    page.route(order, lambda route: route.fulfill(status=422, json={"detail": "List does not belong to this board"})
+               if route.request.method == "PUT" else held.append(route))
 
     drag(page, page.get_by_role("button", name="Move the list To do"), column(page, "To do"),
          column(page, "Doing"))
     let_go(page)
 
     expect(page.get_by_text(MOVE_FAILED)).to_be_visible()
+    # Back at once, not only once what's saved has come.
     expect_lists(page, ["To do", "Doing", "Done"])
+    for route in held:
+        route.continue_()
+    page.unroute(order)
+    expect_lists(page, ["To do", "Doing", "Done"])
+
+
+def test_a_card_moved_into_a_list_still_loading_goes_back_if_refused(page, make_user, sign_in, make_board):
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form"], "Doing": ["Logo"]})
+    sign_in(user)
+    # Doing's cards don't come until the test lets them.
+    held = []
+    doing_cards = f"**/api/v1/boards/{board.id}/lists/{board.lists['Doing']}/cards"
+    page.route(doing_cards, lambda route: held.append(route))
+    # As the server answers when the card was archived elsewhere meanwhile.
+    page.route(f"**{move_patch(board, 'To do', 'Contact form').split(' ')[1]}",
+               lambda route: route.fulfill(status=404, json={"detail": "Card not found"}))
+    open_board(page, board)
+    expect_cards(page, "To do", ["Homepage layout", "Contact form"])
+
+    drag_card(page, "Contact form", column(page, "Doing"))
+    expect_shown(page, "Doing", ["Contact form"])
+    let_go(page)
+
+    expect(page.get_by_text(MOVE_FAILED)).to_be_visible()
+    expect_cards(page, "To do", ["Homepage layout", "Contact form"])
+    # Not what it showed before the drag, which it hadn't yet: loaded afresh.
+    expect_cards(page, "Doing", [])
+    for route in held:
+        route.continue_()
+    page.unroute(doing_cards)
+    expect_cards(page, "Doing", ["Logo"])
 
 
 # A list whose cards couldn't be loaded (6C).
@@ -418,11 +445,6 @@ def stays(page, key, said):
     heard(page, said)
 
 
-# Which card it's said to be over, in a list it has just moved into, is
-# still to be decided (7F): it names the card above its place.
-INTO_DOING = re.compile(r"Moving Contact form, over .+, in the list Doing\.")
-
-
 def test_a_card_moved_down_its_list_with_the_keyboard_stays_there(page, make_user, sign_in, make_board):
     user = make_user()
     board = make_board(user, {"To do": ["Homepage layout", "Contact form", "Footer links"]})
@@ -453,8 +475,8 @@ def test_the_arrows_take_a_card_to_a_card_of_the_next_list_then_into_an_empty_on
     # the list next door.
     stays(page, "ArrowDown", "Picked up Contact form.")
     # Beside where it was, not into the list's drop area or down to the next
-    # card.
-    press(page, "ArrowRight", INTO_DOING)
+    # card. That's its place there, as yet changed with no other card.
+    press(page, "ArrowRight", "Moving Contact form, over the list Doing.")
     expect_shown(page, "Doing", ["Logo", "Contact form", "Colour palette", "Fonts"])
     press(page, "ArrowRight", "Moving Contact form, over the list Done.")
     let_go(page, move_patch(board, "To do", "Contact form"), order_put(board, "Done"), order_put(board, "To do"),
@@ -464,6 +486,31 @@ def test_the_arrows_take_a_card_to_a_card_of_the_next_list_then_into_an_empty_on
     expect_cards(page, "Done", ["Contact form"])
     expect_cards(page, "Doing", ["Logo", "Colour palette", "Fonts"])
     expect_cards(page, "To do", ["Homepage layout"])
+
+
+def test_in_a_list_it_has_just_moved_into_a_card_is_over_the_card_it_changes_places_with(page, make_user, sign_in,
+                                                                                         make_board):
+    # As in its own list (7F): "over Logo" means it takes Logo's place.
+    user = make_user()
+    board = make_board(user, {"To do": ["Homepage layout", "Contact form"], "Doing": ["Logo", "Colour palette"]})
+    sign_in(user)
+    open_board(page, board)
+
+    pick_up(page, handle(page, "Contact form"), "Picked up Contact form.")
+    press(page, "ArrowRight", "Moving Contact form, over the list Doing.")
+    expect_shown(page, "Doing", ["Logo", "Contact form", "Colour palette"])
+    press(page, "ArrowDown", "Moving Contact form, over Colour palette, in the list Doing.")
+    expect_shown(page, "Doing", ["Logo", "Colour palette", "Contact form"])
+    press(page, "ArrowUp", "Moving Contact form, over the list Doing.")
+    press(page, "ArrowUp", "Moving Contact form, over Logo, in the list Doing.")
+    expect_shown(page, "Doing", ["Contact form", "Logo", "Colour palette"])
+    let_go(page, move_patch(board, "To do", "Contact form"), order_put(board, "Doing"), order_put(board, "To do"),
+           key="Space")
+    heard(page, "Dropped Contact form over Logo, in the list Doing.")
+
+    expect_cards(page, "Doing", ["Contact form", "Logo", "Colour palette"])
+    page.reload()
+    expect_cards(page, "Doing", ["Contact form", "Logo", "Colour palette"])
 
 
 def test_a_list_moved_with_the_keyboard_stays_there(page, make_user, sign_in, make_board):
@@ -494,7 +541,7 @@ def test_escape_puts_a_card_moved_with_the_keyboard_back(page, make_user, sign_i
     sent = changes(page)
 
     pick_up(page, handle(page, "Contact form"), "Picked up Contact form.")
-    press(page, "ArrowRight", INTO_DOING)
+    press(page, "ArrowRight", "Moving Contact form, over the list Doing.")
     expect_shown(page, "Doing", ["Logo", "Contact form", "Colour palette"])
     let_go(page, key="Escape")
     heard(page, "Move cancelled: Contact form is back in its place.")

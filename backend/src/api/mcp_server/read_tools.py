@@ -193,7 +193,9 @@ async def get_board(board_id: BoardId) -> dict:
         card_position = {
             card_id: i for row in card_orders_result.scalars() for i, card_id in enumerate(row.card_ids)
         }
-        cards.sort(key=lambda c: card_position.get(c.id, len(card_position)))
+        # As the board shows them: cards not yet in the saved order (new, or
+        # just moved in) first, oldest first, then the ordered ones.
+        cards.sort(key=lambda c: card_position.get(c.id, -1))
 
         labels_result = await db.execute(
             select(Label).where(Label.board_id == board.id).order_by(Label.position)

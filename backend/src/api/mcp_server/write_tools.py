@@ -62,8 +62,9 @@ Date = Annotated[
 ]
 Position = Annotated[
     int | None,
-    Field(description="0-based position in the list, 0 being the top. Left out: the card stays "
-                      "where the board puts it (new cards go below the ordered ones).", ge=0),
+    Field(description="0-based position in the list, 0 being the top. Left out: the card goes "
+                      "where the board puts it (a new card, or one moved in from another list, "
+                      "above the cards already arranged).", ge=0),
 ]
 LabelIds = Annotated[list[uuid.UUID], Field(description="Label ids of this board, from get_board.")]
 PersonIds = Annotated[list[uuid.UUID], Field(description="Ids of people on this board, from get_board.")]
@@ -151,7 +152,7 @@ async def _place(
     ids = list(result.scalars().all())
     order = await db.get(UIListCardOrder, list_id)
     rank = {cid: i for i, cid in enumerate(order.card_ids if order else [])}
-    ids.sort(key=lambda cid: rank.get(cid, len(rank)))
+    ids.sort(key=lambda cid: rank.get(cid, -1))
     ids.remove(card_id)
     ids.insert(min(position, len(ids)), card_id)
     await card_service.set_card_order(board.id, list_id, ids, grant.user, db, None)

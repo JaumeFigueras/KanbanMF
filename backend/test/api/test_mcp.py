@@ -792,3 +792,39 @@ async def test_mcp_16(mcp, db_session_async, world: dict) -> None:
     assert all(len(lst["name"]) < 256 for lst in board["lists"])
     _, card = await _call(mcp, token, "get_card", **base)
     assert "Trip" not in [c["name"] for c in card["checklists"]] and len(card["name"]) < 256
+
+
+@pytest.mark.asyncio
+async def test_mcp_17(mcp, db_session_async, world: dict) -> None:
+    """
+    Verify a card missing from its list's saved order — one created without
+    a position — is where the board shows it: first in get_board, and
+    counted from there by a later position.
+
+    Parameters
+    ----------
+    mcp : AsyncClient
+        Client on a fresh MCP server app.
+    db_session_async : AsyncSession
+        Session against the test database.
+    world : dict
+        The boards, lists and cards of the test.
+
+    Raises
+    ------
+    AssertionError
+        If the card is listed or counted anywhere but first.
+    """
+    work, todo = world["work"], world["todo"]
+    token, _ = await _token(db_session_async, world["user"], [work])
+    is_error, _ = await _call(mcp, token, "create_card", board_id=str(work.id), list_id=str(todo.id),
+                              name="Call the bank")
+    assert not is_error
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [c["name"] for c in board["lists"][1]["cards"]] == ["TBR: Call the bank", "Send invoice", "Renew passport"]
+
+    is_error, _ = await _call(mcp, token, "move_card", board_id=str(work.id), card_id=str(world["passport"].id),
+                              list_id=str(todo.id), position=1)
+    assert not is_error
+    _, board = await _call(mcp, token, "get_board", board_id=str(work.id))
+    assert [c["name"] for c in board["lists"][1]["cards"]] == ["TBR: Call the bank", "Renew passport", "Send invoice"]

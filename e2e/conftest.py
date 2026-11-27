@@ -22,6 +22,7 @@ page doesn't catch. A failed test leaves a Playwright trace in
 ``e2e/test-results/``: ``.venv/bin/playwright show-trace <file>``.
 """
 
+import json
 import os
 import re
 import shutil
@@ -48,6 +49,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
 RESULTS = Path(__file__).parent / "test-results"
+# With E2E_COVERAGE set (make test-e2e-cov), each page's V8 coverage goes
+# here, with the build it ran, for coverage.mjs to map back to the .tsx files.
+COVERAGE = RESULTS / "coverage" if os.environ.get("E2E_COVERAGE") else None
 
 # The backend's settings for the run. Environment variables outrank
 # backend/.env, so whatever that file says, no e-mail can leave (no SMTP host;
@@ -172,8 +176,11 @@ def frontend(frontend_url, backend_url, csp, tmp_path_factory) -> str:
     """The production build, served by vite preview with production's CSP
     and its proxy pointed at this run's backend."""
     vite = str(FRONTEND / "node_modules" / ".bin" / "vite")
-    build = tmp_path_factory.mktemp("frontend-build")
-    subprocess.run([vite, "build", "--outDir", str(build), "--emptyOutDir"], cwd=FRONTEND, check=True,
+    build = COVERAGE / "build" if COVERAGE else tmp_path_factory.mktemp("frontend-build")
+    # For coverage, source maps, and code left unminified so its lines map
+    # back closely.
+    extra = ["--sourcemap", "--minify", "false"] if COVERAGE else []
+    subprocess.run([vite, "build", "--outDir", str(build), "--emptyOutDir", *extra], cwd=FRONTEND, check=True,
                    capture_output=True)
     env = {**os.environ, "KANBANMF_BACKEND": backend_url, "KANBANMF_CSP": csp}
     port = frontend_url.rsplit(":", 1)[1]
@@ -212,30 +219,74 @@ def browser_errors() -> list[str]:
     return []
 
 
-@pytest.fixture
-def context(browser, frontend, browser_errors, request):
-    """A browser context of the test's own, on the app."""
+def _open_context(browser, frontend, browser_errors):
     context = browser.new_context(base_url=frontend, viewport={"width": 1600, "height": 900},
                                   locale="en-GB", timezone_id="Europe/Madrid")
     context.on("console", lambda message: browser_errors.append(message.text)
                if message.type == "error" and not message.text.startswith("Failed to load resource") else None)
     context.on("weberror", lambda error: browser_errors.append(str(error.error)))
     context.tracing.start(screenshots=True, snapshots=True)
-    yield context
+    return context
+
+
+_coverage_sessions: dict = {}  # each context's pages, CDP sessions and coverage so far, with coverage on
+
+
+def _new_page(context):
+    """A page of the context. With coverage on, its V8 coverage starts before
+    anything loads, and is also taken before each goto or reload, which would
+    throw away what the page left behind ran. (A page that leaves by itself,
+    for another site, loses it.)"""
+    page = context.new_page()
+    if COVERAGE:
+        cdp = context.new_cdp_session(page)
+        cdp.send("Profiler.enable")
+        cdp.send("Profiler.startPreciseCoverage", {"callCount": True, "detailed": True})
+        taken: list = []
+        _coverage_sessions.setdefault(context, []).append((page, cdp, taken))
+
+        def taking_coverage_first(navigate):
+            def navigate_after_taking_coverage(*args, **kwargs):
+                taken.extend(_take_coverage(cdp))
+                return navigate(*args, **kwargs)
+            return navigate_after_taking_coverage
+        page.goto, page.reload = taking_coverage_first(page.goto), taking_coverage_first(page.reload)
+    return page
+
+
+def _take_coverage(cdp) -> list:
+    """The coverage of the app's own scripts since it was last taken (taking
+    it starts the counts again)."""
+    return [s for s in cdp.send("Profiler.takePreciseCoverage")["result"] if "/assets/" in s["url"]]
+
+
+def _close_context(context, request, browser_errors, trace):
+    for number, (page, cdp, taken) in enumerate(_coverage_sessions.pop(context, [])):
+        if not page.is_closed():
+            taken.extend(_take_coverage(cdp))
+        (COVERAGE / f"{trace}-{number}.json").write_text(json.dumps(taken))
     call = getattr(request.node, "report_call", None)
     if (call is not None and call.failed) or browser_errors:
         RESULTS.mkdir(exist_ok=True)
-        context.tracing.stop(path=RESULTS / f"{request.node.name}.zip")
+        context.tracing.stop(path=RESULTS / f"{trace}.zip")
     else:
         context.tracing.stop()
     context.close()
+
+
+@pytest.fixture
+def context(browser, frontend, browser_errors, request):
+    """A browser context of the test's own, on the app."""
+    context = _open_context(browser, frontend, browser_errors)
+    yield context
+    _close_context(context, request, browser_errors, request.node.name)
     if browser_errors:
         pytest.fail("The page logged or threw errors:\n" + "\n".join(browser_errors))
 
 
 @pytest.fixture
 def page(context):
-    return context.new_page()
+    return _new_page(context)
 
 
 @pytest.fixture(scope="session")
@@ -279,12 +330,34 @@ def sign_in(context, database, frontend):
     allows 30 sign-ins per 15 minutes from one address, and every test comes
     from this one."""
     def sign_in(user: Person) -> None:
-        with Session(database) as db:
-            token = open_session(uuid.UUID(user.id), db)
-            db.commit()
-        context.add_cookies([{"name": "refresh_token", "value": token, "url": frontend,
-                              "httpOnly": True, "secure": True, "sameSite": "Lax"}])
+        _sign_in(context, database, frontend, user)
     return sign_in
+
+
+def _sign_in(context, database, frontend, user: Person) -> None:
+    with Session(database) as db:
+        token = open_session(uuid.UUID(user.id), db)
+        db.commit()
+    context.add_cookies([{"name": "refresh_token", "value": token, "url": frontend,
+                          "httpOnly": True, "secure": True, "sameSite": "Lax"}])
+
+
+@pytest.fixture
+def another_browser(context, browser, frontend, browser_errors, database, request):
+    """Someone else's browser, beside the test's own: a page in a context of
+    its own (cookies, storage), signed in as `user`, not yet on any address.
+    Its errors fail the test too, and a failed test leaves its trace as well,
+    as <test>-2.zip."""
+    contexts = []
+
+    def another_browser(user: Person):
+        other = _open_context(browser, frontend, browser_errors)
+        contexts.append(other)
+        _sign_in(other, database, frontend, user)
+        return _new_page(other)
+    yield another_browser
+    for number, other in enumerate(contexts, start=2):
+        _close_context(other, request, browser_errors, f"{request.node.name}-{number}")
 
 
 @pytest.fixture

@@ -753,6 +753,19 @@ export default function Board() {
 
       return { ...prev, [currentListId]: newSourceCards, [destListId]: newDestCards }
     })
+    // In custom order, a card missing from its list's order is drawn at the
+    // top (see sortCards), and dnd-kit only shows it lower: it then reports
+    // the card above where it's shown as the one it's over, which is what a
+    // screen reader is told. In the order where it's shown, the two agree.
+    // A list's order comes again with its cards, and an undone drag puts it
+    // back.
+    if (sortMode === 'custom') {
+      setOrderByList(prev => {
+        const shown = sortCards(cardsByList[destListId] ?? [], 'custom', prev[destListId] ?? []).map(c => c.id)
+        const at = over.data.current?.type === 'card' ? shown.indexOf(over.id as string) : -1
+        return { ...prev, [destListId]: at === -1 ? [...shown, cardId] : [...shown.slice(0, at), cardId, ...shown.slice(at)] }
+      })
+    }
   }
 
   function handleCardDragEnd(
