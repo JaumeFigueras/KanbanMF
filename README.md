@@ -118,12 +118,28 @@ The app is now served at `http://localhost:5173`.
 
 ## Running tests
 
+There are three suites, each run from the repo root with `make` (no virtualenv activation needed). None of them
+needs the dev servers or your database: they start throwaway PostgreSQL servers of their own, or fake the backend.
+
 ```bash
-# From the repo root
+# Backend: pytest, on throwaway PostgreSQL databases
 make test                          # the whole suite
 make test TEST_ARGS="-x -k oauth"  # extra pytest arguments
 make test-cov                      # with coverage: HTML report in backend/test/coverage-reports/ (gitignored)
+
+# Frontend: Vitest, in jsdom, with the backend faked (MSW)
+make test-frontend                 # or, from frontend/, npm test
+make test-frontend-cov             # with coverage: HTML report in frontend/coverage-reports/ (gitignored)
+
+# End to end: pytest and Playwright, the production build in Chromium, against a backend each run starts
+make test-e2e                      # about three minutes; HEADED=1 shows the browser
+make test-e2e-cov                  # then the lines of frontend/src the browser ran
 ```
+
+The backend and end-to-end suites need the PostgreSQL server binaries (`pg_ctl`) on this machine, and the
+end-to-end suite the frontend's `npm install` and, once per machine, the Chromium that Playwright drives:
+`.venv/bin/playwright install chromium`. What each suite covers, how to narrow a run, and what a failed end-to-end
+test leaves behind are in [docs/source/setup/workflow.rst](docs/source/setup/workflow.rst).
 
 ## Database migrations
 

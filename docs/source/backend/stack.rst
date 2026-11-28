@@ -114,8 +114,8 @@ Every route takes its context through FastAPI dependencies:
    or answers ``401``.
 
 ``get_client_id``
-   The ``X-Client-Id`` header, a random id each browser tab keeps for
-   itself, used to tag WebSocket notifications (see below).
+   The ``X-Client-Id`` header, a random id each page makes for itself as it
+   loads, used to tag WebSocket notifications (see below).
 
 Errors are plain ``HTTPException``\s: ``401`` for a missing or expired token,
 ``403`` when the user can see the board but may not do this (for example a

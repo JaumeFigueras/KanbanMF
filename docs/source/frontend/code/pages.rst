@@ -9,16 +9,18 @@ in ``src/App.tsx`` (see :doc:`../stack`). All API paths below are under
    The boards overview: the Starred, My Boards, Shared with me and Templates
    sections (folding state kept in ``localStorage``), the archived boards,
    and the dialogs to create, rename, recolour, share, duplicate, archive and
-   delete. Fetches ``/boards``, ``/boards/order`` and ``/boards/archived``;
-   saves order, stars and colours as the user changes them.
+   delete. Fetches ``/boards``, ``/boards/order``, ``/boards/archived``,
+   each board's colour, and ``/users/me``, which tells which templates are
+   the user's own; saves order, stars and colours as the user changes them.
 
 ``Board`` — ``/boards/:boardId``
    One board. Owns the lists and every list's cards (so a card can be dragged
    between lists), the drag-and-drop logic, the sort mode (per board, in
    ``localStorage``), the archive view and the card dialog. Fetches the
-   board, the user's colours on it, the lists and their order, and each
-   list's cards and card order; refetches on WebSocket events for this
-   board. A ``?card=<id>`` query opens that card's dialog once loaded — the
+   board, ``/users/me`` (whether the user owns it), the user's colours on
+   it, the lists and their order, and each list's cards and card order;
+   refetches on WebSocket events for this board, and all of it after a
+   reconnect. A ``?card=<id>`` query opens that card's dialog once loaded — the
    overdue and search pages link here that way. ``?archive=1`` opens the
    archive view, and ``&highlight=<id>`` outlines a card in it: where a
    search of the archive leads back to.

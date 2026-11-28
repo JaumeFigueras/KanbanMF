@@ -300,8 +300,9 @@ signs out, or a token got by a page's request has reconnected the socket. Messag
 list — and are handed to every subscriber.
 
 Pages subscribe with ``subscribeToNotifications()`` and react by refetching:
-the board page reloads its lists on a ``list_*`` event for its board, and one
-list's cards on a ``card_*`` event naming that list. It never tries to apply
+the board page reloads its lists on a ``list_*`` event for its board, one
+list's cards on a ``card_*`` event naming that list, and every list's cards on
+``labels_changed``, as every card shows its labels. It never tries to apply
 the change to its state by itself, so what it shows is always exactly what the
 server returns, per-user colours and order included. A message tagged with
 the tab's own client id (``isOwnNotification()``) is ignored: that tab made
@@ -429,7 +430,10 @@ area. ``boardKeyboardCoordinates`` (in ``Board.tsx``) moves a list only among
 the lists, and a card up and down within its list, or sideways to a card of
 another list or into an empty one. Escape cancels a move, with the keyboard or
 the mouse; on a board, ``onDragCancel`` undoes a card's move into another list
-as a drop outside every list does. In a dialog, MUI keeps Escape for closing
+as a drop on a list whose cards couldn't be loaded does. A card let go away
+from every list doesn't go back: ``closestCenter`` always finds a nearest drop
+target, so the card is already shown in the list nearest to it, and lands
+there. In a dialog, MUI keeps Escape for closing
 it and stops it before it reaches the document, where dnd-kit listens, so the
 dialogs pass it on themselves (``cancelDragOnEscape``). What a screen reader
 hears comes from ``src/utils/dragAccessibility.ts``: the instructions every
@@ -636,7 +640,9 @@ browser's own note of a request that got an error status isn't counted: the
 app deals with those, and the tests check what it shows. Tests wait for what
 the page shows, never for a fixed time: Playwright's ``expect`` waits until
 it holds, and the helpers in ``e2e/dragging.py`` read the page again until
-it does (``eventually``).
+it does (``eventually``). A fixed wait only gives something that mustn't
+happen the time to show, such as a request a drop shouldn't send
+(``nothing_sent``).
 
 Live updates need two people, so ``another_browser`` opens a second browser
 context, signed in as someone else; its errors fail the test too. A page is
@@ -671,7 +677,14 @@ Conventions for new UI
 
 - One component per file in ``src/components/``; one file per route in
   ``src/pages/``.
-- API calls through ``apiFetch`` with relative URLs.
+- API calls through ``apiFetch`` with relative URLs, and loads through
+  ``loadJson()`` with a ``LoadState``, so a failure shows a ``LoadFailure``
+  rather than no data (see `When a load fails`_); a change made on the page
+  itself, not in a dialog, that fails says so in a ``FailureMessage``.
 - Every visible text through ``t('…')``, with its key in both locale files.
 - Subscribe to WebSocket events and refetch, rather than patching state
-  from a notification.
+  from a notification; subscribe to reconnects too, and send the refetches
+  through ``latestOnly()`` (see `Real-time updates`_).
+- Whatever can be clicked is a button, or a link when it leads to another
+  page, with a name in the page's language (see `The application shell`_).
+- ``localStorage`` and ``sessionStorage`` only through ``src/utils/storage.ts``.
